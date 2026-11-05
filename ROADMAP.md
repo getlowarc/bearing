@@ -843,6 +843,7 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.1.0 | — | Released 2026-11-03: impact events, groups, `ignore` lists, `body.moveTo`. |
 | 1.3.0 | — | Released 2026-11-04: the 2D module, elliptical joint cones, characters that push, `lockPosition`, the first-impact note. 1.2.0 was prepared and never released. |
 | 1.3.1 | — | Released 2026-11-05: a 2D broadphase crash found in Fragile, and the rocking capsule. |
+| 1.3.2 | — | Released 2026-11-05: bodies pressed into a mesh or heightfield stay on their side. |
 
 ### How a release is made
 
@@ -1113,3 +1114,4 @@ Winding's way, copied before the first one:
   nothing is pressed through; timing even. Left: a hull in a fold over 8 degrees, 1 in 80,000 on a
   mesh rougher than ground; and a light body under one hundreds of times heavier still sinks a
   little, on any floor (-0.04 m at 277:1), held but not out.
+- **2026-11-05.** 1.3.2 released with it, at Nolan's word ("Go for it, release 1.3.2").

@@ -7,6 +7,12 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-05
+
+A body pressed into a mesh or heightfield now stays on the side it was on, so a heap, a platform or
+a heavy block can't push it out through the floor. Results change only where a body is pressed
+past its centre, so most replays still match; a save loads only into the version that made it.
+
 ### Fixed
 
 - A body pressed past its centre into a mesh stays on the side it was touching. A mesh has no
@@ -547,7 +553,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/getlowarc/bearing/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/getlowarc/bearing/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/getlowarc/bearing/compare/v1.1.0...v1.3.0
 [1.1.0]: https://github.com/getlowarc/bearing/compare/v1.0.0...v1.1.0
