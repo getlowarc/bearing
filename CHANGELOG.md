@@ -7,6 +7,19 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Small worlds pay far less for workers. A contact colour goes to the workers from 16 rows, not 4:
+  with `workers: 'auto'` a 10-box stack steps in half the time (0.16 to 0.08 ms with 5 workers,
+  0.21 to 0.11 ms with 1), now under its one-thread time. A world of 40 boxes still steps about a
+  quarter slower with workers than without; the 210-box pyramid and 1,000-box pile are unchanged.
+  Results are the same bits either way.
+- The 210-box pyramid steps 2 to 3% faster on one thread: a four-point contact's right-hand side in
+  the block normal solve is written out. The 1,000-box pile is unchanged. Same bits.
+- `docs/API.md`: `world.substeps` says what fewer substeps gains and loses, measured: at 4, the
+  pyramid steps 1.6 times as fast and sinks 29 mm in 10 s, against 7.3 mm at 8. Its note on why the
+  default is 8 had figures from before milestone 16, and has today's.
+
 ## [1.3.2] - 2026-11-05
 
 A body pressed into a mesh or heightfield now stays on the side it was on, so a heap, a platform or
@@ -25,15 +38,6 @@ past its centre, so most replays still match; a save loads only into the version
 - A box or hull squeezed past its centre into a heightfield isn't pushed down through it. The
   ground is one-sided, but the body's own face or edge could still win, since the shallowest way
   out of a triangle can be the way down.
-### Changed
-
-- `docs/API.md`: `world.substeps` says what fewer substeps gains and loses, measured: at 4, the
-  210-box pyramid steps 2.4 times as fast and sinks 32 mm in 10 s, against 7.9 mm at 8.
-- Small worlds no longer run slower with workers on. A contact colour goes to the workers from 16
-  rows, not 4: a 10-box stack steps in 0.112 ms, down from 0.212 ms and now under its one-thread
-  time, and the 210-box pyramid and 1,000-box pile are unchanged. Results are the same bits either way.
-- The 210-box pyramid steps about 3% faster on one thread: a four-point contact's right-hand side
-  in the block normal solve is written out. The 1,000-box pile is unchanged. Same bits.
 
 ## [1.3.1] - 2026-11-05
 

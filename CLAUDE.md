@@ -367,7 +367,9 @@ These were made with Nolan and override the rules below where they differ.
   Joint passes lulled (2026-10-27): `world.js` calls `jobs.lull(k)` before each, and workers
   sleep through one that last took over `LULL_MS` (50 us, about a wake's cost); a dispatch
   notifies only when `SLEEPING` > 0. Ragdolls 14.0 -> 10.5 ms with 'auto', one thread 9.0:
-  the rest is likely contact-pass wakes and cache traffic. Small worlds still ~1.3x slower.
+  the rest is likely contact-pass wakes and cache traffic. Small worlds still ~1.3x slower
+  (2026-11-05, from Nolan's brother's fork: a colour's solve goes to the workers from 16 rows, not 4,
+  `LEAST`: 10-box stack halved, now under one thread; 40 boxes still 1.25x).
 - **Four points, nearest first** (2026-10-23, the rocking bugs): `reducePoints` in `collide.js`
   and `reduce()` in `triangle.js` make each pick (farthest, then the largest triangle on each
   side) among pressed points (separation <= 0) first, then touching (within the tolerance), then

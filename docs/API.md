@@ -210,17 +210,16 @@ Throws: `world.substeps: this world was destroyed`; `world.substeps must be a wh
 world.substeps = 16;   // a very tall tower, held stiffer
 ```
 
-Notes: the default, 8, is measured rather than chosen: the fewest that kept a pyramid of 210
-one-metre boxes within 2.5 mm of where it was built after 10 s at 60 Hz (at 7 it strayed 3 mm, at
-4, 9 mm). It is not there to be tuned for a correct result; raise it for unusual scenes, such as a
+Notes: the default, 8, is measured rather than chosen (`bench/solver.js`): after 10 s at 60 Hz a
+stack of 10 one-metre boxes has sunk 6.6 mm at 8, 8.6 mm at 7 and 26 mm at 4, and a pyramid of 210
+has sunk 7.3, 9.6 and 29 mm, straying under 1 mm sideways at all three. It is not there to be tuned for a correct result; raise it for unusual scenes, such as a
 heavy body resting on a much lighter one, a very tall stack, or a step much longer than 1/60 s.
 
-Fewer substeps is the one setting that trades accuracy for speed. Contacts take most of a busy
-step, and they cost about as much as the substeps, so at 4 the same 210-box pyramid stepped 2.4
-times as fast (2.03 ms against 4.92 ms on one thread), with its boxes 5.2 mm from where they were
-built and 32 mm sunk after 10 s, against 1.1 mm and 7.9 mm at 8. A 10-box stack still stood. That
-suits a game with many loose objects and no tall stacks; keep the default where stacks must stand
-exactly.
+Fewer substeps is the one setting that trades accuracy for speed. Finding contacts costs the same
+at any number of substeps, so halving them doesn't halve the step: kept awake, the same pyramid
+stepped 1.6 times as fast at 4 (2.7 ms against 4.4 ms, on one thread of an i7-1260P). A 10-box stack
+still stood. That suits a game with many loose objects and no tall stacks; keep the default where
+stacks must stand exactly.
 
 <a id="world-sleeping"></a>
 ### `world.sleeping` → `boolean`

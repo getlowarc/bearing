@@ -2160,7 +2160,9 @@ export const JOBS = [warmJob, solveJob, prepareJob, lookRows];
  * between cores. Measured on whole steps with 'auto', medians of five
  * alternating runs: a 10-box stack 0.212 -> 0.112 ms a step (it was twice its
  * one-thread time), the 210-box pyramid 3.14 -> 3.15 and the 1,000-box pile
- * 14.4 -> 14.4 ms, both within noise. 32 measured no better than 16.
+ * 14.4 -> 14.4 ms, both within noise. 32 measured no better than 16. Those on
+ * 4 cores, 1 worker; with 5 workers (i7-1260P) the stack 0.16 -> 0.08 ms, the
+ * others even or 1-3% better. 40 loose boxes still step 1.25x their one-thread time.
  */
 export const LEAST = [16, 16, 2, 32];
 

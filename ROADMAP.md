@@ -1115,3 +1115,8 @@ Winding's way, copied before the first one:
   mesh rougher than ground; and a light body under one hundreds of times heavier still sinks a
   little, on any floor (-0.04 m at 277:1), held but not out.
 - **2026-11-05.** 1.3.2 released with it, at Nolan's word ("Go for it, release 1.3.2").
+- **2026-11-05.** Three changes taken from Nolan's brother's fork (SwankyMan88/bearing-fork), at
+  Nolan's word: workers from 16 rows a colour, a four-point right-hand side written out, and a docs
+  note on fewer substeps. Checked here with 5 workers against his 1: same bits, stack halved, pyramid
+  2 to 3%. The note's 2.4 times measured 1.6, and the older note above it was stale; both corrected
+  from `bench/solver.js`.
