@@ -137,6 +137,15 @@ These were made with Nolan and override the rules below where they differ.
   the body (a heightfield turned over is a ceiling), and `over()` never turns them; queries still
   see both sides. Jolt ignores back faces by default; Box2D's chains are one-sided. Heaps: 1 body
   through the ground in 288 heaps, now 0; terrain bits change (the wedge rule), timing even.
+  A held side (2026-11-05, Nolan: "Go ahead with the mesh floor fix"): a mesh pair's Memory says which
+  way it was pushed last step, and a triangle within `HELD` (0.99, about 8 degrees) of that, only
+  one way, is touched from that side as if one-sided (`sideOf()`, passed as `touch()`'s `side`), so
+  neither the centre nor `over()` turns it; let go past an edge that is a corner from that side
+  (`ended()`), where a body tipping over a ridge truly changes sides. `away()`: on any one-sided
+  face a box's or hull's own face or edge can't win if it pushes the shape in past the face (a
+  plate went on through a heightfield). Judge changes here on ridges against a solid hull (test
+  in `mesh.test.js`), not only on heaps: 0.7 passed every heap and sent rocks down the wrong
+  flank. Heaps 6 through in 240,000 -> 1. No stored field, same bits unless pressed through.
 - **Contact events and sensors** (2026-10-14, milestone 10, approved): `world.contacts(body)` (the
   last step's `begin`/`end`, read after the step, rule 65; with a body, its own, turned so it is
   `a`; removed bodies accepted), `world.touching(body)` in place of stay events (through the

@@ -1583,7 +1583,11 @@ const hills = world.addBody({ shape: 'heightfield', heights: [0, 1, 0, 1, 3, 1, 
   moving platform of any shape; `'dynamic'` throws. Its `mass` is 0. A falling object of any
   shape is a hull, or a compound of hulls: see [Hulls and compounds](#hulls).
 - **A mesh's triangles have two sides.** A body is pushed out on whichever side it is, so a wall
-  needs no thickness, and the order of a triangle's corners doesn't matter.
+  needs no thickness, and the order of a triangle's corners doesn't matter. A body that is touching
+  a surface stays on its side however far it is pressed in, by a heap or a platform, until it has
+  passed right through or gone over an edge. A mesh has no inside, so this is what stops a floor
+  turning over and pushing it down. It goes by what the body touched in the last step: moved by
+  hand to overlap the other side of a surface it was touching, a body is put back.
 - **A heightfield has one side: it is ground.** Everything under its surface is in the ground, and
   is pushed up out of it, along the face of the triangle it is under, however deep it has gone.
   Up is the body's own +y, so a heightfield turned over (`rotation: [1, 0, 0, 0]`) is a ceiling,

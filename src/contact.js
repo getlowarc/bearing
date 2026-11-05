@@ -859,7 +859,7 @@ function level(world, pairs, p, a, b, next) {
     if (parts === null) load(world, o, shapeA);
     else placePart(parts[i], pos, 3 * o, rot, 4 * o, shapeA);
     const n = touchLevel(world._geometry[g], pos, A, g, shapeA, lx - ex, ly - ey, lz - ez, lx + ex, ly + ey, lz + ez,
-      margin, tolerance, touches);
+      margin, tolerance, touches, kept, i, turned ? 1 : -1);
     if (n > 0 && awake[a] !== awake[b]) world._wake(awake[a] ? b : a);
     const part = parts === null ? -1 : i;
     for (let k = 0; k < n; k++) {

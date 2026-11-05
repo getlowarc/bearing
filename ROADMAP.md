@@ -1100,3 +1100,16 @@ Winding's way, copied before the first one:
 - **2026-11-05.** 1.3.1 released, at Nolan's word ("Go for it"), with the 2D broadphase crash Fragile
   found: `Broad2D.remove` cleared a slot's mark while it stayed on the moved list, and `resize` cut
   that list by count. 3D had neither.
+- **2026-11-05.** The mesh floor, at Nolan's word ("Go ahead with the mesh floor fix"). The hull that
+  fell had been hit by a box at 18 m/s, its centre under the floor in two steps, and the floor,
+  going by where the centre was, flipped between pushing it up and down until down won. Fixed from
+  history: a pair's Memory says which way it was pushed, and a triangle within 8 degrees of that
+  is touched from that side, as if one-sided, unless the centre is past a real corner. Heaps of
+  240,000 bodies 6 through -> 1; a rock pressed at 3 m/s 2 m under -> stays on top; a plate squeezed
+  by a block 41 m under -> -0.04 m, the same to the digit as on a box. The same plate showed
+  heightfields had a hole: a box's or hull's own face could still push it in past a one-sided
+  face (`away()`). Checked against a solid hull of the same ridge, since no heap would have shown
+  it: a looser rule, 0.7, sent rocks down the wrong flank, 16 of 576 against 1. Same bits where
+  nothing is pressed through; timing even. Left: a hull in a fold over 8 degrees, 1 in 80,000 on a
+  mesh rougher than ground; and a light body under one hundreds of times heavier still sinks a
+  little, on any floor (-0.04 m at 277:1), held but not out.
