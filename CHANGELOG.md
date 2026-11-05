@@ -25,6 +25,11 @@ past its centre, so most replays still match; a save loads only into the version
 - A box or hull squeezed past its centre into a heightfield isn't pushed down through it. The
   ground is one-sided, but the body's own face or edge could still win, since the shallowest way
   out of a triangle can be the way down.
+### Changed
+
+- Small worlds no longer run slower with workers on. A contact colour goes to the workers from 16
+  rows, not 4: a 10-box stack steps in 0.112 ms, down from 0.212 ms and now under its one-thread
+  time, and the 210-box pyramid and 1,000-box pile are unchanged. Results are the same bits either way.
 
 ## [1.3.1] - 2026-11-05
 
