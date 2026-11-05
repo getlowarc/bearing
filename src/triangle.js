@@ -7,7 +7,7 @@
 // a box resting across a flat floor of many triangles gets one contact of
 // four points, its corners, exactly as on one big box.
 //
-// touch(s, t, flags, margin, tolerance, out, tri) is one triangle, its normal
+// touch(s, t, flags, fold, margin, tolerance, out, tri, side) is one triangle, its normal
 // from s towards the triangle: a sphere by the closest point on the triangle;
 // a capsule by its segment clipped to the triangle, lying on it, or its
 // closest point otherwise; a box by separating axes (the triangle's face, the
@@ -33,11 +33,27 @@
 // axis lying along the face, a rock beside the triangle, leaves by either
 // side as rounding has it.
 //
+// HELD. A mesh has no inside, so its pose can't say which side a body belongs
+// on once it is pressed past its centre: the floor turned over and pushed it
+// down. From a heap of 200, a 60 kg rock hit by a box falling at 18 m/s had its
+// centre under the floor in two steps; pressed by a platform at 3 m/s, a rock
+// ended 2 m under. Only history can tell, and a pair's Memory holds it: a
+// triangle within HELD of a direction the pair was pushed along last step is
+// touched from that side, as a one-sided one (below), so neither the centre
+// nor over() turns it. A body pressed in has its side kept even before its
+// centre crosses: over() turns first. It is let go past an edge that is a
+// corner from that side (ended()), where the surface stops: a body tipping over
+// a ridge does change sides, and 8 of 576 went down the wrong flank without
+// this. The first touch has no history, so the centre decides as ever.
+//
 // ONE-SIDED. A heightfield's triangles (mesh.js ONE_SIDED) are touched from
 // the front only, whatever side the centre is on: under the ground is ground,
 // and everything in it goes up out of it. A ball or capsule whose core is
 // behind the face takes the face, or nothing if it isn't over it; over() is
-// never asked.
+// never asked. Nor does a box's or hull's own face or edge win if it would push
+// the shape in past the face (away()), though the way out through the back is
+// the shallowest once most of the shape is under: a plate squeezed past its
+// centre was pushed on through.
 //
 // SEAMS. `flags` says which of the triangle's edges are corners from each
 // side (mesh.js); a corner of the triangle is a seam when both its edges
@@ -101,15 +117,17 @@ let mix = 0;
 /** The most points one triangle can give: a 4-sided face clipped by 3 planes, or a triangle by 4, has at most 7 sides. */
 const MOST = 7;
 
-export function touch(s, t, flags, fold, margin, tolerance, out, tri) {
+export function touch(s, t, flags, fold, margin, tolerance, out, tri, side = 0) {
   out.count = 0;
   mix = (tri + 1) * 512;
   P.set(t.points);
   folds = fold;
-  oneSided = (flags & ONE_SIDED) !== 0;
+  if ((flags & ONE_SIDED) !== 0) side = 1;
+  else if (side !== 0 && ended(s.center, side > 0 ? flags & 7 : (flags >> 3) & 7, t.axes)) side = 0;
+  oneSided = side !== 0;
   const nx = t.axes[0], ny = t.axes[1], nz = t.axes[2];
   ahead[0] = nx; ahead[1] = ny; ahead[2] = nz;
-  const front = oneSided || (s.center[0] - P[0]) * nx + (s.center[1] - P[1]) * ny + (s.center[2] - P[2]) * nz >= 0;
+  const front = oneSided ? side > 0 : (s.center[0] - P[0]) * nx + (s.center[1] - P[1]) * ny + (s.center[2] - P[2]) * nz >= 0;
   const k = front ? 1 : -1;
   up[0] = k * nx; up[1] = k * ny; up[2] = k * nz;
   corners = front ? flags & 7 : (flags >> 3) & 7;
@@ -217,6 +235,20 @@ function wedge(x, y, z) {
   return (x - P[a]) * gx + (y - P[a + 1]) * gy + (z - P[a + 2]) * gz < 0;
 }
 
+/** Whether c is past an edge of the triangle that is a corner (bit e of `edges`), where the surface ends. */
+function ended(c, edges, n) {
+  for (let e = 0; e < 3; e++) {
+    if ((edges >> e & 1) === 0) continue;
+    const a = 3 * e, b = 3 * ((e + 1) % 3), d = 3 * ((e + 2) % 3);
+    const ex = P[b] - P[a], ey = P[b + 1] - P[a + 1], ez = P[b + 2] - P[a + 2];
+    const ox = ey * n[2] - ez * n[1], oy = ez * n[0] - ex * n[2], oz = ex * n[1] - ey * n[0];
+    const inward = ox * (P[d] - P[a]) + oy * (P[d + 1] - P[a + 1]) + oz * (P[d + 2] - P[a + 2]);
+    const out = ox * (c[0] - P[a]) + oy * (c[1] - P[a + 1]) + oz * (c[2] - P[a + 2]);
+    if (inward > 0 ? out < 0 : out > 0) return true;
+  }
+  return false;
+}
+
 /** Which region of the triangle a point on it lies in, to within the tolerance. */
 function region(x, y, z, tolerance) {
   const t2 = tolerance * tolerance;
@@ -268,6 +300,9 @@ function nearest(x, y, z) {
 
 /** Height of (x, y, z) above the triangle's plane, on the shape's side. */
 const above = (x, y, z) => (x - P[0]) * up[0] + (y - P[1]) * up[1] + (z - P[2]) * up[2];
+
+/** Whether a normal from the shape to the triangle would push the shape in past a one-sided face (see ONE-SIDED). */
+const away = (x, y, z) => oneSided && x * up[0] + y * up[1] + z * up[2] > 0;
 
 /** Turns to the triangle's other side. */
 function turn() {
@@ -475,7 +510,8 @@ function box(b, t, margin, tolerance, out) {
     const plus = lo - h[k], minus = -hi - h[k];
     const sk = Math.max(plus, minus);
     if (sk > margin) return;
-    if (sk > faceB) { faceB = sk; axisB = k; signB = plus >= minus ? 1 : -1; }
+    const sign = plus >= minus ? 1 : -1;
+    if (sk > faceB && !away(sign * ux, sign * uy, sign * uz)) { faceB = sk; axisB = k; signB = sign; }
   }
   // Each box edge against each triangle edge.
   edges();
@@ -493,7 +529,7 @@ function box(b, t, margin, tolerance, out) {
       if (minus > plus) { mx = -mx; my = -my; mz = -mz; }
       const se = Math.max(plus, minus);
       if (se > margin) return;
-      if (se > edgeSep) { edgeSep = se; ex = mx; ey = my; ez = mz; edgeK = k; edgeE = e; }
+      if (se > edgeSep && !away(mx, my, mz)) { edgeSep = se; ex = mx; ey = my; ez = mz; edgeK = k; edgeE = e; }
     }
   }
   // A face is kept unless an edge, or the box's own face, beats it by more than
@@ -775,7 +811,7 @@ function hull(b, t, margin, tolerance, out) {
   for (let f = 0; f < F; f++) {
     const sb = low(pl[4 * f], pl[4 * f + 1], pl[4 * f + 2]) - pl[4 * f + 3];
     if (sb > margin) return;
-    if (sb > faceB) { faceB = sb; fb = f; }
+    if (sb > faceB && !away(pl[4 * f], pl[4 * f + 1], pl[4 * f + 2])) { faceB = sb; fb = f; }
   }
   const e = h.edges, E = e.length / 2;
   edges();
@@ -810,7 +846,7 @@ function hull(b, t, margin, tolerance, out) {
       if (top - (mx * v[i] + my * v[i + 1] + mz * v[i + 2]) > tolerance) continue;
       const sep = Math.max(plus, minus);
       if (sep > margin) return;
-      if (sep > edgeSep) { edgeSep = sep; ex = mx; ey = my; ez = mz; edgeK = k; edgeE = te; }
+      if (sep > edgeSep && !away(mx, my, mz)) { edgeSep = sep; ex = mx; ey = my; ez = mz; edgeK = k; edgeE = te; }
     }
   }
   // As box(): a face unless an edge, or the hull's own face, beats the
@@ -1013,6 +1049,34 @@ let gathered = new Float64Array(3 * 16), gatheredSep = new Float64Array(16), gat
 
 // What the visitor needs; touchLevel() is never re-entered.
 let geometry = null, center = null, axes = null, base = 0, shape = null, margin_ = 0, tolerance_ = 0;
+let kept = null, keptKey = 0, keptSign = 1;
+/**
+ * How near a remembered push must lie to a triangle's normal, as a cosine, for
+ * it to tell the triangle's side (see HELD): about 8 degrees. Measured, dropping
+ * four shapes on ridges of 20 to 120 degrees, 576 drops, and against a solid
+ * hull of the same ridge, and on 400 heaps on a mesh of 10-degree folds. From
+ * 0.95 to 0.995 the drops match going by the centre alone, 575, and the heaps
+ * lose 1 body against 3. At 0.9 and below the far flank of a ridge counts as the near one
+ * seen from behind, held there it shoves a body across the tip: 573 at 0.9, 569
+ * at 0.7. Within 2^-20, the flat of a seam, heaps lose 3 again: neighbours count.
+ */
+const HELD = 0.99;
+
+/**
+ * Which side of a triangle of normal n the pair was pushed from last step: 1
+ * the front, -1 the back, 0 neither, or both, as a body wedged between a
+ * floor and a ceiling of one mesh is: the centre goes on deciding there.
+ */
+function sideOf(n) {
+  let front = false, back = false;
+  for (let j = 0; j < kept.count; j++) {
+    if (kept.key[j] !== keptKey) continue;
+    const d = keptSign * (kept.normal[3 * j] * n[0] + kept.normal[3 * j + 1] * n[1] + kept.normal[3 * j + 2] * n[2]);
+    if (d > HELD) front = true;
+    else if (d < -HELD) back = true;
+  }
+  return front === back ? 0 : front ? 1 : -1;
+}
 
 /** Triangle t of the mesh, placed in the world and touched; its points join the manifold that pushes their way. */
 function visit(t) {
@@ -1028,7 +1092,7 @@ function visit(t) {
   tri.center[1] = (p[1] + p[4] + p[7]) / 3;
   tri.center[2] = (p[2] + p[5] + p[8]) / 3;
   triangleNormal(p, tri.axes);
-  if (touch(shape, tri, geometry.edge(t, FOLDS), FOLDS, margin_, tolerance_, one, t) === 0) return;
+  if (touch(shape, tri, geometry.edge(t, FOLDS), FOLDS, margin_, tolerance_, one, t, kept === null ? 0 : sideOf(tri.axes)) === 0) return;
   const nx = one.normal[0], ny = one.normal[1], nz = one.normal[2];
   let g = 0;
   while (g < groups && normals[3 * g] * nx + normals[3 * g + 1] * ny + normals[3 * g + 2] * nz < 1 - SAME) g++;
@@ -1073,10 +1137,13 @@ function visit(t) {
  * each direction it is pushed in, each of up to four points, normals from s
  * towards the mesh. The mesh's body is slot o: its position at c[3o..] and its
  * axes at A[9o..]. (x0, y0, z0)-(x1, y1, z1) is the box to look in, in the
- * mesh's own frame. Returns out.count.
+ * mesh's own frame. memory is what the pair kept of last step, if anything:
+ * its manifolds numbered key, each normal times sign pointing away from the
+ * mesh (see HELD). Returns out.count.
  */
-export function touchLevel(g, c, A, o, s, x0, y0, z0, x1, y1, z1, margin, tolerance, out) {
+export function touchLevel(g, c, A, o, s, x0, y0, z0, x1, y1, z1, margin, tolerance, out, memory = null, key = 0, sign = 1) {
   geometry = g; center = c; axes = A; base = o; shape = s; margin_ = margin; tolerance_ = tolerance;
+  kept = memory; keptKey = key; keptSign = sign;
   found = 0; groups = 0;
   g.triangles(x0, y0, z0, x1, y1, z1, visit);
   out.count = 0;
@@ -1103,7 +1170,7 @@ export function touchLevel(g, c, A, o, s, x0, y0, z0, x1, y1, z1, margin, tolera
     mf.normal[0] = normals[3 * k]; mf.normal[1] = normals[3 * k + 1]; mf.normal[2] = normals[3 * k + 2];
     reduce(m, mf);
   }
-  geometry = null; center = null; axes = null; shape = null;
+  geometry = null; center = null; axes = null; shape = null; kept = null;
   return out.count;
 }
 

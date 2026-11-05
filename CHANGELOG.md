@@ -7,6 +7,25 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-05
+
+A body pressed into a mesh or heightfield now stays on the side it was on, so a heap, a platform or
+a heavy block can't push it out through the floor. Results change only where a body is pressed
+past its centre, so most replays still match; a save loads only into the version that made it.
+
+### Fixed
+
+- A body pressed past its centre into a mesh stays on the side it was touching. A mesh has no
+  inside, so which side counted was worked out from where the body's centre was, and a floor
+  turned over and pushed the body down: 1 body in 53,000 fell through a mesh floor under a heap, a
+  rock pressed by a platform at 3 m/s ended 2 m under, and a plate squeezed by a heavy block fell
+  out. Across 240,000 bodies in heaps, 6 went through before and 1 now, that one in a fold of 10
+  degrees on a mesh much rougher than ground. Bodies dropped on a sharp ridge still go down the
+  same flank as on a solid ridge.
+- A box or hull squeezed past its centre into a heightfield isn't pushed down through it. The
+  ground is one-sided, but the body's own face or edge could still win, since the shallowest way
+  out of a triangle can be the way down.
+
 ## [1.3.1] - 2026-11-05
 
 A crash fixed in 2D, and a rocking capsule that kept 3D heaps awake. Adding and removing bodies
@@ -534,7 +553,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/getlowarc/bearing/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/getlowarc/bearing/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/getlowarc/bearing/compare/v1.1.0...v1.3.0
 [1.1.0]: https://github.com/getlowarc/bearing/compare/v1.0.0...v1.1.0

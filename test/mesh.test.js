@@ -700,6 +700,91 @@ test('a body sunk past its centre into a heightfield comes up out of it, the rig
   }
 });
 
+test('a body pressed past its centre stays on the side of a mesh it was touching', () => {
+  // A mesh has no inside to go by, and a side taken from where the centre is
+  // lets go of a body pressed past it: the floor turned and pushed it down.
+  // From a heap of 200, a 60 kg rock hit by a box falling at 18 m/s had its
+  // centre under the floor in two steps, and fell out a second later. Pressed
+  // by a platform at 3 m/s, this hull ended 2 m under the floor.
+  const rock = [0, 0.3, 0, 0.3, -0.2, 0.1, -0.3, -0.2, 0.2, -0.1, -0.2, -0.3];
+  for (const speed of [1, 3]) {
+    const world = new World();
+    world.addBody(floor(2, 9));
+    const body = world.addBody({ shape: 'hull', vertices: rock, position: [0.3, 0.21, 0.2] });
+    steps(world, 0.5);
+    world.addBody({ type: 'kinematic', size: [2, 0.2, 2], position: [0.3, 0.55, 0.2], velocity: [0, -speed, 0] });
+    steps(world, 0.5);
+    assert.ok(body.position[1] > -0.2, `pressed at ${speed} m/s: its centre is at ${body.position[1]}`);
+  }
+});
+
+test('a plate squeezed past its centre by a heavy block is held by mesh and heightfield as by a box', () => {
+  // A 3.6 kg plate under a 1,000 kg block gives a little, on any floor. On a
+  // triangle it gave too much: with most of the plate under the plane, the
+  // shallowest way out of the triangle is down, by the plate's own top face,
+  // and that won over the side the triangle was touched from. It fell out of
+  // a mesh and, one-sided or not, sank on through a heightfield.
+  const run = (ground) => {
+    const world = new World();
+    ground(world);
+    const plate = world.addBody({ size: [0.6, 0.1, 0.6], position: [0.3, 0.05, 0.2], density: 100 });
+    steps(world, 0.5);
+    world.addBody({ size: [0.5, 0.5, 0.5], position: [0.3, 0.36, 0.2], density: 8000, velocity: [0, -10, 0] });
+    steps(world, 4);
+    return plate.position[1];
+  };
+  const box = run((world) => world.addBody({ type: 'static', size: [18, 1, 18], position: [0, -0.5, 0] }));
+  assert.ok(box > -0.05, `on a box the plate is at ${box}`);
+  const mesh = run((world) => world.addBody(floor(2, 9)));
+  const field = run((world) => world.addBody({ shape: 'heightfield', heights: new Array(25).fill(0), columns: 5, spacing: 4.5 }));
+  assert.ok(Math.abs(mesh - box) < 1e-3, `on a mesh the plate is at ${mesh}, on a box ${box}`);
+  assert.ok(Math.abs(field - box) < 1e-3, `on a heightfield the plate is at ${field}, on a box ${box}`);
+});
+
+test('a rock dropped on a sharp ridge goes down the flank a solid ridge sends it down', () => {
+  // A side held from memory is held only near the triangle's own normal, and
+  // not past a corner. The far flank of a sharp ridge lies nearly opposite the
+  // near one, and held from behind it shoved a rock across the tip. Past the
+  // tip a body tipping over does change sides: the floor's rule would keep it.
+  const rock = [0, 0.4, 0, 0.4, -0.2, 0.1, -0.3, -0.2, 0.3, -0.1, -0.2, -0.4, 0.2, 0.1, -0.2];
+  const land = (half, k, ground) => {
+    const world = new World(), w = 3 * Math.tan(half * Math.PI / 180), a = k * 0.26, q = [Math.sin(a) / 2, Math.cos(a) / 2, 0.3, 0.7], l = Math.hypot(...q);
+    ground(world, w);
+    const body = world.addBody({ shape: 'hull', vertices: rock, position: [(k - 12) * 0.03, 3.8, 0.1 * (k % 5)], rotation: q.map((x) => x / l) });
+    steps(world, 400 / 60);
+    return Math.sign(body.position[0]);
+  };
+  const solid = (world, w) => {
+    world.addBody({ type: 'static', shape: 'hull', vertices: [-w, 0, -5, w, 0, -5, 0, 3, -5, -w, 0, 5, w, 0, 5, 0, 3, 5] });
+    world.addBody({ type: 'static', size: [80, 1, 80], position: [0, -0.5, 0] });
+  };
+  const mesh = (world, w) => world.addBody({
+    shape: 'mesh',
+    vertices: [-w, 0, -5, 0, 3, -5, 0, 3, 5, -w, 0, 5, w, 0, -5, w, 0, 5, -40, 0, -40, 40, 0, -40, 40, 0, 40, -40, 0, 40],
+    indices: [0, 1, 2, 0, 2, 3, 4, 2, 1, 4, 5, 2, 6, 8, 7, 6, 9, 8],
+  });
+  for (const half of [10, 15, 22]) {
+    for (const k of [11, 12]) assert.equal(land(half, k, mesh), land(half, k, solid), `half-angle ${half}, drop ${k}`);
+  }
+});
+
+test('a body wedged between floor and ceiling of one mesh goes by its centre, and either side can be landed on', () => {
+  // Remembered as pushed from both sides, a triangle has no side to hold.
+  const vertices = [-5, 0, -5, 5, 0, -5, 5, 0, 5, -5, 0, 5, -5, 1, -5, 5, 1, -5, 5, 1, 5, -5, 1, 5];
+  const world = new World();
+  world.addBody({ shape: 'mesh', vertices, indices: [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7] });
+  const wedged = world.addBody({ size: [1, 1.002, 1], position: [0, 0.5, 0] });
+  steps(world, 2);
+  assert.ok(Math.abs(wedged.position[1] - 0.5) < 0.01, `wedged at ${wedged.position[1]}`);
+  // Nothing remembered: it lands on the side it comes from, and stays.
+  const under = new World();
+  under.gravity = [0, 9.81, 0];
+  under.addBody({ shape: 'mesh', vertices: vertices.slice(0, 12), indices: [0, 1, 2, 0, 2, 3] });
+  const ball = under.addBody({ shape: 'sphere', radius: 0.5, position: [0, -2, 0] });
+  steps(under, 3);
+  assert.ok(Math.abs(ball.position[1] + 0.5) < 0.01, `under the mesh at ${ball.position[1]}`);
+});
+
 test("a box slides over ground rippled a millimetre or two as the slope says, and holds below friction's hold", () => {
   // Ground rippled a + sin(1.3 i) cos(0.9 j) over 0.25 m squares, mesh and
   // heightfield, tipped to a slope; a 1 m box set down on it, friction 0.5.
