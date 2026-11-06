@@ -151,10 +151,12 @@ const COLUMNS = [
  * its pinned rows' share of its motor's push (5), that row's effective mass,
  * the hinge's angle and how many rows are pinned; or a ball or rotation
  * joint's error (3), its turning rows' coupling (9), whether that was
- * inverted, how many rows are pinned, their share (9) and the rows (27). The
+ * inverted, how many rows are pinned, their share (9), the rows (27), and each
+ * of its stops' axis and how far off it is (KEPT_TWIST, KEPT_CONE, 4 each). The
  * larger, 62, rounded up to a power of two.
  */
 export const KEEP = 64;
+const KEPT_TWIST = 50, KEPT_CONE = 54;
 
 /**
  * How much of a tree joint's error the solve pass asks back each substep:
@@ -1059,7 +1061,8 @@ function solveRange(world, J, from, to, h, bias, keep) {
     const keeps = keeping(J, j, type, held);
     const recall = keeps && bias && kept[j] === pose;
     const store = keeps && keep;
-    if (held && (type === BALL || type === HINGE) && !gives(J, j)) {
+    const lazy = held && (type === BALL || type === HINGE) && !gives(J, j);
+    if (lazy) {
       speeds(world, j);
       waiting = world;
       waitingJoint = j;
@@ -1085,19 +1088,26 @@ function solveRange(world, J, from, to, h, bias, keep) {
           turnDrive(world, J, j, most * h, h, bias, acc, o, turned(world, J, j, true, recall, store));
         } else if (most > 0) ballFriction(most * h, acc, o, turned(world, J, j, false, recall, store));
         if (swings(J, j)) {
-          if (!aims) frames(world, j);
-          twistLimits(J, j, acc, o, h, bias);
-          if (coned(J, j)) coneLimit(J, j, acc, o, h, bias);
+          if (!aims && !recall) frames(world, j);
+          if (recall && !lazy) unpinned(world, j);
+          twistLimits(J, j, acc, o, h, bias, recall, store);
+          if (coned(J, j)) coneLimit(J, j, acc, o, h, bias, recall, store);
         }
         if (!held) holdPoint(acc, o, bias);
         break;
       }
       case HINGE:
         if (keeps) {
-          // In a tree, with a motor or friction and no stops: its kept work
-          // (hinged()) is all its pass needs.
-          hinged(world, J, j, recall, store);
-          driven(world, j, h, acc, o, bias, true);
+          // In a tree: its kept work is all its pass needs.
+          if (lazy) stopped(world, J, j, recall, store);
+          else {
+            hinged(world, J, j, recall, store);
+            driven(world, j, h, acc, o, bias, true);
+          }
+          if (limited(J, j)) {
+            if (recall && !lazy) unpinned(world, j);
+            hingeLimits(J, j, HINGED[1], acc, o, h, bias);
+          }
           break;
         }
         frames(world, j);
@@ -1105,7 +1115,10 @@ function solveRange(world, J, from, to, h, bias, keep) {
           axle(0);
           driven(world, j, h, acc, o, bias, false);
         }
-        hingeLimits(J, j, acc, o, h, bias);
+        if (limited(J, j)) {
+          axle(0);
+          hingeLimits(J, j, twist(), acc, o, h, bias);
+        }
         if (!held) {
           holdAxis(acc, o, bias);
           holdPoint(acc, o, bias);
@@ -1130,7 +1143,7 @@ function solveRange(world, J, from, to, h, bias, keep) {
           const most = J.motorForce[j] > 0 ? J.motorForce[j] : J.friction[j];
           if (aimed(J, j)) turnDrive(world, J, j, most * h, h, bias, acc, o, turned(world, J, j, true, recall, store));
           else ballFriction(most * h, acc, o, turned(world, J, j, false, recall, store));
-          if (coned(J, j)) coneLimit(J, j, acc, o, h, bias);
+          if (coned(J, j)) coneLimit(J, j, acc, o, h, bias, recall, store);
         } else {
           holdAngles(acc, o, bias);
         }
@@ -1138,9 +1151,10 @@ function solveRange(world, J, from, to, h, bias, keep) {
       default:
         distance(J, j, acc, o, h, bias, held);
     }
+    if (store) kept[j] = pose;
     // No stop reached: nothing pushed, so nothing to write back or count.
-    if (waiting !== null) waiting = null;
-    else save(world, j);
+    if (waiting === null || !lazy) save(world, j);
+    waiting = null;
   }
 }
 
@@ -1162,8 +1176,13 @@ function holds(J, j) {
  */
 function idle(J, j, type) {
   if (type === BALL) return !gives(J, j) && !swings(J, j);
-  if (type === HINGE) return !gives(J, j) && (J.given[j] & (MIN | MAX)) === 0;
+  if (type === HINGE) return !gives(J, j) && !limited(J, j);
   return false;
+}
+
+/** Whether a hinge has a stop. */
+function limited(J, j) {
+  return (J.given[j] & (MIN | MAX)) !== 0;
 }
 
 // KEPT WORK. Only World._move moves the bodies within a step, and it runs
@@ -1177,18 +1196,48 @@ function idle(J, j, type) {
 // is done 9 times, not 16. J.pose numbers the poses (World.step moves it on
 // as the step begins and after each move), and J.kept is the pose a joint's
 // work was kept at, so nothing kept at another pose, or in another step, is
-// ever read. Kept for the joints whose pass is then all velocity work: a
-// ball joint in a tree with a drive or friction and no stops, a rotation
-// joint with a drive or friction and no cone, and a hinge in a tree with a
-// motor, drive or friction and no stops. The rest work it out every pass, as
-// before. The same operations either way, so the same bits.
+// ever read. Kept for the joints whose pass is then all velocity work: ball
+// joints and hinges in a tree, and rotation joints with a drive or friction.
+// A stop's row and how far off it is are pose alone too: a driven joint with
+// stops worked all this out 16 times a step, and 100 driven ragdolls with
+// stops spent 56% of a step here. The rest work it out every pass, as before.
+// The same operations either way, so the same bits.
 
 /** Whether joint slot j keeps its work (KEPT WORK). */
 function keeping(J, j, type, held) {
-  if (type === BALL) return held && gives(J, j) && !swings(J, j);
-  if (type === ROTATION) return gives(J, j) && !coned(J, j);
-  if (type === HINGE) return held && gives(J, j) && (J.given[j] & (MIN | MAX)) === 0;
-  return false;
+  if (type === ROTATION) return gives(J, j);
+  return held && (type === BALL || type === HINGE);
+}
+
+/**
+ * Called on a joint whose drive was read back from kept work, before its
+ * stops: most stops aren't reached, so the anchors and pinned rows a stop would
+ * want stay unread until one is (WAITING). The drive pushed whatever happens,
+ * so the pass still writes back. A rotation joint pins nothing.
+ */
+function unpinned(world, j) {
+  if (pinType === ROTATION) return;
+  waiting = world;
+  waitingJoint = j;
+  pins = -1;
+}
+
+/**
+ * A hinge with stops and no motor or friction: its axis and angle, read back
+ * if `recall`, kept if `store`; into A1 and HINGED[1], and row 0. The rest of
+ * its frames are put off (WAITING).
+ */
+function stopped(world, J, j, recall, store) {
+  const work = J.work, w = KEEP * j;
+  if (recall) {
+    A1[0] = work[w]; A1[1] = work[w + 1]; A1[2] = work[w + 2];
+    HINGED[1] = work[w + 3];
+  } else {
+    frames(world, j);
+    HINGED[1] = twist();
+    if (store) { work[w] = A1[0]; work[w + 1] = A1[1]; work[w + 2] = A1[2]; work[w + 3] = HINGED[1]; }
+  }
+  axle(0);
 }
 
 /**
@@ -1217,7 +1266,6 @@ function turned(world, J, j, aims, recall, store) {
     work[w + 13] = pins;
     for (let k = 0; k < 9; k++) work[w + 14 + k] = SHARE[k];
     for (let k = 0, n = 9 * pins; k < n; k++) work[w + 23 + k] = ROWS[9 + k];
-    J.kept[j] = J.pose;
   }
   return inverted;
 }
@@ -1225,8 +1273,8 @@ function turned(world, J, j, aims, recall, store) {
 /**
  * A hinge's motor row (axle()), its pinned rows (pin()), that row's effective
  * mass with them holding and their share of its push (free()), and its angle
- * if it has a target (twist()), into ROWS, MU and HINGED; read back if
- * `recall`, kept if `store`.
+ * if it has a target or stops (twist()), into ROWS, MU and HINGED; read back
+ * if `recall`, kept if `store`.
  */
 function hinged(world, J, j, recall, store) {
   const work = J.work, w = KEEP * j;
@@ -1243,14 +1291,13 @@ function hinged(world, J, j, recall, store) {
   axle(0);
   pin(HINGE);
   HINGED[0] = free(0);
-  HINGED[1] = (J.given[j] & TARGET) !== 0 && J.motorForce[j] > 0 ? twist() : 0;
+  HINGED[1] = limited(J, j) || ((J.given[j] & TARGET) !== 0 && J.motorForce[j] > 0) ? twist() : 0;
   if (store) {
     for (let k = 0; k < 54; k++) work[w + k] = ROWS[k];
     for (let k = 0; k < 5; k++) work[w + 54 + k] = MU[k];
     work[w + 59] = HINGED[0];
     work[w + 60] = HINGED[1];
     work[w + 61] = pins;
-    J.kept[j] = J.pose;
   }
 }
 /** hinged()'s effective mass of the motor row, and the hinge's angle. */
@@ -1539,6 +1586,8 @@ function ready() {
   waiting = null;
   masses(world, waitingJoint);
   geometry(world, waitingJoint);
+  // pin()'s rows want a hinge's whole frame; a kept pass has only its axis.
+  if (pinType === HINGE) frames(world, waitingJoint);
 }
 
 /**
@@ -2417,27 +2466,50 @@ function twist() {
   return -2 * atan2(REL[0], REL[3]);
 }
 
-function hingeLimits(J, j, acc, o, h, bias) {
+/** A hinge's stops, against `angle` along row 0 (axle()). */
+function hingeLimits(J, j, angle, acc, o, h, bias) {
   const lo = low(HINGE, J.given[j], J.min[j], 0, 0), hi = high(HINGE, J.given[j], J.max[j], 0, 0);
-  if (lo === -Infinity && hi === Infinity) return;
-  const angle = twist();
-  axle(0);
   if (lo > -Infinity) stop(0, angle - lo, 1, acc, o + LOWER, h, bias);
   if (hi < Infinity) stop(0, hi - angle, -1, acc, o + UPPER, h, bias);
 }
 
-function twistLimits(J, j, acc, o, h, bias) {
+function twistLimits(J, j, acc, o, h, bias, recall, store) {
   const lo = low(BALL, J.given[j], J.min[j], 0, 0), hi = high(BALL, J.given[j], J.max[j], 0, 0);
   if (lo === -Infinity && hi === Infinity) return;
-  if (!twistAxis(0)) return;
-  const angle = twist();
+  const work = J.work, w = KEEP * j + KEPT_TWIST;
+  let angle;
+  if (recall) {
+    // NaN: no axis to measure it about at this pose, as twistAxis() found.
+    angle = work[w];
+    if (angle !== angle) return;
+    V3[0] = work[w + 1]; V3[1] = work[w + 2]; V3[2] = work[w + 3];
+    turning(0, V3);
+    negate(0);
+  } else {
+    const found = twistAxis(0);
+    angle = found ? twist() : NaN;
+    if (store) { work[w] = angle; work[w + 1] = V3[0]; work[w + 2] = V3[1]; work[w + 3] = V3[2]; }
+    if (!found) return;
+  }
   if (lo > -Infinity) stop(0, angle - lo, 1, acc, o + LOWER, h, bias);
   if (hi < Infinity) stop(0, hi - angle, -1, acc, o + UPPER, h, bias);
 }
 
-function coneLimit(J, j, acc, o, h, bias) {
-  const c = coneRow(J, j);
-  if (!Number.isNaN(c)) stop(0, c, -1, acc, o + CONE, h, bias);
+function coneLimit(J, j, acc, o, h, bias, recall, store) {
+  const work = J.work, w = KEEP * j + KEPT_CONE;
+  let c;
+  if (recall) {
+    c = work[w];
+    if (c !== c) return;
+    V3[0] = work[w + 1]; V3[1] = work[w + 2]; V3[2] = work[w + 3];
+    turning(0, V3);
+  } else {
+    c = coneRow(J, j);
+    // The row, not V3: exactly opposed, coneAxis() took P1.
+    if (store) { work[w] = c; work[w + 1] = ROWS[3]; work[w + 2] = ROWS[4]; work[w + 3] = ROWS[5]; }
+    if (c !== c) return;
+  }
+  stop(0, c, -1, acc, o + CONE, h, bias);
 }
 
 /**

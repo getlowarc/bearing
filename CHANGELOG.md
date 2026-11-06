@@ -7,6 +7,13 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Joints with stops are faster, to the same bits: ball joints and hinges in a tree, and rotation
+  joints with a cone, work out what depends only on where the bodies are 9 times a step, not 16.
+  100 driven ragdolls with stops step 14% faster on one thread, ragdolls with stops and no motors
+  1 to 5%.
+
 ## [1.3.4] - 2026-11-06
 
 Joints that stay where they are put. A jointed body given a new shape keeps its joints on the same

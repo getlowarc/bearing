@@ -252,6 +252,13 @@ These were made with Nolan and override the rules below where they differ.
   `spinMass()`/`spun()`, same bits. A holding rotation joint is in the forest; one to the world
   counts as held in `age()` but not held down (`plant()` takes a `point` callback). `_drives`
   counts for off-means-off. FORMAT 8. No-target joints keep their bits and time.
+  Stops keep their work (2026-11-06, Nolan: "Go ahead with the ragdoll kept work"; same bits): every
+  ball joint and hinge in a tree, and rotation joints with a drive or friction, cones included, keep
+  their stops' rows and how far off they are (`stopped()`, `KEPT_TWIST`, `KEPT_CONE`). A stop reached
+  on a kept pass needs what wasn't read: `unpinned()` and `ready()` fetch the anchors, a hinge's
+  frames and the pinned rows then, `PIN` being scratch of whichever joint went last. 100 driven
+  ragdolls with stops 14% faster, ragdolls with stops alone 1-5%. `HASH_STOPS` in
+  `test/determinism.test.js` was stored from 1.3.4.
   Many active ragdolls (2026-11-02, milestone 19, same bits): `fill()` in joint and forest scratch
   replaced by plain stores; `inverse3`/`inverse5` written out (forest.js, as `inverse6`); kept work:
   the relax pass stores each drive's pose-only results (`keeping()`, `turned()`, `hinged()`; `kept`/

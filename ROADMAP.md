@@ -1141,3 +1141,9 @@ Winding's way, copied before the first one:
   of stop passes fire, so a lazy pass gave 2.5%; what is left there is pose-only work (`pin`,
   `frames`, `coneRow`) done 16 times a step for 9 poses, the kept work of milestone 19 not yet
   given to stops, perhaps 10 to 15% of a ragdoll with limits, not done for this release.
+- **2026-11-06.** Stops given kept work, at Nolan's word ("Go ahead with the ragdoll kept work"). The
+  gain was not where the audit looked: a ragdoll with stops and no motors gains 1 to 5%, since a stop
+  is cheap until reached, but a driven joint with a stop lost all its kept work, so 100 driven
+  ragdolls with stops took 33 ms a step, 56% of it in the one-at-a-time pass, against 19 ms for the
+  same with no stops. That pass 18.5 -> 11.9 ms; pinned, both load orders, 13.5 to 14.7% faster. Same bits,
+  against 1.3.4 on 120 runs of drives pressed into stops; a stored hash now holds it.
