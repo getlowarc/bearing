@@ -843,6 +843,7 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.3.1 | — | Released 2026-11-05: a 2D broadphase crash, and the rocking capsule. |
 | 1.3.2 | — | Released 2026-11-05: bodies pressed into a mesh or heightfield stay on their side. |
 | 1.3.3 | — | Released 2026-11-06: an audit's fixes, and 3 to 8% on most heaps. |
+| 1.3.4 | — | Released 2026-11-06: joints stay on their bodies, and can't run away. |
 
 ### How a release is made
 
@@ -1123,7 +1124,8 @@ Winding's way, copied before the first one:
   explained: joints count as torn by no more than their moving reach, and joined bodies part at no
   more than that a substep, as each substep starts. 1,350 hostile runs: no NaN, torn loops under 900
   m/s, random graphs up to 10^9 m/s for a moment but unable to multiply. Working joints keep their
-  bits. Ragdolls 2-3% slower, which gives back the lazy pass's gain.
+  bits. Ragdolls 2-3% slower, which gives back the lazy pass's gain. 1.3.4 released with it, at
+  Nolan's word ("Go for it, release 1.3.4").
 - **2026-11-06.** An audit, at Nolan's asking ("look for code that is wrong"), by three reviewers each
   proving what they found with a script, 36 findings, then 1.3.3 ("Approved as recommended, go
   ahead with 1.3.3"). The hovering family was one bug: a touch ending told nothing it held, so every
