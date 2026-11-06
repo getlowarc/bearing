@@ -7,6 +7,17 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-11-06
+
+An audit of the whole package, and what it found. Bodies no longer hang in the air when
+what held them goes, whichever way it went; box characters, the default, no longer freeze when they
+land; and box shape casts give the true normal and point. In 2D, large capsules collide, saw blades
+and slow lifts keep moving, and long shape casts over a tilemap take milliseconds. Pairs that don't
+touch are told apart sooner, for 3 to 8% on most heaps. There is no API change, and saves stay at
+format 15, but a save loads only into the version that made it. 3D results change only where a
+support goes or a box casts from a touch. 2D results change wherever a circle was left to sleep
+while turning, so a 2D replay recorded on 1.3.2 may not match.
+
 ### Fixed
 
 - Bodies no longer hang in the air when what held them goes. A frozen or sleeping body now wakes
@@ -51,6 +62,9 @@ All notable changes to Bearing are recorded here. The format follows
   mixed heaps step 3 to 6% faster, 2D heaps 5 to 8%, and a landing box pile 3 to 4%, with a bound on
   the edge pairs of boxes meeting corner on. A 2D step makes 750 KB of garbage, down from 2.6 MB.
   Same bits.
+- A joint in a tree whose stops aren't reached does nothing more than see that they aren't: ragdolls
+  about 2.5% faster, and a contact pushed by nothing skips friction, rolling and twist, whose
+  limits are 0: heaps of balls 4%, meshes 2.5%, the rest 1 to 2%. Same bits.
 
 ## [1.3.2] - 2026-11-05
 
@@ -598,7 +612,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/getlowarc/bearing/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/getlowarc/bearing/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/getlowarc/bearing/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/getlowarc/bearing/compare/v1.1.0...v1.3.0
