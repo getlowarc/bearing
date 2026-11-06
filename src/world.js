@@ -35,8 +35,7 @@ import {
 import { Jobs, cores, sharedMemory } from './core/jobs.js';
 import {
   Joints, Joint, addJoint, setJoint, jointOf, jointSlot, dropJoint, dropJointsOf, gather, warmStartJoints, solveJoints,
-  jointSoft, JOINT_STIFFNESS, JOINT_DAMPING_RATIO, plantJoints, groupJoints, jointsCrowded, WORK, jointForces,
-} from './joints.js';
+  jointSoft, JOINT_STIFFNESS, JOINT_DAMPING_RATIO, plantJoints, groupJoints, jointsCrowded, WORK, jointForces, rehome } from './joints.js';
 import { Broadphase } from './broadphase.js';
 import { anchored } from './forest.js';
 import { colour } from './graph.js';
@@ -597,7 +596,13 @@ export class World {
     // Moving or turning a body by hand is a teleport: `previous` moves with it,
     // so interpolation doesn't draw it sliding across from where it was.
     const placed = o.position !== undefined || o.rotation !== undefined;
+    const s3 = s * 3, s4 = s * 4, com = this._com, frame = this._frame;
+    const center = [com[s3], com[s3 + 1], com[s3 + 2]], turn = [frame[s4], frame[s4 + 1], frame[s4 + 2], frame[s4 + 3]];
     this._write(s, spec, placed);
+    if (this._jointHead[s] !== 0 && (center[0] !== com[s3] || center[1] !== com[s3 + 1] || center[2] !== com[s3 + 2]
+      || turn[0] !== frame[s4] || turn[1] !== frame[s4 + 1] || turn[2] !== frame[s4 + 2] || turn[3] !== frame[s4 + 3])) {
+      rehome(this, s, center, turn);
+    }
     if (this._type[s] === STATIC) {
       this._unawaken(s);
       // Whatever slept against it may no longer be held, or may be buried.

@@ -219,6 +219,30 @@ await withWorkers('a process whose world has workers running exits by itself', a
   assert.equal(run.status, 0, `exit ${run.status}: ${run.stderr}`);
 });
 
+await test('joints that can\'t all be held step to the same bits on any number of threads', async () => {
+  // The bound on them runs in the warm start, on the workers.
+  const make = (w) => {
+    const world = new World({ workers: w }), links = [];
+    world.addBody({ type: 'static', size: [60, 1, 60], position: [0, -0.5, 0] });
+    for (let g = 0; g < 8; g++) {
+      for (let i = 0; i < 6; i++) links.push(world.addBody({ size: [0.3, 0.2, 0.2], position: [g * 2 + Math.cos(i), 3 + i * 0.1, Math.sin(i)] }));
+      for (let i = 0; i < 6; i++) {
+        const a = links[g * 6 + i], b = links[g * 6 + (i + 1) % 6], p = a.position;
+        world.addJoint(i % 2 ? { type: 'hinge', a, b, anchor: [p[0], p[1], p[2]], axis: [1, 0, i % 3 ? 0 : 1] } : { type: 'fixed', a, b, anchor: [p[0], p[1], p[2]] });
+      }
+    }
+    return world;
+  };
+  const a = make(0), b = make(3);
+  for (let n = 0; n < 120; n++) {
+    a.step(1 / 60);
+    b.step(1 / 60);
+    assert.deepEqual(a.transforms, b.transforms, `step ${n}`);
+  }
+  a.destroy();
+  b.destroy();
+});
+
 await test('without shared memory, as on a page that is not cross-origin isolated: one thread, the same bits', async () => {
   const code = `
     delete globalThis.SharedArrayBuffer;

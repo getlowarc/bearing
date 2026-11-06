@@ -157,6 +157,18 @@ These were made with Nolan and override the rules below where they differ.
   tolerance (`collide()` may snap a point a tolerance). 99.6% of full tests on a hull pile found
   nothing. `test/collide.test.js` holds it to never calling apart what `collide()` finds. Confirm
   speed leads with direct timers: V8's profiler misattributes under inlining.
+- **Joints that can't all be held** (2026-11-06, Nolan: "Go ahead with the joint anchors and NaN"):
+  `rehome()` re-expresses a joint's anchors and frames when `setBody` moves a body's centre or
+  principal axes. TORN: what a joint asks for is held to the reach of its moving bodies (`tear`,
+  `capped()`, from `geometry()`). RUNAWAY: `replay()` in the warm start: joined bodies parting
+  faster than their moving reach a substep, or whose stored push would part them so, replay
+  nothing and are brought back to that about their centre of mass; a joined sphere's spin is held
+  to a radian a substep (its cap exempts it). All joints, trees too. Bounds the result, not a
+  mechanism: spin capped before `_move` changed nothing, a part of each impulse replayed still
+  reached NaN, a spin limit on replay dropped what a whipped chain needs, no replay at all opened a
+  hanging ring 5 times as wide. Random joint graphs NaN 53% -> 0 in 1,350 runs. Hash unchanged:
+  neither fires in working joints. Ragdolls 2-3% slower. Judge joint changes on the fuzz in
+  `test/joints.test.js` and with real gaps from `worldAnchor()`: `jointOf` reads the same point twice.
 - **Contact events and sensors** (2026-10-14, milestone 10, approved): `world.contacts(body)` (the
   last step's `begin`/`end`, read after the step, rule 65; with a body, its own, turned so it is
   `a`; removed bodies accepted), `world.touching(body)` in place of stay events (through the

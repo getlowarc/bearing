@@ -614,7 +614,11 @@ world.addJoint({ type: 'hinge', a: door, b: frame, anchor: [0, 1, 0], target: 0.
 world.addJoint({ type: 'rotation', a: crate, motorForce: 500, target: [0, 0, 0, 1] });   // kept upright, free to move
 ```
 
-Notes: a joint wakes the bodies it holds. An option for another type throws, as `radius` does on a
+Notes: a joint wakes the bodies it holds. It stays on the same point of a body whose shape or centre
+of mass [`setBody`](#world-setbody) changes. Joints that can't all be held, in a ring locked solid or
+pulled apart by hand, stay bounded: a joint counts as apart by no more than the reach of its moving
+bodies, and joined bodies part at no more than that reach a substep, whatever is asked of them. An
+option for another type throws, as `radius` does on a
 box: `a hinge joint has no cone`, `a rotation joint has no anchor`. A joint between two bodies neither of which is dynamic does
 nothing until one is made dynamic.
 

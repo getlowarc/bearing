@@ -1121,6 +1121,15 @@ Winding's way, copied before the first one:
   note on fewer substeps. Checked here with 5 workers against his 1: same bits, stack halved, pyramid
   2 to 3%. The note's 2.4 times measured 1.6, and the older note above it was stale; both corrected
   from `bench/solver.js`.
+- **2026-11-06.** Joint anchors and NaN, at Nolan's word ("Go ahead with the joint anchors and NaN").
+  `setBody` moved anchors with the centre of mass (`rehome()`). The NaN was worse than the audit
+  said: rings of mixed joints reached it landing on a floor, no teleport needed, 64 of 150, and 53%
+  of random graphs. Traced, and four explanations measured and thrown out: impulses building
+  up, spin before the move, a share of each replay, loops alone. So it is bounded rather than
+  explained: joints count as torn by no more than their moving reach, and joined bodies part at no
+  more than that a substep, as each substep starts. 1,350 hostile runs: no NaN, torn loops under 900
+  m/s, random graphs up to 10^9 m/s for a moment but unable to multiply. Working joints keep their
+  bits. Ragdolls 2-3% slower, which gives back the lazy pass's gain.
 - **2026-11-06.** An audit, at Nolan's asking ("look for code that is wrong"), by three reviewers each
   proving what they found with a script, 36 findings, then 1.3.3 ("Approved as recommended, go
   ahead with 1.3.3"). The hovering family was one bug: a touch ending told nothing it held, so every
