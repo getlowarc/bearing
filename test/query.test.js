@@ -318,6 +318,29 @@ test('a body struck so hard it leaves its fat box in a step is still found befor
   assert.equal(hit?.body.id, marble.id);
 });
 
+test('a box cast onto a floor gives the floor, turned any way and cast any way', () => {
+  // A box landing exactly on the touch is 1e-15 from it, too near for a
+  // direction and too far for a contact with no margin, and half of all casts
+  // fell through to the last resort: the normal against the move, and the
+  // point at the box's centre, a metre and a half off.
+  const world = new World();
+  world.addBody({ type: 'static', size: [100, 1, 100], position: [0, -0.5, 0] });
+  let seed = 4242;
+  const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 2000; i++) {
+    const q = [r() - 0.5, r() - 0.5, r() - 0.5, r() - 0.5], l = Math.hypot(...q);
+    const hit = world.shapeCast(
+      { size: [0.6, 0.4, 0.8] },
+      [(r() - 0.5) * 8, 3 + r() * 3, (r() - 0.5) * 8],
+      [r() - 0.5, -0.5 - r(), r() - 0.5],
+      { rotation: q.map((x) => x / l) },
+    );
+    assert.ok(hit !== null, `cast ${i} missed`);
+    assert.ok(Math.hypot(hit.normal[0], hit.normal[1] - 1, hit.normal[2]) < 1e-6, `cast ${i}: normal ${hit.normal}`);
+    assert.ok(Math.abs(hit.point[1]) < 1e-3, `cast ${i}: point ${hit.point}`);
+  }
+});
+
 test('maxDistance leaves out a hit exactly at it or beyond', () => {
   const world = new World();
   world.addBody({ type: 'static', position: [0, 0, 0] });

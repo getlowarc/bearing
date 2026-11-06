@@ -665,6 +665,45 @@ test('hulls and compounds give the same result twice, to the bit', () => {
   assert.deepEqual(run(), run());
 });
 
+test('a hull is whole whatever its points repeat, and one too thin to have a volume is refused', () => {
+  let seed = 991;
+  const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  // Repeats: a repeated point could be taken as a face's eye, on a triangle with
+  // two corners at one place, whose plane is 0/0 (1 point set in about 1,000).
+  for (let i = 0; i < 3000; i++) {
+    const once = [];
+    for (let k = 0; k < 6; k++) once.push(r() - 0.5, r() - 0.5, r() - 0.5);
+    const world = new World({ workers: 0 });
+    const body = world.addBody({ shape: 'hull', vertices: [...once, ...once.slice(0, 9)] });
+    assert.ok(world._size[body.id % 16777216] > 0, `set ${i}: size ${world._size[body.id % 16777216]}`);
+    world.destroy();
+  }
+  // Thin: flatter than the faces can be told apart, a plate came out with no
+  // mass or a negative one, and a world of NaN. Thick enough, it has a true one.
+  const plate = (half) => {
+    const v = [];
+    for (let k = 0; k < 12; k++) v.push((r() - 0.5) * 2, (r() - 0.5) * half * 2, (r() - 0.5) * 2);
+    return v;
+  };
+  const world = new World({ workers: 0 });
+  for (let i = 0; i < 400; i++) {
+    let body = null;
+    try { body = world.addBody({ shape: 'hull', vertices: plate(1e-7) }); } catch (e) { assert.match(e.message, /must span a solid/); }
+    assert.equal(body, null, `a plate 2e-7 m thick was taken, mass ${body && body.mass}`);
+    const thick = world.addBody({ shape: 'hull', vertices: plate(1e-4) });
+    assert.ok(thick.mass > 0, `plate ${i}: mass ${thick.mass}`);
+    world.remove(thick);
+  }
+  // Where it is doesn't come into it: the same rock, 1,000 km out, keeps its faces.
+  const rock = [];
+  for (let k = 0; k < 60; k++) {
+    const x = r() - 0.5, y = r() - 0.5, z = r() - 0.5, l = Math.hypot(x, y, z);
+    rock.push(x / l, y / l, z / l);
+  }
+  const faces = (off) => { const h = build(rock.map((x, k) => (k % 3 === 0 ? x + off : x))); return h.planes.length / 4; };
+  assert.equal(faces(1e6), faces(0));
+});
+
 test('a hull at rest keeps its contact from step to step, and so does a box', () => {
   const next = numbers(7), rock = [];
   for (let k = 0; k < 12; k++) rock.push(next() - 0.5, (next() - 0.5) * 0.8, next() - 0.5);

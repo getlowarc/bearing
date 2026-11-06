@@ -373,6 +373,78 @@ test('part of an island freezes while the rest moves, and thaws whole when touch
   assert.equal(world._frozenCount, 0);
 });
 
+test('whatever takes a support away, what rested on it falls: frozen, asleep, any type of body', () => {
+  // A stack whose top is kept moving, so its island never sleeps and the
+  // bottom freezes, then each way of taking something out from under it.
+  const frozenStack = () => {
+    const world = new World({ workers: 0 }), floor = world.addBody({ type: 'static', size: [20, 1, 20], position: [0, -0.5, 0] }), boxes = [];
+    for (let i = 0; i < 8; i++) boxes.push(world.addBody({ size: [1, 1, 1], position: [0, 0.5 + i, 0] }));
+    const top = world.addBody({ shape: 'sphere', radius: 0.3, position: [0, 8.3, 0], damping: 0 });
+    let t = 0;
+    const tick = () => { t += 4 / 60; top.setVelocity(0.3 * Math.sin(t), top.velocity[1], 0.3 * Math.cos(t)); world.step(1 / 60); };
+    for (let i = 0; i < 400; i++) tick();
+    assert.ok(world._frozenCount > 0, 'the bottom of the stack froze');
+    return { world, floor, boxes, tick };
+  };
+  const after = ({ tick }) => { for (let i = 0; i < 120; i++) tick(); };
+  for (const [what, change, body] of [
+    ['floor removed', (s) => s.world.remove(s.floor), 0],
+    ['floor moved away', (s) => s.floor.setPosition(0, -30, 0), 0],
+    ['floor filtered out', (s) => s.world.setBody(s.floor, { mask: 0 }), 0],
+    ['bottom box removed', (s) => s.world.remove(s.boxes[0]), 1],
+    ['bottom box moved away', (s) => s.boxes[0].setPosition(30, 0.5, 30), 1],
+  ]) {
+    const s = frozenStack();
+    change(s);
+    after(s);
+    assert.ok(s.boxes[body].position[1] < -3 || what.startsWith('bottom') && s.boxes[body].position[1] < 1, `${what}: the box hangs at ${s.boxes[body].position[1]}`);
+  }
+  // A crate asleep on a kinematic lift, then the lift taken away by hand.
+  const onLift = () => {
+    const world = new World({ workers: 0 }), lift = world.addBody({ type: 'kinematic', size: [4, 0.5, 4], position: [0, 5, 0] });
+    const crate = world.addBody({ position: [0, 5.75, 0] });
+    steps(world, 3);
+    assert.ok(crate.asleep, 'the crate slept on the lift');
+    return { world, lift, crate };
+  };
+  for (const [what, change] of [
+    ['moved away', (s) => s.lift.setPosition(30, 5, 0)],
+    ['stepped down', (s) => s.lift.setPosition(0, 4.5, 0)],
+    ['shrunk', (s) => s.world.setBody(s.lift, { size: [0.1, 0.5, 0.1], position: [3, 5, 0] })],
+    ['filtered out', (s) => s.world.setBody(s.lift, { mask: 0 })],
+  ]) {
+    const s = onLift();
+    change(s);
+    steps(s.world, 1);
+    assert.ok(s.crate.position[1] < 5.3, `lift ${what}: the crate hangs at ${s.crate.position[1]}`);
+  }
+  // A static bridge released, falling away or rising through what lay on it.
+  for (const [what, velocity, check] of [['falls', 0, (c) => c.position[1] < 1], ['rises', 4, (c) => c.position[1] > 2.5]]) {
+    const world = new World({ workers: 0 }), bridge = world.addBody({ type: 'static', size: [4, 0.5, 4], position: [0, 1, 0] });
+    const crate = world.addBody({ position: [0, 1.75, 0] });
+    steps(world, 3);
+    assert.ok(crate.asleep, 'the crate slept on the bridge');
+    world.setBody(bridge, velocity ? { type: 'kinematic', velocity: [0, velocity, 0] } : { type: 'dynamic' });
+    steps(world, 0.5);
+    assert.ok(check(crate), `bridge ${what}: the crate is at ${crate.position[1]}`);
+  }
+});
+
+test('a pile that lost nothing stays asleep when something is removed elsewhere', () => {
+  // released() wakes only what a touch held, not everything near where one ended.
+  const world = new World({ workers: 0 });
+  ground(world);
+  const bodies = stack(world, 0, 5);
+  steps(world, 3);
+  assert.ok(asleep(bodies), 'the stack slept');
+  const ball = world.addBody({ shape: 'sphere', radius: 0.3, position: [8, 0.3, 0] });
+  steps(world, 2);
+  assert.ok(asleep(bodies), 'a ball resting far off woke the stack');
+  world.remove(ball);
+  steps(world, 0.5);
+  assert.ok(asleep(bodies), 'a ball removed far off woke the stack');
+});
+
 test('a mixed heap sleeps: a capsule lying along what it rests on does not rock for good', () => {
   // Seed from the 120 heaps that measured the rule (collide.js, capsuleCapsule):
   // before it, this heap's capsule rocked for as long as anyone watched.

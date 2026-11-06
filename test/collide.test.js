@@ -4,6 +4,8 @@
 
 import assert from 'node:assert/strict';
 import { collide, Shape, Manifold, SPHERE, CAPSULE, BOX } from '../src/collide.js';
+import { load, apart } from '../src/contact.js';
+import { World } from '../src/bearing.js';
 import { quatAxisAngle } from '../src/core/math.js';
 import { suite, test } from './test.js';
 
@@ -489,6 +491,38 @@ test('moving a shape by d changes the deepest separation by at most d', () => {
       const before = Math.min(...r.points.map((p) => p.s)), after = Math.min(...s.points.map((p) => p.s));
       const slack = ka === 'box' && kb === 'box' ? TOLERANCE : 0;
       assert.ok(Math.abs(after - before) <= d + slack + 1e-12, `${ka}-${kb} #${k}: jumped ${after - before}`);
+    }
+  }
+});
+
+test('what the near-miss test calls apart, the full test never finds touching, for every pair of shapes', () => {
+  // narrow() skips collide() on its word (contact.js, NEAR MISSES), so it must
+  // never say apart of anything collide() would find, and must say it often.
+  let seed = 77;
+  const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const rock = [0, 0.4, 0, 0.4, -0.2, 0.1, -0.3, -0.2, 0.3, -0.1, -0.2, -0.4, 0.2, 0.1, -0.2];
+  const kinds = [{ size: [0.6, 0.4, 0.8] }, { shape: 'sphere', radius: 0.3 }, { shape: 'capsule', radius: 0.2, height: 0.9 }, { shape: 'hull', vertices: rock }];
+  const margin = 0.02, tolerance = 0.002, A = new Shape(), B = new Shape(), m = new Manifold();
+  for (const ka of kinds) {
+    for (const kb of kinds) {
+      const world = new World({ workers: 0 }), a = world.addBody(ka), b = world.addBody(kb), sa = a.id % 16777216, sb = b.id % 16777216;
+      let said = 0, beyond = 0;
+      for (let i = 0; i < 4000; i++) {
+        const q = () => { const v = [r() - 0.5, r() - 0.5, r() - 0.5, r() - 0.5], l = Math.hypot(...v); return v.map((x) => x / l); };
+        a.setPosition(0, 0, 0).setRotation(q());
+        const far = 0.3 + r(), u = q();
+        b.setPosition(u[0] * far * 2, u[1] * far * 2, u[2] * far * 2).setRotation(q());
+        if (!apart(world, sa, sb, margin + tolerance)) continue;
+        said++;
+        load(world, sa, A);
+        load(world, sb, B);
+        assert.equal(collide(A, B, margin, tolerance, m), 0, `${ka.shape ?? 'box'} and ${kb.shape ?? 'box'}, pose ${i}: called apart, and touching`);
+        const p = a.position, o = b.position, reach = world._reach[sa] + world._reach[sb] + margin + tolerance;
+        if (Math.hypot(o[0] - p[0], o[1] - p[1], o[2] - p[2]) <= reach) beyond++;
+      }
+      assert.ok(said > 500, `${ka.shape ?? 'box'} and ${kb.shape ?? 'box'}: called apart only ${said} times of 4000`);
+      if (ka.shape !== 'sphere' || kb.shape !== 'sphere') assert.ok(beyond > 0, 'the line between the centres added nothing to the balls');
+      world.destroy();
     }
   }
 });

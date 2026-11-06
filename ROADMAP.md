@@ -844,6 +844,7 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.3.0 | — | Released 2026-11-04: the 2D module, elliptical joint cones, characters that push, `lockPosition`, the first-impact note. 1.2.0 was prepared and never released. |
 | 1.3.1 | — | Released 2026-11-05: a 2D broadphase crash found in Fragile, and the rocking capsule. |
 | 1.3.2 | — | Released 2026-11-05: bodies pressed into a mesh or heightfield stay on their side. |
+| 1.3.3 | — | Released 2026-11-06: an audit's fixes, and 3 to 8% on most heaps. |
 
 ### How a release is made
 
@@ -1115,3 +1116,23 @@ Winding's way, copied before the first one:
   mesh rougher than ground; and a light body under one hundreds of times heavier still sinks a
   little, on any floor (-0.04 m at 277:1), held but not out.
 - **2026-11-05.** 1.3.2 released with it, at Nolan's word ("Go for it, release 1.3.2").
+- **2026-11-05.** Three changes taken from Nolan's brother's fork (SwankyMan88/bearing-fork), at
+  Nolan's word: workers from 16 rows a colour, a four-point right-hand side written out, and a docs
+  note on fewer substeps. Checked here with 5 workers against his 1: same bits, stack halved, pyramid
+  2 to 3%. The note's 2.4 times measured 1.6, and the older note above it was stale; both corrected
+  from `bench/solver.js`.
+- **2026-11-06.** An audit, at Nolan's asking ("look for code that is wrong"), by three reviewers each
+  proving what they found with a script, 36 findings, then 1.3.3 ("Approved as recommended, go
+  ahead with 1.3.3"). The hovering family was one bug: a touch ending told nothing it held, so every
+  setter had to, and most didn't; `released()` in `narrow()` is now the one place. Left for later,
+  each with its script in the audit's notes: joint anchors when `setBody` moves a centre of mass, a
+  torn joint loop reaching NaN, rays at an exact triangle edge, `overlap` inside solid tiles, a
+  moving body made static keeping a stale `previous`, a kinematic or character keeping a 2D pile
+  awake, the first query after a hand move costing the awake list, hull building being quadratic.
+  Clean: save and load, workers, leaks over 640,000 steps, rays, GJK, impacts, mass properties.
+  Speed: most full contact tests find nothing, so `apart()` tells them first, 3 to 8%. V8's CPU
+  profiler blamed 2D `corners()` for 44% of a step it took under 7% of: confirm with timers. Smaller
+  FAT or AHEAD gained nothing. The solver is near dry: one early exit gave 1 to 4%. In ragdolls, 43%
+  of stop passes fire, so a lazy pass gave 2.5%; what is left there is pose-only work (`pin`,
+  `frames`, `coneRow`) done 16 times a step for 9 poses, the kept work of milestone 19 not yet
+  given to stops, perhaps 10 to 15% of a ragdoll with limits, not done for this release.

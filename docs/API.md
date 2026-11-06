@@ -210,10 +210,16 @@ Throws: `world.substeps: this world was destroyed`; `world.substeps must be a wh
 world.substeps = 16;   // a very tall tower, held stiffer
 ```
 
-Notes: the default, 8, is measured rather than chosen: the fewest that kept a pyramid of 210
-one-metre boxes within 2.5 mm of where it was built after 10 s at 60 Hz (at 7 it strayed 3 mm, at
-4, 9 mm). It is not there to be tuned for a correct result; raise it for unusual scenes, such as a
+Notes: the default, 8, is measured rather than chosen (`bench/solver.js`): after 10 s at 60 Hz a
+stack of 10 one-metre boxes has sunk 6.6 mm at 8, 8.6 mm at 7 and 26 mm at 4, and a pyramid of 210
+has sunk 7.3, 9.6 and 29 mm, straying under 1 mm sideways at all three. It is not there to be tuned for a correct result; raise it for unusual scenes, such as a
 heavy body resting on a much lighter one, a very tall stack, or a step much longer than 1/60 s.
+
+Fewer substeps is the one setting that trades accuracy for speed. Finding contacts costs the same
+at any number of substeps, so halving them doesn't halve the step: kept awake, the same pyramid
+stepped 1.6 times as fast at 4 (2.7 ms against 4.4 ms, on one thread of an i7-1260P). A 10-box stack
+still stood. That suits a game with many loose objects and no tall stacks; keep the default where
+stacks must stand exactly.
 
 <a id="world-sleeping"></a>
 ### `world.sleeping` → `boolean`
@@ -1514,7 +1520,8 @@ const hammer = world.addBody({
 - **A hull is convex.** An L, a bowl or a cup comes out as its hull, filled in. Make it a compound
   of convex parts instead.
 - **Its points must span a solid**: four or more, not all in one plane, or it throws. A flat hull
-  has no volume, so no mass.
+  has no volume, so no mass. Points within a part in about a million of the hull's size of one plane
+  count as flat, the same flatness that merges its faces. Repeated points are taken once.
 - **Building one costs once.** It happens in `addBody`, and in `setBody` when `vertices` change,
   never in a step: 200 points take about 3 ms on an i7-1260P. A step's cost grows with a hull's
   corners and faces: a pile of 60 hulls of about 10 corners each cost 1.5 times the same pile of

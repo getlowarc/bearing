@@ -56,7 +56,7 @@ const PART_OPTIONS = ['shape', 'size', 'radius', 'height', 'vertices', 'position
 const TYPES = ['dynamic', 'static', 'kinematic', 'character'];
 const SHAPES = ['box', 'circle', 'capsule', 'polygon', 'compound', 'tilemap', 'chain'];
 const PART_SHAPES = ['box', 'circle', 'capsule', 'polygon'];
-const DYNAMIC = 0, STATIC = 1, CIRCLE = 1;
+const DYNAMIC = 0, STATIC = 1, KINEMATIC = 2, CIRCLE = 1;
 
 /** Which sizes each shape takes, so `a circle has no size` can be said. */
 const SIZES = {
@@ -324,7 +324,13 @@ export class World2D {
     const pairs = this._pairs;
     WOKEN.length = 0;
     for (let e = pairs.head[s] - 1; e >= 0; e = pairs.next[e] - 1) WOKEN.push(pairs.a[e >> 1], pairs.b[e >> 1]);
-    for (let k = 0; k < WOKEN.length; k += 2) if (!pairable(this, WOKEN[k], WOKEN[k + 1])) this._dropPair(pairs.find(WOKEN[k], WOKEN[k + 1]));
+    for (let k = 0; k < WOKEN.length; k += 2) {
+      if (pairable(this, WOKEN[k], WOKEN[k + 1])) continue;
+      const p = pairs.find(WOKEN[k], WOKEN[k + 1]);
+      // Read after the next step, which clears what is written now: as remove().
+      if (pairs.touching[p] === 1) this._endsDue.push(this._slots.id(WOKEN[k]), this._slots.id(WOKEN[k + 1]));
+      pairs.drop(p);
+    }
     this._broad.refile(this, s);
   }
 
@@ -1094,8 +1100,10 @@ export class World2D {
     } else if (shape === 'circle') {
       corners = [0, 0]; radius = radius_;
     } else if (shape === 'capsule') {
+      // With no length between its ends it is a circle: two corners at one
+      // place have no side between them, and a NaN normal parts it from everything.
       const L = height * 0.5 - radius_;
-      corners = [0, -L, 0, L]; radius = radius_;
+      corners = L > 0 ? [0, -L, 0, L] : [0, 0]; radius = radius_;
     } else {
       corners = [...vertices];
     }
@@ -1162,7 +1170,11 @@ export class World2D {
     // `active` may grow as this walks: a pair woken here is looked at this step.
     for (let p = 0; p < pairs.active;) {
       const a = pairs.a[p], b = pairs.b[p];
-      if (!broad.overlap(a, b)) { this._dropPair(p); continue; }
+      if (!broad.overlap(a, b)) {
+        if (pairs.touching[p] === 1) this._released(a, b);
+        this._dropPair(p);
+        continue;
+      }
       // A sensor's pair has no manifold: it is checked after the step.
       if (sensor[a] === 1 || sensor[b] === 1) { this._sensed.push(p); p++; continue; }
       this._narrowed++;
@@ -1177,10 +1189,24 @@ export class World2D {
         if (pairs.touching[p] === 1) {
           pairs.touching[p] = 0;
           this._events.end(this._slots.id(a), this._slots.id(b));
+          this._released(a, b);
         }
       }
       p++;
     }
+    c.trim();
+  }
+
+  /**
+   * A touching pair touches no longer: what rested on it, if asleep, wakes, or it
+   * would hang in the air. Every way of taking a support away comes through
+   * here, however it was moved, and whatever type of body it was.
+   */
+  _released(a, b) {
+    const island = this._island, sensor = this._sensor;
+    if (sensor[a] === 1 || sensor[b] === 1) return;
+    if (island[a] !== 0) this._wake(a);
+    if (island[b] !== 0) this._wake(b);
   }
 
   /** Pair p goes; if it was touching, that is its end. */
@@ -1231,15 +1257,21 @@ export class World2D {
    */
   _sleep(dt) {
     const list = this._awakeList, p = this._position, r = this._rotation, rest = this._rest, reach = this._reach;
-    const size = this._size, still = this._still, calm = this._calm, shape = this._shape, parent = this._parent, type = this._type;
+    const v = this._velocity, w = this._angular;
+    const size = this._size, still = this._still, calm = this._calm, parent = this._parent, type = this._type;
     let ready = false;
     for (let i = 0; i < this._awakeCount; i++) {
       const s = list[i], s2 = 2 * s, s4 = 4 * s, tolerance = size[s] * PIXEL;
       const dx = p[s2] - rest[s4], dy = p[s2 + 1] - rest[s4 + 1], dc = r[s2] - rest[s4 + 2], dz = r[s2 + 1] - rest[s4 + 3];
-      let far = dx * dx + dy * dy;
-      if (shape[s] !== CIRCLE) far += (dc * dc + dz * dz) * reach[s] * reach[s];
-      // A character never sleeps, so what it stands on can always carry it.
-      const again = far > tolerance * tolerance || type[s] === CHARACTER;
+      // Every shape's turn counts, a circle's too: left out, a wheel spinning
+      // in place counted as still, slept, and woke with its spin gone.
+      const far = dx * dx + dy * dy + (dc * dc + dz * dz) * reach[s] * reach[s];
+      // A character never sleeps, so what it stands on can always carry it. A
+      // kinematic body moves only as it is told, so it is still exactly while
+      // told nothing: by distance alone, a wide slow door counted as still and
+      // stopped, as a sleeping body has no velocity.
+      const told = type[s] === KINEMATIC && (v[2 * s] !== 0 || v[2 * s + 1] !== 0 || w[s] !== 0);
+      const again = far > tolerance * tolerance || type[s] === CHARACTER || told;
       still[s] = again ? 0 : still[s] + dt;
       if (again) calm[s] = 0;
       else if (still[s] >= SLEEP_TIME) { calm[s] = 1; still[s] = 0; }
@@ -1280,7 +1312,7 @@ export class World2D {
       roots.set(root, s);
     }
     if (roots.size === 0) return;
-    const v = this._velocity, w = this._angular, pairs = this._pairs;
+    const pairs = this._pairs;
     for (const head of roots.values()) {
       for (let b = head; b >= 0; b = nextOf[b] - 1) {
         isle[b] = head + 1;

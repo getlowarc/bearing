@@ -7,6 +7,65 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-11-06
+
+An audit of the whole package, and what it found. Bodies no longer hang in the air when
+what held them goes, whichever way it went; box characters, the default, no longer freeze when they
+land; and box shape casts give the true normal and point. In 2D, large capsules collide, saw blades
+and slow lifts keep moving, and long shape casts over a tilemap take milliseconds. Pairs that don't
+touch are told apart sooner, for 3 to 8% on most heaps. There is no API change, and saves stay at
+format 15, but a save loads only into the version that made it. 3D results change only where a
+support goes or a box casts from a touch. 2D results change wherever a circle was left to sleep
+while turning, so a 2D replay recorded on 1.3.2 may not match.
+
+### Fixed
+
+- Bodies no longer hang in the air when what held them goes. A frozen or sleeping body now wakes
+  when any touch it rested on ends, however that came about: a floor removed, moved or filtered
+  out, a kinematic lift moved by hand, shrunk or filtered out, or a box under it taken away.
+- A static body made dynamic or kinematic moves what rested on it, or carries it, in place of
+  passing through it.
+- A box character no longer freezes when it lands or meets a wall. It walks, slides along walls
+  and steps off ledges as a capsule does. Box is the default shape, so a character given no
+  shape had this. A box touches at no distance, so a move from a touch had no direction to go by.
+- `shapeCast` with a box or hull gives the true normal and point. About half of all casts gave the
+  normal against the move and the point at the cast's centre; the distance was right.
+- Repeated points can't break a hull any more, and a hull too thin to tell from flat is refused
+  with the message a flat one gets. Either used to give a body of NaN or no mass, about 1 point set
+  in 1,000 for repeats. A hull's flatness follows its size, not its distance from the origin: a rock
+  given in coordinates 1,000 km out collapsed from 396 faces to 4.
+- 2D: a capsule with `height` twice its `radius`, which is the default height of a large capsule,
+  collides as a circle. It passed through everything.
+- 2D: a circle spinning in place, and a kinematic body moving too slowly to leave its tolerance in a
+  second, no longer fall asleep and lose their velocity. A saw blade stopped after 1 s.
+- 2D: whatever takes a support away wakes what slept on it, as in 3D: a crate was left hanging when
+  its kinematic platform was moved by hand, filtered out or shrunk.
+- 2D: a touch ended by `setBody` reports its `end` after the next step. It was cleared unread.
+- 2D: `shapeCast` with no `maxDistance` over a large tilemap takes milliseconds: 11 s to 1.8 ms on a
+  map of 2,000 by 1,000. It walked every cell in a box as wide as the cast.
+- 2D: contact storage is given back after a burst, by the quarter rule, as in 3D.
+
+### Changed
+
+- Small worlds pay far less for workers. A contact colour goes to the workers from 16 rows, not 4:
+  with `workers: 'auto'` a 10-box stack steps in half the time (0.16 to 0.08 ms with 5 workers,
+  0.21 to 0.11 ms with 1), now under its one-thread time. A world of 40 boxes still steps about a
+  quarter slower with workers than without; the 210-box pyramid and 1,000-box pile are unchanged.
+  Results are the same bits either way.
+- The 210-box pyramid steps 2 to 3% faster on one thread: a four-point contact's right-hand side in
+  the block normal solve is written out. The 1,000-box pile is unchanged. Same bits.
+- `docs/API.md`: `world.substeps` says what fewer substeps gains and loses, measured: at 4, the
+  pyramid steps 1.6 times as fast and sinks 29 mm in 10 s, against 7.3 mm at 8. Its note on why the
+  default is 8 had figures from before milestone 16, and has today's.
+- Pairs that don't touch are told apart before the full contact test, along the line between
+  their centres: on a pile of 1,000 hulls 99.6% of full tests found nothing. Hulls, meshes and
+  mixed heaps step 3 to 6% faster, 2D heaps 5 to 8%, and a landing box pile 3 to 4%, with a bound on
+  the edge pairs of boxes meeting corner on. A 2D step makes 750 KB of garbage, down from 2.6 MB.
+  Same bits.
+- A joint in a tree whose stops aren't reached does nothing more than see that they aren't: ragdolls
+  about 2.5% faster, and a contact pushed by nothing skips friction, rolling and twist, whose
+  limits are 0: heaps of balls 4%, meshes 2.5%, the rest 1 to 2%. Same bits.
+
 ## [1.3.2] - 2026-11-05
 
 A body pressed into a mesh or heightfield now stays on the side it was on, so a heap, a platform or
@@ -553,7 +612,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/getlowarc/bearing/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/getlowarc/bearing/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/getlowarc/bearing/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/getlowarc/bearing/compare/v1.1.0...v1.3.0

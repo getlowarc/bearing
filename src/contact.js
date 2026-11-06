@@ -310,21 +310,39 @@ export function narrow(world, pairs, broadphase, next, from) {
     jobs.end();
   }
   for (let p = from; p < pairs.active;) {
+    const touching = pairs.touching[p] === 1;
     if (!pairs.holds(p, broadphase)) {
+      if (touching) released(world, pairs.a[p], pairs.b[p]);
       pairs.remove(p);   // the last pair moves into p, its verdict with it, so p is looked at again
       continue;
     }
     const a = pairs.a[p], b = pairs.b[p], tolerance = Math.min(world._size[a], world._size[b]) * PIXEL;
-    const verdict = looked ? pairs.verdict[p] : UNSEEN;
+    const verdict = looked ? pairs.verdict[p] : UNSEEN, before = next.count;
     if (verdict === UNSEEN ? find(world, pairs, p, a, b, next, tolerance, sensing) : took(world, pairs, p, next, verdict)) {
       // Static bodies are never awake, and _wake leaves them be.
       if (awake[a] !== awake[b]) world._wake(awake[a] ? b : a);
       const m = emit(world, next, p, a, b, manifold, 1, tolerance, -1, -1, -1, 0);
       carry(pairs, p, next, m);
-    }
+    } else if (touching && next.count === before) released(world, a, b);
     p++;
   }
   return next.count;
+}
+
+/**
+ * A touching pair is touching no longer: whatever rested on it and has stopped
+ * being simulated, asleep or frozen, wakes, or it would hang in the air. This is
+ * the one place every way of taking a support away comes through: removing,
+ * moving, reshaping or refiltering it, at any type of body, in any order. Those
+ * are too many to tell apart at each setter, where only static bodies were told,
+ * and frozen bodies, whose pairs aren't asleep, were never told at all. A sensor
+ * holds nothing up.
+ */
+function released(world, a, b) {
+  if (world._sensor[a] !== 0 || world._sensor[b] !== 0) return;
+  const island = world._island, frozen = world._frozen;
+  if (island[a] !== 0 || frozen[a] !== 0) world._wake(a);
+  if (island[b] !== 0 || frozen[b] !== 0) world._wake(b);
 }
 
 /**
@@ -355,6 +373,10 @@ function find(world, pairs, p, a, b, next, tolerance, sensing) {
     return false;
   }
   if (!reused(world, pairs, p, a, b, tolerance, margin)) {
+    if (apart(world, a, b, margin + tolerance)) {
+      pairs.forget(p);
+      return false;
+    }
     load(world, a, shapeA);
     load(world, b, shapeB);
     const met = meet(world, a, b, null, null, tolerance, margin);
@@ -366,6 +388,45 @@ function find(world, pairs, p, a, b, next, tolerance, sensing) {
     remember(world, pairs, p, a, b);
   }
   return true;
+}
+
+/**
+ * NEAR MISSES. Whether slots a and b, plain shapes, are more than `gap` apart
+ * along the line between their centres, read straight from the columns. Most
+ * full tests find nothing: fat boxes overlap long before shapes touch, and of
+ * those that pass the tight boxes 99.6% on a pile of 1,000 hulls had no contact
+ * (13,317 of 13,367 a step, 3.98 of the 4.13 ms), 95% on a mixed heap, 85% on a
+ * landing box pile. Balls first, since that needs no square root; the line between
+ * the centres is a true separating axis, so a gap along it is a gap. The gap asked
+ * for is the margin and a tolerance, since collide() may snap a point up to
+ * a tolerance (collide.js), so nothing it would have found is lost.
+ */
+export function apart(world, a, b, gap) {
+  const p = world._position, a3 = 3 * a, b3 = 3 * b;
+  const dx = p[b3] - p[a3], dy = p[b3 + 1] - p[a3 + 1], dz = p[b3 + 2] - p[a3 + 2], d2 = dx * dx + dy * dy + dz * dz;
+  const far = world._reach[a] + world._reach[b] + gap;
+  if (d2 > far * far) return true;
+  if (d2 === 0) return false;
+  const d = Math.sqrt(d2), x = dx / d, y = dy / d, z = dz / d;
+  return d - extent(world, a, x, y, z) - extent(world, b, x, y, z) > gap;
+}
+
+/** How far slot s's shape reaches from its centre along the line (x, y, z), either way. */
+function extent(world, s, x, y, z) {
+  const shape = world._shape[s], dims = world._dims, s3 = 3 * s;
+  if (shape === SPHERE_SHAPE) return dims[s3];
+  const A = world._axes, a9 = 9 * s;
+  const ax = A[a9] * x + A[a9 + 1] * y + A[a9 + 2] * z, ay = A[a9 + 3] * x + A[a9 + 4] * y + A[a9 + 5] * z;
+  if (shape === CAPSULE_SHAPE) return dims[s3] + (dims[s3 + 1] - 2 * dims[s3]) * 0.5 * Math.abs(ay);
+  const az = A[a9 + 6] * x + A[a9 + 7] * y + A[a9 + 8] * z;
+  if (shape === BOX) return 0.5 * (dims[s3] * Math.abs(ax) + dims[s3 + 1] * Math.abs(ay) + dims[s3 + 2] * Math.abs(az));
+  const v = world._inner[s].vertices;
+  let most = 0;
+  for (let i = 0; i < v.length; i += 3) {
+    const d = Math.abs(v[i] * ax + v[i + 1] * ay + v[i + 2] * az);
+    if (d > most) most = d;
+  }
+  return most;
 }
 
 /**
@@ -968,6 +1029,7 @@ function look(world, pairs, c, p, epoch) {
   // Its kept manifold will do: this thread rebuilds it, and a look would be thrown away.
   if (pairs.cache[p] !== 0 && keeps(world, pairs, p, a, b, tolerance)) return UNSEEN;
   const margin = world._motion[a] + world._motion[b] + tolerance;
+  if (apart(world, a, b, margin + tolerance)) return MISSED;
   load(world, a, shapeA);
   load(world, b, shapeB);
   if (!meet(world, a, b, null, null, tolerance, margin)) return asked ? ASKED : MISSED;
@@ -1816,7 +1878,8 @@ function solveRows(world, c, h, bias, known, from, to) {
     cRelativeVelocity = c.relativeVelocity, cRollImpulse1 = c.rollImpulse1, cRollImpulse2 = c.rollImpulse2,
     cRollMass1 = c.rollMass1, cRollMass2 = c.rollMass2, cSliding = c.sliding, cSpinImpulse = c.spinImpulse,
     cSpinMass = c.spinMass, cT1 = c.t1, cT2 = c.t2, cTangentImpulse1 = c.tangentImpulse1,
-    cTangentImpulse2 = c.tangentImpulse2, cTolerance = c.tolerance;
+    cTangentImpulse2 = c.tangentImpulse2, cTolerance = c.tolerance, jac = c.jac, K = c.block, fj = c.fjac,
+    tm = c.tangentMass;
   const v = world._velocity, w = world._angular, invI = world._invI, invMass = world._invMass;
   const p = world._position, start = world._start, q = world._rotation;
   const inv = 1 / h;
@@ -1904,7 +1967,7 @@ function solveRows(world, c, h, bias, known, from, to) {
     // first point that pulls or closes too fast, until none does. It meets each
     // of the 2^count sets at most once, so that bounds it; a resting box's
     // first guess is the answer.
-    const jac = c.jac, ima = invMass[a], imb = invMass[b], kb = m * P * P, K = c.block;
+    const ima = invMass[a], imb = invMass[b], kb = m * P * P;
     let vax = v[a3], vay = v[a3 + 1], vaz = v[a3 + 2], wax = w[a3], way = w[a3 + 1], waz = w[a3 + 2];
     let vbx = v[b3], vby = v[b3 + 1], vbz = v[b3 + 2], wbx = w[b3], wby = w[b3 + 1], wbz = w[b3 + 2];
     if (count === 1 || !(K[kb] > 0)) {
@@ -1927,7 +1990,17 @@ function solveRows(world, c, h, bias, known, from, to) {
       }
       // The right-hand side, K l - v - t, and the first guess: the points it pushes.
       let set = 0;
-      for (let k = 0; k < count; k++) {
+      if (count === 4) {
+        // A box face, a resting pile's usual manifold: the loop below written
+        // out in locals, the same operations in the same order, so the same bits.
+        const i0 = m * P, l0 = cNormalImpulse[i0], l1 = cNormalImpulse[i0 + 1], l2 = cNormalImpulse[i0 + 2], l3 = cNormalImpulse[i0 + 3];
+        const r0 = -closingNow[0] - target[0] + K[kb] * l0 + K[kb + 1] * l1 + K[kb + 2] * l2 + K[kb + 3] * l3;
+        const r1 = -closingNow[1] - target[1] + K[kb + 4] * l0 + K[kb + 5] * l1 + K[kb + 6] * l2 + K[kb + 7] * l3;
+        const r2 = -closingNow[2] - target[2] + K[kb + 8] * l0 + K[kb + 9] * l1 + K[kb + 10] * l2 + K[kb + 11] * l3;
+        const r3 = -closingNow[3] - target[3] + K[kb + 12] * l0 + K[kb + 13] * l1 + K[kb + 14] * l2 + K[kb + 15] * l3;
+        wanted[0] = r0; wanted[1] = r1; wanted[2] = r2; wanted[3] = r3;
+        set = (r0 > 0 ? 1 : 0) | (r1 > 0 ? 2 : 0) | (r2 > 0 ? 4 : 0) | (r3 > 0 ? 8 : 0);
+      } else for (let k = 0; k < count; k++) {
         let r = -closingNow[k] - target[k];
         for (let l = 0; l < count; l++) r += K[kb + P * k + l] * cNormalImpulse[m * P + l];
         wanted[k] = r;
@@ -1981,8 +2054,18 @@ function solveRows(world, c, h, bias, known, from, to) {
       pressed += cNormalImpulse[i];
       twisted += cLever[i] * cNormalImpulse[i];
     }
+    // Pushed by nothing, and holding nothing from before: friction, rolling and
+    // twist are each held within a limit of 0, so all three would add nothing.
+    // A contact still closing on its gap, 12 to 25% of a heap's solves.
+    if (pressed === 0 && cTangentImpulse1[m] === 0 && cTangentImpulse2[m] === 0 && cSpinImpulse[m] === 0
+      && cRollImpulse1[m] === 0 && cRollImpulse2[m] === 0) {
+      cSliding[m] = 1;
+      writeBack(v, w, ima, a3, vax, vay, vaz, wax, way, waz);
+      writeBack(v, w, imb, b3, vbx, vby, vbz, wbx, wby, wbz);
+      continue;
+    }
     {
-      const f = FJ * m, fj = c.fjac, g = f + 12;
+      const f = FJ * m, g = f + 12;
       const dvx = vbx - vax, dvy = vby - vay, dvz = vbz - vaz;
       let v1 = dvx * t1x + dvy * t1y + dvz * t1z
         + wbx * fj[f + 3] + wby * fj[f + 4] + wbz * fj[f + 5] - wax * fj[f] - way * fj[f + 1] - waz * fj[f + 2];
@@ -2000,7 +2083,7 @@ function solveRows(world, c, h, bias, known, from, to) {
         }
         v1 += b1; v2 += b2;
       }
-      const tm = c.tangentMass, o1 = cTangentImpulse1[m], o2 = cTangentImpulse2[m];
+      const o1 = cTangentImpulse1[m], o2 = cTangentImpulse2[m];
       let n1 = o1 - (tm[m3] * v1 + tm[m3 + 1] * v2), n2 = o2 - (tm[m3 + 1] * v1 + tm[m3 + 2] * v2);
       const limit = mu * pressed, l2 = n1 * n1 + n2 * n2;
       if (l2 > limit * limit) {
@@ -2143,8 +2226,18 @@ export const JOBS = [warmJob, solveJob, prepareJob, lookRows];
  * measured on whole steps of awake piles with 3 workers: with 22 such
  * contacts (20 boxes) a step took the same time looked at by the workers or
  * not, with 33 (30 boxes) 3% less, 44 7% and 109 17%; so 32.
+ *
+ * A solve row's least is 16, not the single dispatch's 4: a step has 16 solve
+ * dispatches a colour (two passes, 8 substeps), and with only a few rows each
+ * the workers' share went on waking and on the rows' cache lines moving
+ * between cores. Measured on whole steps with 'auto', medians of five
+ * alternating runs: a 10-box stack 0.212 -> 0.112 ms a step (it was twice its
+ * one-thread time), the 210-box pyramid 3.14 -> 3.15 and the 1,000-box pile
+ * 14.4 -> 14.4 ms, both within noise. 32 measured no better than 16. Those on
+ * 4 cores, 1 worker; with 5 workers (i7-1260P) the stack 0.16 -> 0.08 ms, the
+ * others even or 1-3% better. 40 loose boxes still step 1.25x their one-thread time.
  */
-export const LEAST = [16, 4, 2, 32];
+export const LEAST = [16, 16, 2, 32];
 
 /** What a world's Jobs needs from here: the jobs, their least, and the world's columns they read. */
 export const WORK = {

@@ -289,6 +289,28 @@ test('off means off: a world with no characters never runs their pass', () => {
   assert.equal(world._characterCount, 0);
 });
 
+test('a box character walks as a capsule does: off the ground it lands on, along a wall, away from it', () => {
+  // A box touches at no distance at all, so a cast from a touch had no
+  // direction to judge by and every move came back stopped: the default
+  // character froze where it landed, and hung on a wall it was pressed into.
+  const world = new World();
+  world.addBody({ type: 'static', size: [40, 1, 40], position: [0, -0.5, 0] });
+  world.addBody({ type: 'static', size: [1, 10, 40], position: [3, 5, 0] });
+  const box = world.addBody({ type: 'character', size: [0.6, 1.8, 0.6], position: [0, 2, 0] });
+  for (let i = 0; i < 60; i++) world.step(1 / 60);
+  assert.ok(Math.abs(box.position[1] - 0.9) < 0.01, `landed at ${box.position[1]}`);
+  box.setVelocity(3, 0, 1);
+  for (let i = 0; i < 30; i++) world.step(1 / 60);
+  assert.ok(Math.abs(box.position[0] - 1.5) < 0.01 && Math.abs(box.position[2] - 0.5) < 0.01, `walked to ${box.position}`);
+  box.setVelocity(6, 0, 3);
+  for (let i = 0; i < 60; i++) world.step(1 / 60);
+  assert.ok(Math.abs(box.position[0] - 2.2) < 0.01, `stopped by the wall at x ${box.position[0]}`);
+  assert.ok(Math.abs(box.position[2] - 3.5) < 0.1, `slid along it to z ${box.position[2]}`);
+  box.setVelocity(-3, 0, 0);
+  for (let i = 0; i < 30; i++) world.step(1 / 60);
+  assert.ok(box.position[0] < 0.8, `walked away from it to x ${box.position[0]}`);
+});
+
 test('given a pushForce, a character pushes what it walks into, no harder than that; without one, nothing', () => {
   // Walking at 2 m/s into a crate on friction 0.5, which holds 20 kg with 98 N.
   const walkInto = (pushForce, mass, other = {}) => {

@@ -591,6 +591,9 @@ export class World {
     this._pairEpoch++;
     // Any change can change what holds it, so its island wakes first (rule 36).
     this._wake(s);
+    // A static body isn't woken, having no island, but one made to move has
+    // asleep pairs that must be looked at again, or what rests on it hangs.
+    this._wakePending = true;
     // Moving or turning a body by hand is a teleport: `previous` moves with it,
     // so interpolation doesn't draw it sliding across from where it was.
     const placed = o.position !== undefined || o.rotation !== undefined;

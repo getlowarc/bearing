@@ -871,6 +871,10 @@ function warmJoints(world, J, from, to) {
       if (type !== BALL) { acc[o + ANG] = 0; acc[o + ANG + 1] = 0; acc[o + ANG + 2] = 0; }
       if (type === DISTANCE) acc[o + AXIAL] = 0;
     }
+    // Nothing to start from, as a joint at rest in a falling body has.
+    let any = false;
+    for (let k = 0; k < IMPULSES && !any; k++) any = acc[o + k] !== 0;
+    if (!any) continue;
     load(world, j);
     geometry(world, j);
     if (type === SLIDER) {
@@ -953,16 +957,22 @@ function solveRange(world, J, from, to, h, bias, keep) {
     base = o;
     pins = type === FIXED || type === DISTANCE || type === ROTATION ? 0 : -1;
     pinType = type;
-    load(world, j);
     // Work kept at this pose by the last relax pass is read back in place of
     // the anchors, axes and rows it was made from (KEPT WORK).
     const keeps = keeping(J, j, type, held);
     const recall = keeps && bias && kept[j] === pose;
     const store = keeps && keep;
-    if (!recall) geometry(world, j);
-    // Kept work needs no anchors, but the force counted at the pass's end
-    // (pushes()) takes its moment about a's anchor where a is now.
-    else rotate(world._rotation, 4 * J.a[j], J.localA[3 * j], J.localA[3 * j + 1], J.localA[3 * j + 2], false, RA);
+    if (held && (type === BALL || type === HINGE) && !gives(J, j)) {
+      speeds(world, j);
+      waiting = world;
+      waitingJoint = j;
+    } else {
+      load(world, j);
+      if (!recall) geometry(world, j);
+      // Kept work needs no anchors, but the force counted at the pass's end
+      // (pushes()) takes its moment about a's anchor where a is now.
+      else rotate(world._rotation, 4 * J.a[j], J.localA[3 * j], J.localA[3 * j + 1], J.localA[3 * j + 2], false, RA);
+    }
     switch (type) {
       case FIXED:
         frames(world, j);
@@ -1031,7 +1041,9 @@ function solveRange(world, J, from, to, h, bias, keep) {
       default:
         distance(J, j, acc, o, h, bias, held);
     }
-    save(world, j);
+    // No stop reached: nothing pushed, so nothing to write back or count.
+    if (waiting !== null) waiting = null;
+    else save(world, j);
   }
 }
 
@@ -1382,23 +1394,54 @@ function emit(F, t, m, o, c, rate) {
  * dynamic body turns under a push.
  */
 function load(world, j) {
-  const J = world._joints, a = J.a[j], b = J.b[j], v = world._velocity, w = world._angular;
-  const invI = world._invIt, type = world._type;
-  const a3 = 3 * a, a6 = 6 * a;
+  speeds(world, j);
+  masses(world, j);
+}
+
+/** The bodies' velocities, which is all a stop needs to know it isn't reached. */
+function speeds(world, j) {
+  const J = world._joints, a = J.a[j], b = J.b[j], v = world._velocity, w = world._angular, a3 = 3 * a;
   VA[0] = v[a3]; VA[1] = v[a3 + 1]; VA[2] = v[a3 + 2]; VA[3] = w[a3]; VA[4] = w[a3 + 1]; VA[5] = w[a3 + 2];
+  if (b < 0) {
+    for (let k = 0; k < 6; k++) VB[k] = 0;
+    return;
+  }
+  const b3 = 3 * b;
+  VB[0] = v[b3]; VB[1] = v[b3 + 1]; VB[2] = v[b3 + 2]; VB[3] = w[b3]; VB[4] = w[b3 + 1]; VB[5] = w[b3 + 2];
+}
+
+/** The bodies' inverse masses and turned inverse inertias. */
+function masses(world, j) {
+  const J = world._joints, a = J.a[j], b = J.b[j], invI = world._invIt, type = world._type, a6 = 6 * a;
   if (type[a] === DYNAMIC) for (let k = 0; k < 6; k++) IA[k] = invI[a6 + k];
   else for (let k = 0; k < 6; k++) IA[k] = 0;
   ima = world._invMass[a];
   if (b < 0) {
-    for (let k = 0; k < 6; k++) { VB[k] = 0; IB[k] = 0; }
+    for (let k = 0; k < 6; k++) IB[k] = 0;
     imb = 0;
     return;
   }
-  const b3 = 3 * b, b6 = 6 * b;
-  VB[0] = v[b3]; VB[1] = v[b3 + 1]; VB[2] = v[b3 + 2]; VB[3] = w[b3]; VB[4] = w[b3 + 1]; VB[5] = w[b3 + 2];
+  const b6 = 6 * b;
   if (type[b] === DYNAMIC) for (let k = 0; k < 6; k++) IB[k] = invI[b6 + k];
   else for (let k = 0; k < 6; k++) IB[k] = 0;
   imb = world._invMass[b];
+}
+
+// A joint whose only work this pass is stops, and which isn't known to touch
+// one yet (WAITING). A tree's forest holds its point and axis, so a stop's speed
+// and how far off it is are all the pass needs until it is reached, and in a
+// ragdoll few are: 41% of a step was this pass, nearly all of it loading
+// inertias, turning anchors, and writing back velocities it hadn't changed. The
+// numbers are read as late as the first stop that fires, from a state nothing in
+// the pass changes, so they are the same numbers.
+let waiting = null, waitingJoint = 0;
+
+/** What the waiting joint put off, now a stop needs it. */
+function ready() {
+  const world = waiting;
+  waiting = null;
+  masses(world, waitingJoint);
+  geometry(world, waitingJoint);
 }
 
 /**
@@ -2218,6 +2261,7 @@ function pin(type) {
 
 /** Row o's effective mass with the pinned rows holding, and their share of its impulse into MU. */
 function free(o) {
+  if (waiting !== null) ready();
   if (pins < 0) pin(pinType);
   if (pins === 0) return mass(o);
   let k = coupling(o, o);

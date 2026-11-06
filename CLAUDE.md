@@ -146,6 +146,17 @@ These were made with Nolan and override the rules below where they differ.
   plate went on through a heightfield). Judge changes here on ridges against a solid hull (test
   in `mesh.test.js`), not only on heaps: 0.7 passed every heap and sent rocks down the wrong
   flank. Heaps 6 through in 240,000 -> 1. No stored field, same bits unless pressed through.
+- **A touch ending wakes what it held** (2026-11-06, the audit): `released()` in `contact.js`, called
+  from `narrow()` when a touching pair stops or is dropped, wakes or thaws either side if asleep or
+  frozen; 2D's `_released()` the same. Every way of taking a support away comes through it, so no
+  setter has to tell anyone, and adding one needs nothing. Not `_wake` for what is simply awake: that
+  would set HANDLED and put off freezing. `setBody` sets `_wakePending` so a static body made to move
+  has its asleep pairs looked at. Heaps keep their bits.
+- **Near misses** (2026-11-06, the audit; same bits): `apart()` in `contact.js` and `collide2d.js`,
+  before `collide()`: balls, then the line between the centres, for a gap of the margin and a
+  tolerance (`collide()` may snap a point a tolerance). 99.6% of full tests on a hull pile found
+  nothing. `test/collide.test.js` holds it to never calling apart what `collide()` finds. Confirm
+  speed leads with direct timers: V8's profiler misattributes under inlining.
 - **Contact events and sensors** (2026-10-14, milestone 10, approved): `world.contacts(body)` (the
   last step's `begin`/`end`, read after the step, rule 65; with a body, its own, turned so it is
   `a`; removed bodies accepted), `world.touching(body)` in place of stay events (through the
@@ -367,7 +378,9 @@ These were made with Nolan and override the rules below where they differ.
   Joint passes lulled (2026-10-27): `world.js` calls `jobs.lull(k)` before each, and workers
   sleep through one that last took over `LULL_MS` (50 us, about a wake's cost); a dispatch
   notifies only when `SLEEPING` > 0. Ragdolls 14.0 -> 10.5 ms with 'auto', one thread 9.0:
-  the rest is likely contact-pass wakes and cache traffic. Small worlds still ~1.3x slower.
+  the rest is likely contact-pass wakes and cache traffic. Small worlds still ~1.3x slower
+  (2026-11-05, from Nolan's brother's fork: a colour's solve goes to the workers from 16 rows, not 4,
+  `LEAST`: 10-box stack halved, now under one thread; 40 boxes still 1.25x).
 - **Four points, nearest first** (2026-10-23, the rocking bugs): `reducePoints` in `collide.js`
   and `reduce()` in `triangle.js` make each pick (farthest, then the largest triangle on each
   side) among pressed points (separation <= 0) first, then touching (within the tolerance), then
