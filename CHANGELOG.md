@@ -7,6 +7,19 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Bodies no longer hang in the air when what held them goes. A frozen or sleeping body now wakes
+  when any touch it rested on ends, however that came about: a floor removed, moved or filtered
+  out, a kinematic lift moved by hand, shrunk or filtered out, or a box under it taken away.
+- A static body made dynamic or kinematic moves what rested on it, or carries it, in place of
+  passing through it.
+- A box character no longer freezes when it lands or meets a wall. It walks, slides along walls
+  and steps off ledges as a capsule does. Box is the default shape, so a character given no
+  shape had this. A box touches at no distance, so a move from a touch had no direction to go by.
+- `shapeCast` with a box or hull gives the true normal and point. About half of all casts gave the
+  normal against the move and the point at the cast's centre; the distance was right.
+
 ### Changed
 
 - Small worlds pay far less for workers. A contact colour goes to the workers from 16 rows, not 4:

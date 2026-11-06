@@ -310,21 +310,39 @@ export function narrow(world, pairs, broadphase, next, from) {
     jobs.end();
   }
   for (let p = from; p < pairs.active;) {
+    const touching = pairs.touching[p] === 1;
     if (!pairs.holds(p, broadphase)) {
+      if (touching) released(world, pairs.a[p], pairs.b[p]);
       pairs.remove(p);   // the last pair moves into p, its verdict with it, so p is looked at again
       continue;
     }
     const a = pairs.a[p], b = pairs.b[p], tolerance = Math.min(world._size[a], world._size[b]) * PIXEL;
-    const verdict = looked ? pairs.verdict[p] : UNSEEN;
+    const verdict = looked ? pairs.verdict[p] : UNSEEN, before = next.count;
     if (verdict === UNSEEN ? find(world, pairs, p, a, b, next, tolerance, sensing) : took(world, pairs, p, next, verdict)) {
       // Static bodies are never awake, and _wake leaves them be.
       if (awake[a] !== awake[b]) world._wake(awake[a] ? b : a);
       const m = emit(world, next, p, a, b, manifold, 1, tolerance, -1, -1, -1, 0);
       carry(pairs, p, next, m);
-    }
+    } else if (touching && next.count === before) released(world, a, b);
     p++;
   }
   return next.count;
+}
+
+/**
+ * A touching pair is touching no longer: whatever rested on it and has stopped
+ * being simulated, asleep or frozen, wakes, or it would hang in the air. This is
+ * the one place every way of taking a support away comes through: removing,
+ * moving, reshaping or refiltering it, at any type of body, in any order. Those
+ * are too many to tell apart at each setter, where only static bodies were told,
+ * and frozen bodies, whose pairs aren't asleep, were never told at all. A sensor
+ * holds nothing up.
+ */
+function released(world, a, b) {
+  if (world._sensor[a] !== 0 || world._sensor[b] !== 0) return;
+  const island = world._island, frozen = world._frozen;
+  if (island[a] !== 0 || frozen[a] !== 0) world._wake(a);
+  if (island[b] !== 0 || frozen[b] !== 0) world._wake(b);
 }
 
 /**

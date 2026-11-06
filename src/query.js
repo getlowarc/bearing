@@ -368,6 +368,23 @@ function advance(cast, b, scale, ox, oy, oz, dx, dy, dz, maxT, sliding = false) 
     cast.center[0] = ox + t * dx; cast.center[1] = oy + t * dy; cast.center[2] = oz + t * dz;
     const d = closest(cast, b, near), gap = d - ra - rb;
     if (gap < tolerance) {
+      if (d > meeting) {
+        // Apart, or touching: the normal runs from the body's core to the cast's.
+        const nx = (near.a[0] - near.b[0]) / d, ny = (near.a[1] - near.b[1]) / d, nz = (near.a[2] - near.b[2]) / d;
+        normal[0] = nx; normal[1] = ny; normal[2] = nz;
+        point[0] = near.b[0] + nx * rb; point[1] = near.b[1] + ny * rb; point[2] = near.b[2] + nz * rb;
+      } else if ((b.kind === TRIANGLE ? touch(cast, b, BARE, null, tolerance, tolerance, manifold, 0) : collide(cast, b, tolerance, tolerance, manifold)) > 0) {
+        // The cores meet: a box or hull exactly touching, having no radius to
+        // leave a gap, or shapes overlapping where the cast started. The
+        // narrowphase knows which way out, within its tolerance: with no
+        // margin at all it found nothing half the time, rounding leaving the
+        // two 1e-15 apart. Its normal runs from the cast to the body.
+        normal[0] = -manifold.normal[0]; normal[1] = -manifold.normal[1]; normal[2] = -manifold.normal[2];
+        point[0] = manifold.points[0]; point[1] = manifold.points[1]; point[2] = manifold.points[2];
+      } else {
+        normal[0] = -dx; normal[1] = -dy; normal[2] = -dz;
+        point[0] = cast.center[0]; point[1] = cast.center[1]; point[2] = cast.center[2];
+      }
       // Sliding (a character, see sweep()): already in contact at the start,
       // it is stopped only if the move could take it further in than it is,
       // or than touching, by more than rounding. The gap between two convex
@@ -375,24 +392,12 @@ function advance(cast, b, scale, ox, oy, oz, dx, dy, dz, maxT, sliding = false) 
       // so that rate over the whole move is the furthest in it can get. So
       // moving off the body doesn't stop it, nor moving along it, even with
       // rounding's tilt into it (a floor's normal 2e-14 off up) from rounding's
-      // depth in it (1e-16).
-      if (sliding && i === 0 && d > meeting) {
-        const opening = ((near.a[0] - near.b[0]) * dx + (near.a[1] - near.b[1]) * dy + (near.a[2] - near.b[2]) * dz) / d;
+      // depth in it (1e-16). A box asks this too: it touches at no distance, so
+      // only the normal above can tell, and without it every move from a
+      // touch came back stopped, and a box character froze where it landed.
+      if (sliding && i === 0) {
+        const opening = normal[0] * dx + normal[1] * dy + normal[2] * dz;
         if (opening >= 0 || gap + opening * maxT >= Math.min(gap, 0) - meeting) return -1;
-      }
-      if (d > meeting) {
-        // Apart, or touching: the normal runs from the body's core to the cast's.
-        const nx = (near.a[0] - near.b[0]) / d, ny = (near.a[1] - near.b[1]) / d, nz = (near.a[2] - near.b[2]) / d;
-        normal[0] = nx; normal[1] = ny; normal[2] = nz;
-        point[0] = near.b[0] + nx * rb; point[1] = near.b[1] + ny * rb; point[2] = near.b[2] + nz * rb;
-      } else if ((b.kind === TRIANGLE ? touch(cast, b, BARE, null, 0, tolerance, manifold, 0) : collide(cast, b, 0, tolerance, manifold)) > 0) {
-        // The cores meet: the shapes overlap, deeply, where it started. The
-        // narrowphase knows which way out; its normal runs from the cast to the body.
-        normal[0] = -manifold.normal[0]; normal[1] = -manifold.normal[1]; normal[2] = -manifold.normal[2];
-        point[0] = manifold.points[0]; point[1] = manifold.points[1]; point[2] = manifold.points[2];
-      } else {
-        normal[0] = -dx; normal[1] = -dy; normal[2] = -dz;
-        point[0] = cast.center[0]; point[1] = cast.center[1]; point[2] = cast.center[2];
       }
       return t;
     }
