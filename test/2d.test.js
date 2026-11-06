@@ -196,13 +196,13 @@ test('moveTo lands on the pose to rounding, the short way round, an off-centre c
 
 test('add, set, read and remove: bodyOf round-trips, ids stay dead, storage comes back', () => {
   const world = new World2D();
-  const shard = world.addBody({ shape: 'polygon', vertices: [0, 0, 6, 1, 4, 5], position: [320, 96], angle: 0.3, friction: 0.2, velocity: [1, 2], angularVelocity: 3 });
-  const copy = world.addBody(world.bodyOf(shard));
-  const a = world.bodyOf(copy), b = world.bodyOf(shard);
+  const piece = world.addBody({ shape: 'polygon', vertices: [0, 0, 6, 1, 4, 5], position: [320, 96], angle: 0.3, friction: 0.2, velocity: [1, 2], angularVelocity: 3 });
+  const copy = world.addBody(world.bodyOf(piece));
+  const a = world.bodyOf(copy), b = world.bodyOf(piece);
   near(a.position[0], b.position[0], 1e-12); near(a.position[1], b.position[1], 1e-12);
   assert.deepEqual({ ...a, position: null }, { ...b, position: null });
-  assert.ok(shard instanceof Body2D);
-  assert.equal(world.body(shard.id).id, shard.id);
+  assert.ok(piece instanceof Body2D);
+  assert.equal(world.body(piece.id).id, piece.id);
   // A compound and a capsule too, and the options that read null.
   const ell = world.addBody({ shape: 'compound', parts: [{ size: [12, 4], position: [6, 2] }, { shape: 'circle', radius: 2, density: 3 }] });
   assert.deepEqual(world.bodyOf(world.addBody(world.bodyOf(ell))).parts, world.bodyOf(ell).parts);
@@ -220,18 +220,18 @@ test('add, set, read and remove: bodyOf round-trips, ids stay dead, storage come
   world.step(DT);
   assert.deepEqual(crate.position, [50, 60]);
   // Teleported, previous goes with it.
-  shard.setPosition(5, 6).setAngle(1);
-  const t = world.previous, o = shard.slot * 3;
+  piece.setPosition(5, 6).setAngle(1);
+  const t = world.previous, o = piece.slot * 3;
   assert.deepEqual([t[o], t[o + 1], t[o + 2]], [5, 6, 1]);
   // Removed, the handle is dead, its slot is reused under a new id, and a burst leaves nothing.
-  const { id, slot } = shard;
-  world.remove(shard);
-  world.remove(shard);
-  assert.equal(shard.alive, false);
+  const { id, slot } = piece;
+  world.remove(piece);
+  world.remove(piece);
+  assert.equal(piece.alive, false);
   const next = world.addBody();
   assert.equal(next.slot, slot);
   assert.notEqual(next.id, id);
-  assert.throws(() => shard.position, /this body was removed/);
+  assert.throws(() => piece.position, /this body was removed/);
   const quiet = new World2D();
   for (let round = 0; round < 3; round++) {
     const bodies = [];

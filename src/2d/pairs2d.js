@@ -1,17 +1,17 @@
 // Which bodies might touch, and what each such pair remembers.
 //
 // BROADPHASE. Testing every body against every other is n² tests; a pile of
-// 5,000 shards is 12 million a step, nearly all of them between bodies nowhere
+// 5,000 pieces is 12 million a step, nearly all of them between bodies nowhere
 // near each other. So each body sits in a tree of boxes (tree.js, 3D's, used
 // as it is with every box of no depth), in a FAT box a little bigger than it.
 // While it stays inside that box nothing changes, so most steps touch the tree
 // not at all. A body that leaves it is put back and asked what it now overlaps.
 // Static bodies have a tree of their own, since nothing needs to ask them
 // anything. The box doesn't reach ahead of the body, as 3D's does (AHEAD,
-// broadphase.js), which suits a metre-wide crate: an 8 px shard falling 16
+// broadphase.js), which suits a metre-wide crate: an 8 px piece falling 16
 // steps ahead has a box 20 times itself, touching everything near it long after
-// it stops. Measured on 5,000 shards landing: 105 ms a step and 210 pairs a
-// shard with it, 25 ms and 10 pairs without, and a reach held to the body's own
+// it stops. Measured on 5,000 pieces landing: 105 ms a step and 210 pairs a
+// piece with it, 25 ms and 10 pairs without, and a reach held to the body's own
 // size was worse the longer it was.
 //
 // PAIRS are kept from step to step: a pair stays listed while its fat boxes

@@ -101,8 +101,7 @@ past its centre, so most replays still match; a save loads only into the version
 ## [1.3.1] - 2026-11-05
 
 A crash fixed in 2D, and a rocking capsule that kept 3D heaps awake. Adding and removing bodies
-between steps could make a 2D world's next `step` throw, which a game breaking blocks into pieces
-does all the time. In 3D, a capsule lying nearly along what it rests on now settles. There is no
+between steps could make a 2D world's next `step` throw. In 3D, a capsule lying nearly along what it rests on now settles. There is no
 API change and saves stay at format 15, but a save loads only into the version that made it, and
 3D results change wherever capsules touch boxes or each other, so a replay recorded on 1.3.0 won't
 match.
@@ -125,7 +124,7 @@ match.
 
 ## [1.3.0] - 2026-11-04
 
-Bearing in two dimensions, and joints and characters closer to what the games ask of them. There
+Bearing in two dimensions, and joints and characters closer to what games ask of them. There
 is a 2D module, `bearing-physics/2d`, in pixels with y down as Winding's and Godot's are: boxes,
 circles, capsules, polygons and compounds, tilemaps that change as they are mined, one-sided
 chains, queries, contact events, sensors and character bodies, with the same calls, options and
@@ -171,7 +170,7 @@ format 15.
 
 ## [1.1.0] - 2026-11-03
 
-What the games need first from 1.x, added without changing anything 1.0 code relies on. A hit
+What games need first from 1.x, added without changing anything 1.0 code relies on. A hit
 between bodies already touching is now an event, so damage can be read from every blow; a group
 keeps each ragdoll's parts off one another, a hundred ragdolls at once; queries leave out a list
 of bodies; and `body.moveTo` drives an animated kinematic body to a pose, exactly. No simulation

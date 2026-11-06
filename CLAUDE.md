@@ -270,7 +270,7 @@ These were made with Nolan and override the rules below where they differ.
   rotate of `localA`), `settleForest()` calls `forestPushes()` over its range (the factor's a-side
   Jacobian; turning rows first, as `build()` orders them); `gather()` zeroes, `jointForces(world, dt)`
   divides after the substeps. `force`/`torque` shared with the workers (groups then trees, the
-  one-thread order). Breaking stays in the games. FORMAT 9. Bookkeeping cost, pinned: ragdolls 0-6%,
+  one-thread order). Breaking stays outside Bearing. FORMAT 9. Bookkeeping cost, pinned: ragdolls 0-6%,
   chains 3-9%, active 2-7%.
 - **Continuous collision** (2026-10-15, milestone 13, approved): speculative contacts stay; a pair
   not touching that moves against itself by more than its tolerance in the step (`moving()` in
@@ -391,7 +391,7 @@ These were made with Nolan and override the rules below where they differ.
   sleep through one that last took over `LULL_MS` (50 us, about a wake's cost); a dispatch
   notifies only when `SLEEPING` > 0. Ragdolls 14.0 -> 10.5 ms with 'auto', one thread 9.0:
   the rest is likely contact-pass wakes and cache traffic. Small worlds still ~1.3x slower
-  (2026-11-05, from Nolan's brother's fork: a colour's solve goes to the workers from 16 rows, not 4,
+  (2026-11-05: a colour's solve goes to the workers from 16 rows, not 4,
   `LEAST`: 10-box stack halved, now under one thread; 40 boxes still 1.25x).
 - **Four points, nearest first** (2026-10-23, the rocking bugs): `reducePoints` in `collide.js`
   and `reduce()` in `triangle.js` make each pick (farthest, then the largest triangle on each
