@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict';
 import { World2D } from '../src/2d/bearing2d.js';
-import { Core, Manifold2, collide } from '../src/2d/collide2d.js';
+import { Core, Manifold2, collide, apart } from '../src/2d/collide2d.js';
 import { suite, test } from './test.js';
 
 suite('2d contact');
@@ -232,6 +232,28 @@ test('capsules, polygons and circles settle on each other, and a fast body stops
   const bullet = wall.addBody({ shape: 'circle', radius: 5, position: [-300, 0], velocity: [5000, 0] });
   steps(wall, 60);
   assert.ok(bullet.position[0] < -14, `the ball reached ${bullet.position[0]}`);
+});
+
+test('what the near-miss test calls apart, the full test never finds touching, for every pair of cores', () => {
+  let state = 91;
+  const r = () => (state = (state * 16807) % 2147483647) / 2147483647;
+  const cores = [new Core([-10, -8, 10, -8, 10, 8, -10, 8], 0), new Core([0, 0], 9), new Core([-12, 0, 12, 0], 5), new Core([-12, -8, 12, -10, 14, 6, 0, 12, -12, 6], 2)];
+  const margin = 2, tolerance = 0.2, m = new Manifold2(), p = new Float64Array(4), t = new Float64Array(4);
+  for (const a of cores) {
+    for (const b of cores) {
+      let said = 0;
+      for (let i = 0; i < 5000; i++) {
+        const u = r() * 6.283185307179586, v = r() * 6.283185307179586, d = 15 + r() * 40;
+        p[2] = d * (r() - 0.5) * 2; p[3] = d * (r() - 0.5) * 2;
+        t[0] = 1 - 2 * ((u / 6.283185307179586) % 1) ** 2; t[1] = Math.sqrt(Math.max(0, 1 - t[0] * t[0]));
+        t[2] = 1 - 2 * ((v / 6.283185307179586) % 1) ** 2; t[3] = -Math.sqrt(Math.max(0, 1 - t[2] * t[2]));
+        if (!apart(a, b, p, t, 0, 2, margin + tolerance)) continue;
+        said++;
+        assert.equal(collide(a, 0, 0, t[0], t[1], b, p[2], p[3], t[2], t[3], margin, tolerance, m), 0, `pose ${i}: called apart, and touching`);
+      }
+      assert.ok(said > 500, `called apart only ${said} times of 5000`);
+    }
+  }
 });
 
 test('shards a few pixels across rest on a floor and on each other', () => {

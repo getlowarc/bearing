@@ -19,6 +19,11 @@ All notable changes to Bearing are recorded here. The format follows
 - `docs/API.md`: `world.substeps` says what fewer substeps gains and loses, measured: at 4, the
   pyramid steps 1.6 times as fast and sinks 29 mm in 10 s, against 7.3 mm at 8. Its note on why the
   default is 8 had figures from before milestone 16, and has today's.
+- Pairs that don't touch are told apart before the full contact test, along the line between
+  their centres: on a pile of 1,000 hulls 99.6% of full tests found nothing. Hulls, meshes and
+  mixed heaps step 3 to 6% faster, 2D heaps 5 to 8%, and a landing box pile 3 to 4%, with a bound on
+  the edge pairs of boxes meeting corner on. A 2D step makes 750 KB of garbage, down from 2.6 MB.
+  Same bits.
 
 ## [1.3.2] - 2026-11-05
 

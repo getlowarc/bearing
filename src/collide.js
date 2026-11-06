@@ -829,6 +829,8 @@ function corners(x, c) {
 // The 12 edges of a box as pairs of corners differing in one sign.
 const EDGE_FROM = [0, 2, 4, 6, 0, 1, 4, 5, 0, 1, 2, 3];
 const EDGE_TO = [1, 3, 5, 7, 2, 3, 6, 7, 4, 5, 6, 7];
+/** 1 + 2^-30: far over the rounding in a sum of a few terms, and it skips as much. */
+const SLACK = 1.0000000009313226;
 
 /**
  * The true closest points of two boxes that are apart: each corner of one
@@ -858,15 +860,27 @@ function boxBoxClosest(a, b, margin, out) {
       }
     }
   }
+  // Two edges can't be nearer than their midpoints are, less their half
+  // lengths: only pairs that bound lets through are worked out, so what is
+  // skipped could never have won, and the answer is the same. Edges come
+  // four to an axis. SLACK keeps rounding in the bound on the safe side.
+  let nearest = Math.sqrt(best);
   for (let i = 0; i < 12; i++) {
-    for (let k = 0; k < 3; k++) { segA[k] = cornerA[3 * EDGE_FROM[i] + k]; segA[3 + k] = cornerA[3 * EDGE_TO[i] + k]; }
+    const f = 3 * EDGE_FROM[i], t = 3 * EDGE_TO[i], la = a.half[i >> 2];
+    const mx = (cornerA[f] + cornerA[t]) * 0.5, my = (cornerA[f + 1] + cornerA[t + 1]) * 0.5, mz = (cornerA[f + 2] + cornerA[t + 2]) * 0.5;
+    let set = false;
     for (let j = 0; j < 12; j++) {
-      for (let k = 0; k < 3; k++) { segB[k] = cornerB[3 * EDGE_FROM[j] + k]; segB[3 + k] = cornerB[3 * EDGE_TO[j] + k]; }
+      const g = 3 * EDGE_FROM[j], u = 3 * EDGE_TO[j], ex = (cornerB[g] + cornerB[u]) * 0.5 - mx;
+      const ey = (cornerB[g + 1] + cornerB[u + 1]) * 0.5 - my, ez = (cornerB[g + 2] + cornerB[u + 2]) * 0.5 - mz;
+      const reach = (nearest + la + b.half[j >> 2]) * SLACK;
+      if (ex * ex + ey * ey + ez * ez > reach * reach) continue;
+      if (!set) { for (let k = 0; k < 3; k++) { segA[k] = cornerA[f + k]; segA[3 + k] = cornerA[t + k]; } set = true; }
+      for (let k = 0; k < 3; k++) { segB[k] = cornerB[g + k]; segB[3 + k] = cornerB[u + k]; }
       closestSegments(segA, segB);
       const px = segA[0] + (segA[3] - segA[0]) * segS, py = segA[1] + (segA[4] - segA[1]) * segS, pz = segA[2] + (segA[5] - segA[2]) * segS;
       const qx = segB[0] + (segB[3] - segB[0]) * segT, qy = segB[1] + (segB[4] - segB[1]) * segT, qz = segB[2] + (segB[5] - segB[2]) * segT;
       const d = (qx - px) * (qx - px) + (qy - py) * (qy - py) + (qz - pz) * (qz - pz);
-      if (d < best) { best = d; ax = px; ay = py; az = pz; bx = qx; by = qy; bz = qz; }
+      if (d < best) { best = d; nearest = Math.sqrt(d); ax = px; ay = py; az = pz; bx = qx; by = qy; bz = qz; }
     }
   }
   const dist = normalize(bx - ax, by - ay, bz - az);

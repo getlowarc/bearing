@@ -31,7 +31,7 @@
 // and resists rolling by the push leaning to its edge. So a ball rolls to rest.
 // Two points have their spread, and need none.
 
-import { collide, Manifold2 } from './collide2d.js';
+import { collideAt, apart, Manifold2 } from './collide2d.js';
 import { BEGIN, IMPACT } from '../events.js';
 import { Chain, Tilemap, touchChain, touchCores, touchTiles } from './level2d.js';
 import { resized } from '../core/slots.js';
@@ -97,7 +97,8 @@ export function meet(world, c, a, b, pair, pairs) {
   const tolerance = Math.min(sa, sb) * PIXEL;
   const margin = tolerance + world._motion[a] + world._motion[b];
   const p = world._position, r = world._rotation, a2 = 2 * a, b2 = 2 * b;
-  if (collide(coreA, p[a2], p[a2 + 1], r[a2], r[a2 + 1], coreB, p[b2], p[b2 + 1], r[b2], r[b2 + 1], margin, tolerance, found) === 0) return false;
+  if (apart(coreA, coreB, p, r, a2, b2, margin + tolerance)) return false;
+  if (collideAt(coreA, coreB, p, r, a2, b2, margin, tolerance, found) === 0) return false;
   row(world, c, a, b, pair, pairs, tolerance, -1);
   return true;
 }

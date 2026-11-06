@@ -147,8 +147,10 @@ function pastEnds(p, q) {
   return beyond > before ? beyond : before;
 }
 
-// The nearest points of two cores: nearX/Y on a, on b.
-let nearAx = 0, nearAy = 0, nearBx = 0, nearBy = 0, nearCornerA = -1, nearCornerB = -1;
+// The nearest points of two cores, a's then b's: in an array, since a store
+// to a module's own number makes a new number each time.
+const NEAR = new Float64Array(4);
+let nearCornerA = -1, nearCornerB = -1;
 
 /** Shortest squared distance so far, from corners of `p` to the sides of `q`; `swap` when p is b. */
 function corners(p, q, swap, best) {
@@ -165,8 +167,8 @@ function corners(p, q, swap, best) {
       const qx = ox + t * dx, qy = oy + t * dy, ex = x - qx, ey = y - qy, d = ex * ex + ey * ey;
       if (d < best) {
         best = d;
-        if (swap) { nearBx = x; nearBy = y; nearAx = qx; nearAy = qy; nearCornerB = i; nearCornerA = corner; }
-        else { nearAx = x; nearAy = y; nearBx = qx; nearBy = qy; nearCornerA = i; nearCornerB = corner; }
+        if (swap) { NEAR[2] = x; NEAR[3] = y; NEAR[0] = qx; NEAR[1] = qy; nearCornerB = i; nearCornerA = corner; }
+        else { NEAR[0] = x; NEAR[1] = y; NEAR[2] = qx; NEAR[3] = qy; nearCornerA = i; nearCornerB = corner; }
       }
     }
   }
@@ -201,37 +203,76 @@ function clip(p, q, side, nx, ny, flip, margin, m) {
     if (ta < lo && tb < lo) return 0;
     if (ta > hi && tb > hi) return 0;
     // Where the slab's edges cut it, a point takes the name of p's corner there.
-    const cut = (limit, from, to) => (limit - from) / (to - from);
-    if (ta < lo) { const f = cut(lo, ta, tb); ax += f * (bx - ax); ay += f * (by - ay); ta = lo; idA = v1 + pOwner; }
-    else if (ta > hi) { const f = cut(hi, ta, tb); ax += f * (bx - ax); ay += f * (by - ay); ta = hi; idA = v2 + pOwner; }
-    if (tb < lo) { const f = cut(lo, tb, ta); bx += f * (ax - bx); by += f * (ay - by); tb = lo; idB = v1 + pOwner; }
-    else if (tb > hi) { const f = cut(hi, tb, ta); bx += f * (ax - bx); by += f * (ay - by); tb = hi; idB = v2 + pOwner; }
+    if (ta < lo) { const f = (lo - ta) / (tb - ta); ax += f * (bx - ax); ay += f * (by - ay); ta = lo; idA = v1 + pOwner; }
+    else if (ta > hi) { const f = (hi - ta) / (tb - ta); ax += f * (bx - ax); ay += f * (by - ay); ta = hi; idA = v2 + pOwner; }
+    if (tb < lo) { const f = (lo - tb) / (ta - tb); bx += f * (ax - bx); by += f * (ay - by); tb = lo; idB = v1 + pOwner; }
+    else if (tb > hi) { const f = (hi - tb) / (ta - tb); bx += f * (ax - bx); by += f * (ay - by); tb = hi; idB = v2 + pOwner; }
   }
   m.nx = flip ? -nx : nx; m.ny = flip ? -ny : ny;
   let count = 0;
-  const write = (x, y, id) => {
+  for (let k = 0, ends = q.n >= 2 ? 2 : 1; k < ends; k++) {
+    const x = k === 0 ? ax : bx, y = k === 0 ? ay : by;
     const c = (x - x1) * nx + (y - y1) * ny, s = c - p.r - q.r;
-    if (s > margin) return;
+    if (s > margin) continue;
     // Midway between the two surfaces.
     const back = (c - p.r + q.r) * 0.5;
     m.x[count] = x - nx * back; m.y[count] = y - ny * back;
-    m.separation[count] = s; m.id[count] = id; count++;
-  };
-  write(ax, ay, idA);
-  if (q.n >= 2) write(bx, by, idB);
+    m.separation[count] = s; m.id[count] = k === 0 ? idA : idB; count++;
+  }
   return count;
 }
 
 /**
  * The manifold between two cores placed at (px, py) turned (c, s): into m, and
  * its point count. `margin` is how far apart a point may be and still be kept;
- * `tolerance` how near flat two sides must lie to be taken as flat. Nothing
- * here allocates, but for the scratch of a polygon past eight corners.
+ * `tolerance` how near flat two sides must lie to be taken as flat. No arrays
+ * are made here, but for the scratch of a polygon past eight corners.
  */
 export function collide(coreA, ax, ay, ac, as, coreB, bx, by, bc, bs, margin, tolerance, m) {
   A.place(coreA, ax, ay, ac, as);
   B.place(coreB, bx, by, bc, bs);
   return placed(ax, ay, margin, tolerance, m);
+}
+
+/**
+ * As collide(), for two bodies at offsets a2 and b2 in the position and rotation
+ * columns: numbers passed to a function V8 doesn't inline are each boxed, and a
+ * step makes thousands of these calls.
+ */
+export function collideAt(coreA, coreB, p, r, a2, b2, margin, tolerance, m) {
+  A.place(coreA, p[a2], p[a2 + 1], r[a2], r[a2 + 1]);
+  B.place(coreB, p[b2], p[b2 + 1], r[b2], r[b2 + 1]);
+  return placed(p[a2], p[a2 + 1], margin, tolerance, m);
+}
+
+/**
+ * Whether two one-cored bodies, at offsets a2 and b2 in the position and
+ * rotation columns p and r, are more than `gap` apart along the line between
+ * their cores' centres. Most pairs the broadphase keeps don't touch: 60% of the
+ * tests a step on a heap of 2,000 found nothing, each after placing both cores
+ * and measuring every side. Balls first, needing no square root; that line is a
+ * true separating axis, so a gap along it is a gap.
+ */
+export function apart(coreA, coreB, p, r, a2, b2, gap) {
+  const ac = r[a2], as = r[a2 + 1], bc = r[b2], bs = r[b2 + 1];
+  const dx = p[b2] + bc * coreB.ox - bs * coreB.oy - p[a2] - ac * coreA.ox + as * coreA.oy;
+  const dy = p[b2 + 1] + bs * coreB.ox + bc * coreB.oy - p[a2 + 1] - as * coreA.ox - ac * coreA.oy;
+  const d2 = dx * dx + dy * dy, far = coreA.reach + coreB.reach + gap;
+  if (d2 > far * far) return true;
+  if (d2 === 0) return false;
+  const d = Math.sqrt(d2), x = dx / d, y = dy / d;
+  return d - extent(coreA, x * ac + y * as, y * ac - x * as) - extent(coreB, x * bc + y * bs, y * bc - x * bs) > gap;
+}
+
+/** How far a core reaches from its centre along (x, y) in its own frame, either way. */
+function extent(core, x, y) {
+  const cx = core.x, cy = core.y, ox = core.ox, oy = core.oy;
+  let most = 0;
+  for (let k = 0; k < core.n; k++) {
+    const d = Math.abs((cx[k] - ox) * x + (cy[k] - oy) * y);
+    if (d > most) most = d;
+  }
+  return most + core.radius;
 }
 
 /** As collide(), with b a bare line from (x1, y1) to (x2, y2): a side of a level. */
@@ -290,6 +331,7 @@ function placed(ax, ay, margin, tolerance, m) {
         const least = count === 2 && m.separation[1] < m.separation[0] ? m.separation[1] : m.separation[0];
         if (count > 0 && least <= d - radii + tolerance) return (m.count = count);
       }
+      const nearAx = NEAR[0], nearAy = NEAR[1], nearBx = NEAR[2], nearBy = NEAR[3];
       const nx = (nearBx - nearAx) / d, ny = (nearBy - nearAy) / d, s = d - radii;
       // On a's surface and on b's, and midway.
       const hx = nearAx + nx * A.r, hy = nearAy + ny * A.r, jx = nearBx - nx * B.r, jy = nearBy - ny * B.r;
