@@ -7,6 +7,27 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-11-06
+
+Joints that stay where they are put. A jointed body given a new shape keeps its joints on the same
+points of it, and joints that can't all be held, in a ring locked solid or pulled apart by hand, no
+longer run away to NaN. There is no API change and saves stay at format 15, but a save loads only
+into the version that made it. Results change only where a jointed body is reshaped or joints are
+past what they can hold: joints that work keep their bits. Ragdolls step 2 to 3% slower.
+
+### Fixed
+
+- `setBody` that moves a body's centre of mass or principal axes, with a new shape, new vertices or
+  `centerOfMass`, leaves its joints where they were on the body. Each joint's anchor moved with the
+  centre, and the joint then dragged the body after it, by as far as the centre had moved.
+- Joints that can't all be held no longer run away. A ring of joints locked as it lands, or torn by
+  hand, could multiply its speed each substep to 10^143 m/s and NaN, in 64 of 150 rings of mixed
+  joints. A joint counts as torn by no more than its moving bodies reach, and as each substep
+  starts, joined bodies parting faster than their reach in a substep are brought back to that speed
+  about their common centre of mass, so no run of substeps can multiply. In 1,350 runs meant to
+  break it, none reached NaN; 53% of random joint graphs did before. Joints that work, and machines
+  thrown whole, are untouched, to the bit. It costs ragdolls 2 to 3%.
+
 ## [1.3.3] - 2026-11-06
 
 An audit of the whole package, and what it found. Bodies no longer hang in the air when
@@ -88,8 +109,8 @@ past its centre, so most replays still match; a save loads only into the version
 ## [1.3.1] - 2026-11-05
 
 A crash fixed in 2D, and a rocking capsule that kept 3D heaps awake. Adding and removing bodies
-between steps could make a 2D world's next `step` throw, which a game breaking blocks into pieces
-does all the time. In 3D, a capsule lying nearly along what it rests on now settles. There is no
+between steps could make a 2D world's next `step` throw. In 3D, a capsule lying nearly along what
+it rests on now settles. There is no
 API change and saves stay at format 15, but a save loads only into the version that made it, and
 3D results change wherever capsules touch boxes or each other, so a replay recorded on 1.3.0 won't
 match.
@@ -112,7 +133,7 @@ match.
 
 ## [1.3.0] - 2026-11-04
 
-Bearing in two dimensions, and joints and characters closer to what the games ask of them. There
+Bearing in two dimensions, and joints and characters closer to what games ask of them. There
 is a 2D module, `bearing-physics/2d`, in pixels with y down as Winding's and Godot's are: boxes,
 circles, capsules, polygons and compounds, tilemaps that change as they are mined, one-sided
 chains, queries, contact events, sensors and character bodies, with the same calls, options and
@@ -158,7 +179,7 @@ format 15.
 
 ## [1.1.0] - 2026-11-03
 
-What the games need first from 1.x, added without changing anything 1.0 code relies on. A hit
+What games need first from 1.x, added without changing anything 1.0 code relies on. A hit
 between bodies already touching is now an event, so damage can be read from every blow; a group
 keeps each ragdoll's parts off one another, a hundred ragdolls at once; queries leave out a list
 of bodies; and `body.moveTo` drives an animated kinematic body to a pose, exactly. No simulation
@@ -612,7 +633,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.3...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.4...HEAD
+[1.3.4]: https://github.com/getlowarc/bearing/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/getlowarc/bearing/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/getlowarc/bearing/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/getlowarc/bearing/compare/v1.3.0...v1.3.1

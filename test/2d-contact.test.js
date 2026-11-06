@@ -270,14 +270,14 @@ test('a capsule no longer than it is wide is a circle, and rests like one', () =
   }
 });
 
-test('shards a few pixels across rest on a floor and on each other', () => {
+test('pieces a few pixels across rest on a floor and on each other', () => {
   const world = new World2D();
   floor(world);
-  const shards = [];
-  for (let i = 0; i < 40; i++) shards.push(world.addBody({ shape: 'polygon', vertices: [0, 0, 3 + (i % 3), 0.5, 2, 2 + (i % 2)], position: [(i % 10) * 6 - 30, -5 - Math.floor(i / 10) * 6], angle: i }));
+  const pieces = [];
+  for (let i = 0; i < 40; i++) pieces.push(world.addBody({ shape: 'polygon', vertices: [0, 0, 3 + (i % 3), 0.5, 2, 2 + (i % 2)], position: [(i % 10) * 6 - 30, -5 - Math.floor(i / 10) * 6], angle: i }));
   steps(world, 600);
-  for (const s of shards) {
-    assert.ok(s.worldCenterOfMass[1] < 0.1, `a shard sank to ${s.worldCenterOfMass[1]}`);
-    assert.ok(Math.hypot(...s.velocity) < 1, `a shard still moves at ${Math.hypot(...s.velocity)}`);
+  for (const s of pieces) {
+    assert.ok(s.worldCenterOfMass[1] < 0.1, `a piece sank to ${s.worldCenterOfMass[1]}`);
+    assert.ok(Math.hypot(...s.velocity) < 1, `a piece still moves at ${Math.hypot(...s.velocity)}`);
   }
 });

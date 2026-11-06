@@ -59,7 +59,7 @@ met and measured.
 | Events | Contact begin and end, and sensors (triggers), read after a step as plain data; what touches a body now asked with `touching()` (no stay events). |
 | Gameplay | Character bodies: walk, slide along walls, climb steps and slopes, stand on moving platforms. |
 | Joints | Fixed, ball, hinge, slider, and distance/spring, with limits and motors. Motors that drive toward a target angle, orientation or position, springy, as active ragdolls need; each joint's force read after a step. |
-| CCD | Fast small bodies don't pass through thin walls. |
+| CCD | Fast pieces don't pass through thin walls. |
 | Data | `world.save()` and `World.load(data)`, exact. `world.debugLines()` as a `Float32Array`. Content read from a `.glb` with no dependency. |
 
 ### Correctness, held by tests, with the defaults alone
@@ -84,8 +84,7 @@ a goal can't be met, it is reset with those numbers and Nolan's OK, never quietl
 - Faster than cannon-es on every benchmark scene.
 - 100 active ragdolls standing on their motors (11 bodies and 10 joints each, holding a pose, so
   never asleep) step in 8 ms or less on the laptop: half a 60 fps frame, the other half left for
-  drawing and the game. Nolan's game series (2026-10-30) puts 100 such units against a breaking
-  wall in its second game. Recorded on the desktop too, and on a Steam Deck when there is one.
+  drawing and the game. Recorded on the desktop too.
 - The stack-quality scenes stand in Bearing wherever they stand in Rapier and Jolt.
 
 Rapier's time per step on every scene is still measured and recorded in `bench/RESULTS.md`, but
@@ -661,10 +660,10 @@ ratio; swing and twist; how Jolt's, PhysX's and Box2D's joints drive toward a ta
 Joint motors that pull toward a target, not only a speed: a hinge toward an angle, a slider toward
 a position, a ball joint toward an orientation of `a` against `b`, each a spring with a frequency,
 a damping ratio and a strength limit, solved inside the step so it stays steady however stiff.
-What active ragdolls stand, balance and swing on: games 2, 6, 7 and 8 of the series.
+What active ragdolls stand, balance and swing on.
 *Belongs in Bearing because* a stiff spring can only be steady inside the solver; pushed from
-outside by torques, it jitters or blows up. Choosing the poses, balancing and hit reactions stay in
-the games.
+outside by torques, it jitters or blows up. Choosing the poses, balancing and hit reactions stay
+outside Bearing.
 *Needs Nolan:* the API proposal.
 *Done when:* a ragdoll stands on its motors and holds a pose, a pushed limb springs back at its
 frequency, a motor too weak for its load gives, every drive keeps the same bits on every machine,
@@ -679,10 +678,10 @@ run on one thread): milestone 19 starts there.
 
 **18. Joint forces ✅** *(approved and done 2026-11-02)*
 *Concepts:* constraint impulses as forces; reading results after a step.
-Each joint's force and torque from the last step, read after it, as contacts are: what a game
-needs to break a joint (dismemberment in game 4, gates and walls in game 2).
-*Belongs in Bearing because* only the solver knows them. Breaking a joint at some force stays in
-the games: read the force, remove the joint.
+Each joint's force and torque from the last step, read after it, as contacts are: what a program
+needs to break a joint.
+*Belongs in Bearing because* only the solver knows them. Breaking a joint at some force stays
+outside Bearing: read the force, remove the joint.
 *Needs Nolan:* the API proposal.
 *Done when:* a hanging weight reads its weight through its joint, a jerk reads its peak, and the
 figures are the same with any number of workers.
@@ -759,7 +758,7 @@ theirs; `ShapeType` for the type `Shape`.
      exact sums, every error is tested, and a stored hash holds the bits.
   2. **Collision and solver:** a 10-box stack stands; a ball bounces and settles.
   3. **Pairs and sleeping:** thousands of bodies; a pile sleeps and costs nothing.
-  4. **`tilemap`, `chain`, `compound` contacts:** 5,000 shards on a tilemap mined live, no catching on
+  4. **`tilemap`, `chain`, `compound` contacts:** 5,000 pieces on a tilemap mined live, no catching on
      seams.
   5. **Queries, events, sensors:** the 3D checks.
   6. **Character bodies ✅:** walks, climbs and jumps on tiles (2026-11-04). 1.3.0 follows, on
@@ -767,8 +766,7 @@ theirs; `ShapeType` for the type `Shape`.
   7. After that: joints, continuous collision, save and load, debug lines, workers, the comparison.
 - Not in Bearing: a vehicle controller and a ragdoll builder. Arcade handling and a humanoid from
   a config file are game feel, built from raycasts, forces, joints and pose motors Bearing already
-  gives, so they belong in the games' shared foundation (Nolan, 2026-10-30: these updates must
-  belong in Bearing, not in the game's code).
+  gives, so they stay outside it.
 - Not planned: soft bodies, cloth and fluids. They are different solvers, and would be a different
   package.
 
@@ -842,9 +840,10 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.0.0 | 21 | Released 2026-11-03: the API gone through and made to last, the determinism hash on Bun. |
 | 1.1.0 | — | Released 2026-11-03: impact events, groups, `ignore` lists, `body.moveTo`. |
 | 1.3.0 | — | Released 2026-11-04: the 2D module, elliptical joint cones, characters that push, `lockPosition`, the first-impact note. 1.2.0 was prepared and never released. |
-| 1.3.1 | — | Released 2026-11-05: a 2D broadphase crash found in Fragile, and the rocking capsule. |
+| 1.3.1 | — | Released 2026-11-05: a 2D broadphase crash, and the rocking capsule. |
 | 1.3.2 | — | Released 2026-11-05: bodies pressed into a mesh or heightfield stay on their side. |
 | 1.3.3 | — | Released 2026-11-06: an audit's fixes, and 3 to 8% on most heaps. |
+| 1.3.4 | — | Released 2026-11-06: joints stay on their bodies, and can't run away. |
 
 ### How a release is made
 
@@ -1041,16 +1040,15 @@ Winding's way, copied before the first one:
   mesh). Counting a lean at its limit as stuck unless it slips over a tolerance a second would
   gain 0.02 to 0.98 s, at most 7% of the pile's 13, but freezes that slope box; telling the two
   apart means watching whether the slip grows, which is the time rule.
-- **2026-10-30.** Three milestones added before 1.0, at Nolan's word, from his game series plan
-  (eight small low-poly games on Winding and Bearing): 17, pose motors, the base of the active
-  ragdolls games 2, 6, 7 and 8 stand on; 18, joint forces, for breaking joints in games 2 and 4;
-  and 19, many active ragdolls fast. Documentation and 1.0 move to 20 and 21. The speed goal
+- **2026-10-30.** Three milestones added before 1.0, at Nolan's word: 17, pose motors, the base of
+  active ragdolls; 18, joint forces, for breaking joints; and 19, many active ragdolls fast.
+  Documentation and 1.0 move to 20 and 21. The speed goal
   "within 2× of Rapier's time per step on every scene" is reset to 100 active ragdolls in 8 ms on
-  the laptop, the need the series sets: on 2026-10-29 Bearing was 1.2× Rapier on the stack and
+  the laptop: on 2026-10-29 Bearing was 1.2× Rapier on the stack and
   1.9× on the rays but 4 to 7× on the pyramid, ragdolls and hulls, where Rapier sleeps sooner, and
   32 ragdolls took 5.5 to 7.7 ms. Vehicles and a ragdoll builder come off the after-1.0 list: they
-  are game feel and belong in the games' code (Nolan: the updates must belong in Bearing, not in
-  the game's code). Joint breaking likewise: Bearing reports the force, the game removes the joint.
+  are game feel and stay outside Bearing. Joint breaking likewise: Bearing reports the force, and
+  whatever uses it removes the joint.
 - **2026-11-02.** The first release, 0.14.0, at Nolan's word ("I need you to put in the real code"),
   numbered where the plan puts the API (Nolan chose it over 0.1.0). Before it: the CI planner
   (`.github/affected.js`), the determinism hash on Bun, and Winding's release workflow; Nolan
@@ -1067,16 +1065,14 @@ Winding's way, copied before the first one:
   hold in pixels, but its real defaults would not (Earth's gravity needs a pixels-per-metre figure
   nothing fixes). So metres, kilograms and seconds, with Winding's axes, y down and clockwise
   angles, so positions and angles copy into Winding unchanged and the 2D camera's zoom is the
-  pixels per metre. Density 1000 kg/m², a slab 1 m deep. Not started: every game in the series is
-  3D.
+  pixels per metre. Density 1000 kg/m², a slab 1 m deep. Not started.
 - **2026-11-03.** 1.1.0 released, at Nolan's word ("Push it and release 1.1.0"): impact events for
-  bodies already touching (the battle sim's damage), groups, `ignore` lists and `body.moveTo`.
-  Left until a game asks: per-body sleep, listing bodies and joints, more contact detail and
+  bodies already touching, groups, `ignore` lists and `body.moveTo`.
+  Left until asked for: per-body sleep, listing bodies and joints, more contact detail and
   friction per compound part; elliptical joint cones until a ragdoll's limits look wrong.
 - **2026-11-03.** 1.2.0 made ready, at Nolan's word ("Approved as recommended, go ahead"): elliptical
   cones with `swing`, characters' `pushForce`, and the note on the first steps' compiling, after
-  probing the games' scenes (a 300-capsule horde at 2.6 ms a step; an 80-brick jointed wall at
-  2.4 ms). Found and left for 1.2.1: a box resting on two single points swings about the line
+  probing large scenes (300 capsules at 2.6 ms a step; an 80-brick jointed wall at 2.4 ms). Found and left for 1.2.1: a box resting on two single points swings about the line
   between them, and the contact solve feeds the swing more than rolling resistance takes out (more
   substeps, more gain), so one mixed heap in six sleeps at 30-40 s rather than 10-15.
 - **2026-11-04.** 2D begun, at Nolan's word ("I do want twodee code"; plan "Approved as recommended"),
@@ -1099,8 +1095,8 @@ Winding's way, copied before the first one:
   closest point as a third on boxes, hulls the same way. Left: a capsule on two edges at a very
   shallow angle, whose contact still sweeps within the tolerance. Also seen, not fixed: 1 hull in
   12,000 pressed through a mesh floor by a heap (seed 22, 3.5 s).
-- **2026-11-05.** 1.3.1 released, at Nolan's word ("Go for it"), with the 2D broadphase crash Fragile
-  found: `Broad2D.remove` cleared a slot's mark while it stayed on the moved list, and `resize` cut
+- **2026-11-05.** 1.3.1 released, at Nolan's word ("Go for it"), with a 2D broadphase crash:
+  `Broad2D.remove` cleared a slot's mark while it stayed on the moved list, and `resize` cut
   that list by count. 3D had neither.
 - **2026-11-05.** The mesh floor, at Nolan's word ("Go ahead with the mesh floor fix"). The hull that
   fell had been hit by a box at 18 m/s, its centre under the floor in two steps, and the floor,
@@ -1116,11 +1112,20 @@ Winding's way, copied before the first one:
   mesh rougher than ground; and a light body under one hundreds of times heavier still sinks a
   little, on any floor (-0.04 m at 277:1), held but not out.
 - **2026-11-05.** 1.3.2 released with it, at Nolan's word ("Go for it, release 1.3.2").
-- **2026-11-05.** Three changes taken from Nolan's brother's fork (SwankyMan88/bearing-fork), at
-  Nolan's word: workers from 16 rows a colour, a four-point right-hand side written out, and a docs
-  note on fewer substeps. Checked here with 5 workers against his 1: same bits, stack halved, pyramid
-  2 to 3%. The note's 2.4 times measured 1.6, and the older note above it was stale; both corrected
+- **2026-11-05.** Three changes, at Nolan's word: workers from 16 rows a colour, a four-point
+  right-hand side written out, and a docs note on fewer substeps. With 5 workers: same bits, stack
+  halved, pyramid 2 to 3%. The note's 2.4 times measured 1.6, and the older note above it was stale; both corrected
   from `bench/solver.js`.
+- **2026-11-06.** Joint anchors and NaN, at Nolan's word ("Go ahead with the joint anchors and NaN").
+  `setBody` moved anchors with the centre of mass (`rehome()`). The NaN was worse than the audit
+  said: rings of mixed joints reached it landing on a floor, no teleport needed, 64 of 150, and 53%
+  of random graphs. Traced, and four explanations measured and thrown out: impulses building
+  up, spin before the move, a share of each replay, loops alone. So it is bounded rather than
+  explained: joints count as torn by no more than their moving reach, and joined bodies part at no
+  more than that a substep, as each substep starts. 1,350 hostile runs: no NaN, torn loops under 900
+  m/s, random graphs up to 10^9 m/s for a moment but unable to multiply. Working joints keep their
+  bits. Ragdolls 2-3% slower, which gives back the lazy pass's gain. 1.3.4 released with it, at
+  Nolan's word ("Go for it, release 1.3.4").
 - **2026-11-06.** An audit, at Nolan's asking ("look for code that is wrong"), by three reviewers each
   proving what they found with a script, 36 findings, then 1.3.3 ("Approved as recommended, go
   ahead with 1.3.3"). The hovering family was one bug: a touch ending told nothing it held, so every

@@ -1297,6 +1297,99 @@ test('an elliptical cone stops an arm at its edge every way round, and the arm s
   }
 });
 
+test('a joint stays on the same point of a body whose centre of mass or axes setBody moves', () => {
+  // Anchors are kept in the frame of the centre of mass and principal axes, so
+  // left as numbers they moved with the frame: a jointed part given a new shape
+  // snapped across the scene by how far its centre had moved.
+  const rock = [0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2];
+  for (const [what, shape, changes] of [
+    ['a new centre of mass', { size: [2, 0.2, 0.2] }, { centerOfMass: [0.5, 0, 0] }],
+    ['new vertices', { shape: 'hull', vertices: rock }, { vertices: rock.map((x) => x * 2) }],
+    ['a compound', { size: [2, 0.2, 0.2] }, { shape: 'compound', parts: [{ size: [1, 0.2, 0.2], position: [0.8, 0, 0] }, { size: [0.2, 0.8, 0.2], position: [-0.5, 0.4, 0.3] }] }],
+  ]) {
+    const world = new World({ gravity: [0, 0, 0] });
+    const body = world.addBody({ ...shape, position: [1, 2, 3], rotation: [0, 0, 0.6, 0.8] });
+    const other = world.addBody({ size: [0.4, 0.4, 0.4], position: [1, 4, 3] });
+    const joint = world.addJoint({ type: 'hinge', a: body, b: other, anchor: [1, 3, 3], axis: [0, 0, 1], min: -1, max: 1 });
+    const before = world.jointOf(joint), held = body.position;
+    world.setBody(body, changes);
+    const after = world.jointOf(joint);
+    assert.ok(apart(after.anchor, before.anchor) < 1e-12, `${what}: anchor at ${after.anchor}, was ${before.anchor}`);
+    assert.ok(apart(after.axis, before.axis) < 1e-12, `${what}: axis ${after.axis}, was ${before.axis}`);
+    for (let n = 0; n < 60; n++) world.step(1 / 60);
+    assert.ok(apart(body.position, held) < 1e-6, `${what}: the joint dragged the body to ${body.position}`);
+  }
+});
+
+const ring = (seed, workers = 0) => {
+  // A ring of bodies joined by joints of every kind, axes at random: most can't
+  // close, and nothing about them says so until they land.
+  let state = seed * 7919 + 13;
+  const r = () => (state = (state * 16807) % 2147483647) / 2147483647;
+  const world = new World({ workers }), n = 5 + Math.floor(r() * 4), links = [];
+  world.addBody({ type: 'static', size: [60, 1, 60], position: [0, -0.5, 0] });
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 6.283, position = [Math.cos(a) * n * 0.2, 3 + r(), Math.sin(a) * n * 0.2];
+    links.push(world.addBody(r() < 0.6 ? { size: [0.1 + r() * 0.3, 0.1 + r() * 0.3, 0.1 + r() * 0.3], position } : { shape: 'sphere', radius: 0.15, position }));
+  }
+  for (let i = 0; i < n; i++) {
+    const a = links[i], b = links[(i + 1) % n], p = a.position, q = b.position, type = ['ball', 'hinge', 'slider', 'fixed', 'distance'][Math.floor(r() * 5)];
+    const o = { type, a, b };
+    if (type !== 'distance') o.anchor = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+    if (type === 'hinge' || type === 'slider') { const x = r() - 0.5, y = r() - 0.5, z = r() - 0.5, l = Math.hypot(x, y, z); o.axis = [x / l, y / l, z / l]; }
+    if (type === 'hinge' && r() < 0.5) { o.min = -0.5; o.max = 0.5; }
+    world.addJoint(o);
+  }
+  return { world, links, r };
+};
+
+test('joints that can\'t all be held stay bounded, torn by hand or locked as they land', () => {
+  // Rings like these reached 10^143 m/s and then NaN, in 64 of 150, with no
+  // teleport: each substep asked more than the last, and nothing bounded it.
+  for (let seed = 1; seed <= 40; seed++) {
+    const { world, links, r } = ring(seed);
+    let peak = 0;
+    for (let n = 0; n < 240; n++) {
+      if (n % 60 === 59) links[Math.floor(r() * links.length)].setPosition(r() * 8 - 4, 1 + r() * 6, r() * 8 - 4);
+      world.step(1 / 60);
+      for (const b of links) {
+        const s = Math.hypot(...b.velocity);
+        assert.ok(Number.isFinite(s) && Number.isFinite(b.position[1]), `ring ${seed}, step ${n}: ${b.velocity}`);
+        peak = Math.max(peak, s);
+      }
+    }
+    assert.ok(peak < 1e6, `ring ${seed}: ${peak} m/s`);
+    world.destroy();
+  }
+});
+
+test('a machine thrown whole keeps its speed, and a loop that works holds as tight as ever', () => {
+  // Only what parts joined bodies is bounded: a 12-box ring at 1 km/s isn't parting.
+  const hanging = (speed) => {
+    const world = new World({ gravity: [0, 0, 0] }), n = 12, links = [], joints = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * 6.2831853;
+      links.push(world.addBody({ size: [0.5, 0.1, 0.1], position: [1.2 * Math.cos(a), 5 + 1.2 * Math.sin(a), 0], rotation: [0, 0, Math.sin((a + 1.5708) / 2), Math.cos((a + 1.5708) / 2)], velocity: [speed, 0, 0] }));
+    }
+    for (let i = 0; i < n; i++) {
+      const p = links[i].position, q = links[(i + 1) % n].position;
+      joints.push(world.addJoint({ a: links[i], b: links[(i + 1) % n], anchor: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, 0] }));
+    }
+    return { world, links, joints };
+  };
+  const { world, links } = hanging(1000);
+  for (let n = 0; n < 60; n++) world.step(1 / 60);
+  for (const b of links) assert.ok(Math.abs(b.velocity[0] - 1000) < 1e-6, `${b.velocity[0]} m/s`);
+  const momentum = (bodies) => bodies.reduce((m, b) => m + b.mass * b.velocity[0], 0);
+  // Torn by hand, it comes back, and what it does to itself leaves its momentum alone.
+  const torn = hanging(0);
+  torn.links[3].setPosition(0, 5, 9);
+  torn.links[7].setVelocity(400, 0, 0);
+  const before = momentum(torn.links);
+  for (let n = 0; n < 60; n++) torn.world.step(1 / 60);
+  assert.ok(Math.abs(momentum(torn.links) - before) < 1e-6 * Math.abs(before), `momentum ${momentum(torn.links)}, was ${before}`);
+});
+
 test('cone and swing read back as given, swing defaults square to the axis, and setJoint turns it', () => {
   const world = new World({ gravity: [0, 0, 0] });
   const post = world.addBody({ type: 'static', size: [0.2, 0.2, 0.2] });

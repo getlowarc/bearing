@@ -710,6 +710,26 @@ function place(world, j, anchor, anchorB, setA, setB) {
 }
 
 /**
+ * Slot s's centre of mass or principal axes have changed, from `center` and
+ * `turn` to what the world holds now, by setBody, with a new shape, mass
+ * layout or `centerOfMass`. Anchors and axes are kept in that frame, so each is
+ * put back where it was on the body itself: left as numbers, every joint's
+ * anchor moved with the centre, and the joint dragged the body after it.
+ */
+export function rehome(world, s, center, turn) {
+  const J = world._joints, s3 = 3 * s, s4 = 4 * s, com = world._com, frame = world._frame;
+  for (let e = world._jointHead[s] - 1; e >= 0; e = J.next[e] - 1) {
+    const j = e >> 1, local = (e & 1) === 0 ? J.localA : J.localB, axes = (e & 1) === 0 ? J.frameA : J.frameB, j3 = 3 * j;
+    // Out to the body's own frame, by the old centre and axes, and back in by the new.
+    rotate(turn, 0, local[j3], local[j3 + 1], local[j3 + 2], false, V3);
+    rotate(frame, s4, V3[0] + center[0] - com[s3], V3[1] + center[1] - com[s3 + 1], V3[2] + center[2] - com[s3 + 2], true, V3);
+    local[j3] = V3[0]; local[j3 + 1] = V3[1]; local[j3 + 2] = V3[2];
+    multiply(turn, 0, axes, 4 * j, F, 0);
+    conjugateTimes(frame, s4, F, 0, axes, 4 * j);
+  }
+}
+
+/**
  * Sets joint j's axis, as a frame in each body's own: the shortest turn from
  * x to the axis, carried by each body as it is now. From here, the joint's
  * angle is 0, and a hinge's or ball joint's turn is measured from it.
@@ -852,11 +872,13 @@ const spring = { biasRate: 0, massScale: 1, impulseScale: 0 };
  * of the rows and a solve a substep, 15% of a jointed scene.
  */
 export function warmStartJoints(world) {
-  run(world, WARM_GROUPS, world._joints.groups, argsOf(world));
+  const args = argsOf(world);
+  args[SUBSTEP] = world._stepDt / world._substeps;
+  run(world, WARM_GROUPS, world._joints.groups, args);
 }
 
 /** warmStartJoints() for the grouped joints from..to-1 (groupJoints()). */
-function warmJoints(world, J, from, to) {
+function warmJoints(world, J, from, to, h) {
   const acc = J.impulse, tree = J.forest.inTree, grouped = J.grouped;
   for (let i = from; i < to; i++) {
     const j = grouped[i], type = J.type[j], o = j * IMPULSES;
@@ -871,10 +893,12 @@ function warmJoints(world, J, from, to) {
       if (type !== BALL) { acc[o + ANG] = 0; acc[o + ANG + 1] = 0; acc[o + ANG + 2] = 0; }
       if (type === DISTANCE) acc[o + AXIAL] = 0;
     }
-    // Nothing to start from, as a joint at rest in a falling body has.
-    let any = false;
-    for (let k = 0; k < IMPULSES && !any; k++) any = acc[o + k] !== 0;
-    if (!any) continue;
+    // Nothing stored, as at rest in a falling body, or nothing to trust (RUNAWAY).
+    const stored = replay(world, J, j, o, acc, h);
+    if (stored <= 0) {
+      if (stored < 0) for (let k = 0; k < IMPULSES; k++) acc[o + k] = 0;
+      continue;
+    }
     load(world, j);
     geometry(world, j);
     if (type === SLIDER) {
@@ -918,6 +942,79 @@ function warmJoints(world, J, from, to) {
     }
     save(world, j);
   }
+}
+
+/**
+ * RUNAWAY. Joints that can't all be held, by a teleport or a locked ring, have
+ * no answer to solve for, and their rows can feed each other without limit:
+ * rings of mixed joints falling onto a floor reached 10^143 m/s, and NaN in 64 of
+ * 150, with no teleport at all. Measured and ruled out as the cause: spin (capped
+ * again before a body moved, nothing changed), and impulses building up (half
+ * of each replayed, still NaN). Replay is what carries it, but a limit on spin
+ * that stopped it dropped what a whipped chain needs, and with no replay at
+ * all a hanging ring opened 5 times as wide. So this bounds the result and leans on
+ * no mechanism: as each substep starts, a joint whose bodies part faster than
+ * their own reach a substep, or whose stored push would part them so, has
+ * nothing to replay, and they are brought back to that speed about their common
+ * centre of mass: momentum exact, energy only falling. Spin is held already
+ * (World._accelerate, and below), so each substep starts bounded and no run of
+ * them can multiply. Only the difference counts, so a machine thrown whole is left
+ * alone at any speed, and one that works is nowhere near: bodies 40 cm long part
+ * at 190 m/s at 8 substeps before this looks at them, and their joints replay
+ * a hundredth of a metre a second. Returns 1 to replay, 0 if nothing is stored,
+ * -1 if nothing stored can be trusted.
+ */
+function replay(world, J, j, o, acc, h) {
+  const a = J.a[j], b = J.b[j], im = world._invMass, v = world._velocity, reach = world._reach, a3 = 3 * a;
+  // A ball's spin isn't capped (World._accelerate, SPIN), since it doesn't change
+  // its shape. A joined one's carries the joint's frames, so it is held here to a
+  // radian a substep: every other body's cap is far below that, and a ball
+  // on a hinge as a wheel, to which half a turn a step would be a real limit, can
+  // still go 2.5 times as fast. Nothing else is touched by it.
+  if (world._shape[a] === BALL_SHAPE) holdSpin(world._angular, a3, 1 / h);
+  if (b >= 0 && world._shape[b] === BALL_SHAPE) holdSpin(world._angular, 3 * b, 1 / h);
+  const ma = im[a], mb = b >= 0 ? im[b] : 0;
+  // A body that moves: a post's reach says nothing about how fast what hangs from it may go.
+  const most = ((ma > 0 ? reach[a] : 0) + (mb > 0 ? reach[b] : 0)) / h, top = most * most;
+  // Every row's stored push, not the point's alone: a hinge's or a stop's is
+  // a turn, and carries a body its reach as readily. Each as a push at the
+  // body's reach, which a turning impulse L is, as L / r, so it reads as one number.
+  const r = ma > 0 ? reach[a] : b >= 0 ? reach[b] : 0, each = (ma + mb) * (ma + mb);
+  const x = acc[o + LIN], y = acc[o + LIN + 1], z = acc[o + LIN + 2];
+  // Read as themselves, not squared: 1e-170 squared is 0, and it is still there to replay.
+  let some = x !== 0 || y !== 0 || z !== 0, turn = 0;
+  for (let k = ANG; k < IMPULSES; k++) {
+    const l = acc[o + k];
+    if (l !== 0) some = true;
+    if (l * l > turn) turn = l * l;
+  }
+  const line = x * x + y * y + z * z, level = r > 0 ? turn / (r * r) : 0;
+  const push = (line > level ? line : level) * each;
+  let dx = -v[a3], dy = -v[a3 + 1], dz = -v[a3 + 2];
+  if (b >= 0) { const b3 = 3 * b; dx += v[b3]; dy += v[b3 + 1]; dz += v[b3 + 2]; }
+  const d2 = dx * dx + dy * dy + dz * dz;
+  if (!(d2 > top) && !(push > top)) return some ? 1 : 0;
+  if (d2 > top) {
+    // The share each body takes of taking off the excess, by inverse mass, so momentum stays.
+    const cut = 1 - most / Math.sqrt(d2), sum = ma + mb;
+    if (sum > 0) {
+      const ka = cut * ma / sum, kb = cut * mb / sum;
+      v[a3] += dx * ka; v[a3 + 1] += dy * ka; v[a3 + 2] += dz * ka;
+      if (b >= 0 && mb > 0) { const b3 = 3 * b; v[b3] -= dx * kb; v[b3 + 1] -= dy * kb; v[b3 + 2] -= dz * kb; }
+    }
+  }
+  return -1;
+}
+
+/** World's shape code for a sphere. */
+const BALL_SHAPE = 1;
+
+/** Holds the spin at s3 in w to `most`. */
+function holdSpin(w, s3, most) {
+  const m = w[s3] * w[s3] + w[s3 + 1] * w[s3 + 1] + w[s3 + 2] * w[s3 + 2];
+  if (m <= most * most) return;
+  const k = most / Math.sqrt(m);
+  w[s3] *= k; w[s3 + 1] *= k; w[s3 + 2] *= k;
 }
 
 /**
@@ -1316,19 +1413,19 @@ function build(world, from, to, rate) {
     if (type === FIXED || type === BALL || type === HINGE) {
       for (let k = 0; k < 3; k++) {
         point(9 * k, k);
-        m = emit(F, t, m, 9 * k, D[k], rate);
+        m = emit(F, t, m, 9 * k, D[k] * tear, rate);
       }
     } else if (type === SLIDER) {
       reach();
       along(0, P1, LEVER);
       along(9, P2, LEVER);
-      m = emit(F, t, m, 0, D[0] * P1[0] + D[1] * P1[1] + D[2] * P1[2], rate);
-      m = emit(F, t, m, 9, D[0] * P2[0] + D[1] * P2[1] + D[2] * P2[2], rate);
+      m = emit(F, t, m, 0, (D[0] * P1[0] + D[1] * P1[1] + D[2] * P1[2]) * tear, rate);
+      m = emit(F, t, m, 9, (D[0] * P2[0] + D[1] * P2[1] + D[2] * P2[2]) * tear, rate);
     } else if (type === DISTANCE) {
       const l = stretch(0);
       if (l === 0) clear(0);
       const f = J.frequency[j], length = J.length[j];
-      m = emit(F, t, m, 0, l - low(DISTANCE, J.given[j], J.min[j], length, f), rate);
+      m = emit(F, t, m, 0, capped(l - low(DISTANCE, J.given[j], J.min[j], length, f)), rate);
     }
     F.rows[t] = m;
   }
@@ -1472,6 +1569,7 @@ function geometry(world, j) {
     // which nothing turns, since b takes no impulse.
     RB[0] = J.localB[j3]; RB[1] = J.localB[j3 + 1]; RB[2] = J.localB[j3 + 2];
     D[0] = RB[0] - p[a3] - RA[0]; D[1] = RB[1] - p[a3 + 1] - RA[1]; D[2] = RB[2] - p[a3 + 2] - RA[2];
+    torn(world._invMass[a] > 0 ? world._reach[a] : 0);
     return;
   }
   rotate(q, 4 * b, J.localB[j3], J.localB[j3 + 1], J.localB[j3 + 2], false, RB);
@@ -1479,6 +1577,30 @@ function geometry(world, j) {
   D[0] = p[b3] + RB[0] - p[a3] - RA[0];
   D[1] = p[b3 + 1] + RB[1] - p[a3 + 1] - RA[1];
   D[2] = p[b3 + 2] + RB[2] - p[a3 + 2] - RA[2];
+  torn((world._invMass[a] > 0 ? world._reach[a] : 0) + (world._invMass[b] > 0 ? world._reach[b] : 0));
+}
+
+// TORN. A joint asks for a speed in proportion to how far apart it is. Contacts
+// cap that speed; a joint must close whatever it is given, but pulled further
+// apart than its bodies are long, by a teleport or a loop that can't close,
+// there is no such thing as the right speed, and in a loop the speed asked of
+// one joint opens another by more, so each substep asked more than the last: from
+// a link set 5 m out of line, 10^64 m/s in two steps, then NaN. So a joint counts
+// as torn by no more than the reach of its two bodies. That is their own
+// size, nothing to tune, and anything closer, every joint in a working
+// machine, multiplies by exactly 1. The levers stay true: only what is asked.
+let tear = 1, reachOf = Infinity;
+
+/** The scale on what a joint asks for, its error D held to `most`. */
+function torn(most) {
+  reachOf = most;
+  const d = D[0] * D[0] + D[1] * D[1] + D[2] * D[2];
+  tear = d > most * most ? most / Math.sqrt(d) : 1;
+}
+
+/** An error along one row, held to the joint's reach as D is (TORN). */
+function capped(e) {
+  return e > reachOf ? reachOf : e < -reachOf ? -reachOf : e;
 }
 
 /**
@@ -1595,13 +1717,13 @@ function root(union, k) {
 // scratch; what they read besides the columns comes in `args`, from ARG on,
 // past the contacts' (core/jobs.js).
 const WARM_GROUPS = CONTACT_WORK.jobs.length, SOLVE_GROUPS = WARM_GROUPS + 1, TREES = WARM_GROUPS + 2;
-const ARG = 10, H = ARG, BIAS = ARG + 1, AGAIN = ARG + 2, STORE = ARG + 3, POSE = ARG + 4, SOFT = ARG + 5, TREE_JOINTS = ARG + 8;
+const ARG = 10, H = ARG, BIAS = ARG + 1, AGAIN = ARG + 2, STORE = ARG + 3, POSE = ARG + 4, SOFT = ARG + 5, TREE_JOINTS = ARG + 8, SUBSTEP = ARG + 9;
 /** The args with no workers to read them. */
 const ARGS = new Float64Array(ARG + 10);
 
 function warmJob(world, c, args, from, to) {
   const J = world._joints, starts = J.starts;
-  warmJoints(world, J, starts[from], starts[to]);
+  warmJoints(world, J, starts[from], starts[to], args[SUBSTEP]);
 }
 
 function solveJob(world, c, args, from, to) {
@@ -1886,7 +2008,7 @@ const RIGID = { biasRate: 0, massScale: 1, impulseScale: 0 };
 function holdPoint(acc, o, bias) {
   for (let k = 0; k < 3; k++) {
     point(9 * k, k);
-    C[k] = D[k];
+    C[k] = D[k] * tear;
     ACC[k] = acc[o + LIN + k];
   }
   const s = soft(bias);
@@ -1932,8 +2054,8 @@ function holdAxis(acc, o, bias) {
 function holdLine(acc, o, bias) {
   along(0, P1, LEVER);
   along(9, P2, LEVER);
-  C[0] = D[0] * P1[0] + D[1] * P1[1] + D[2] * P1[2];
-  C[1] = D[0] * P2[0] + D[1] * P2[1] + D[2] * P2[2];
+  C[0] = (D[0] * P1[0] + D[1] * P1[1] + D[2] * P1[2]) * tear;
+  C[1] = (D[0] * P2[0] + D[1] * P2[1] + D[2] * P2[2]) * tear;
   ACC[0] = acc[o + LIN] * P1[0] + acc[o + LIN + 1] * P1[1] + acc[o + LIN + 2] * P1[2];
   ACC[1] = acc[o + LIN] * P2[0] + acc[o + LIN + 1] * P2[1] + acc[o + LIN + 2] * P2[2];
   const s = soft(bias);
@@ -2380,7 +2502,7 @@ function distance(J, j, acc, o, h, bias, held) {
   if (lo === hi) {
     if (held) return;
     const s = soft(bias), k = o + AXIAL;
-    const lambda = -mass(0) * s.massScale * (speed(0) + s.biasRate * (l - lo)) - s.impulseScale * acc[k];
+    const lambda = -mass(0) * s.massScale * (speed(0) + s.biasRate * capped(l - lo)) - s.impulseScale * acc[k];
     acc[k] += lambda;
     apply(0, lambda);
     return;

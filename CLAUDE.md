@@ -157,6 +157,18 @@ These were made with Nolan and override the rules below where they differ.
   tolerance (`collide()` may snap a point a tolerance). 99.6% of full tests on a hull pile found
   nothing. `test/collide.test.js` holds it to never calling apart what `collide()` finds. Confirm
   speed leads with direct timers: V8's profiler misattributes under inlining.
+- **Joints that can't all be held** (2026-11-06, Nolan: "Go ahead with the joint anchors and NaN"):
+  `rehome()` re-expresses a joint's anchors and frames when `setBody` moves a body's centre or
+  principal axes. TORN: what a joint asks for is held to the reach of its moving bodies (`tear`,
+  `capped()`, from `geometry()`). RUNAWAY: `replay()` in the warm start: joined bodies parting
+  faster than their moving reach a substep, or whose stored push would part them so, replay
+  nothing and are brought back to that about their centre of mass; a joined sphere's spin is held
+  to a radian a substep (its cap exempts it). All joints, trees too. Bounds the result, not a
+  mechanism: spin capped before `_move` changed nothing, a part of each impulse replayed still
+  reached NaN, a spin limit on replay dropped what a whipped chain needs, no replay at all opened a
+  hanging ring 5 times as wide. Random joint graphs NaN 53% -> 0 in 1,350 runs. Hash unchanged:
+  neither fires in working joints. Ragdolls 2-3% slower. Judge joint changes on the fuzz in
+  `test/joints.test.js` and with real gaps from `worldAnchor()`: `jointOf` reads the same point twice.
 - **Contact events and sensors** (2026-10-14, milestone 10, approved): `world.contacts(body)` (the
   last step's `begin`/`end`, read after the step, rule 65; with a body, its own, turned so it is
   `a`; removed bodies accepted), `world.touching(body)` in place of stay events (through the
@@ -258,7 +270,7 @@ These were made with Nolan and override the rules below where they differ.
   rotate of `localA`), `settleForest()` calls `forestPushes()` over its range (the factor's a-side
   Jacobian; turning rows first, as `build()` orders them); `gather()` zeroes, `jointForces(world, dt)`
   divides after the substeps. `force`/`torque` shared with the workers (groups then trees, the
-  one-thread order). Breaking stays in the games. FORMAT 9. Bookkeeping cost, pinned: ragdolls 0-6%,
+  one-thread order). Breaking stays outside Bearing. FORMAT 9. Bookkeeping cost, pinned: ragdolls 0-6%,
   chains 3-9%, active 2-7%.
 - **Continuous collision** (2026-10-15, milestone 13, approved): speculative contacts stay; a pair
   not touching that moves against itself by more than its tolerance in the step (`moving()` in
@@ -379,7 +391,7 @@ These were made with Nolan and override the rules below where they differ.
   sleep through one that last took over `LULL_MS` (50 us, about a wake's cost); a dispatch
   notifies only when `SLEEPING` > 0. Ragdolls 14.0 -> 10.5 ms with 'auto', one thread 9.0:
   the rest is likely contact-pass wakes and cache traffic. Small worlds still ~1.3x slower
-  (2026-11-05, from Nolan's brother's fork: a colour's solve goes to the workers from 16 rows, not 4,
+  (2026-11-05: a colour's solve goes to the workers from 16 rows, not 4,
   `LEAST`: 10-box stack halved, now under one thread; 40 boxes still 1.25x).
 - **Four points, nearest first** (2026-10-23, the rocking bugs): `reducePoints` in `collide.js`
   and `reduce()` in `triangle.js` make each pick (farthest, then the largest triangle on each

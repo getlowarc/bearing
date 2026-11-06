@@ -57,11 +57,11 @@ test('tiles stop what is thrown at them, from every side, however fast', () => {
   world.addBody({ shape: 'tilemap', tileSize: [T, T], columns, rows, tiles });
   const thrown = [[[320, 40], [0, 4000]], [[320, 600], [0, -4000]], [[40, 320], [4000, 0]], [[600, 320], [-4000, 0]]];
   for (const [position, velocity] of thrown) {
-    const shard = world.addBody({ shape: 'polygon', vertices: [-2, -2, 2, -2, 0, 3], position, velocity });
+    const piece = world.addBody({ shape: 'polygon', vertices: [-2, -2, 2, -2, 0, 3], position, velocity });
     steps(world, 40);
-    const [x, y] = shard.position;
-    assert.ok(x < 286.1 || x > 353.9 || y < 286.1 || y > 353.9, `a shard got into the block at ${x}, ${y}`);
-    world.remove(shard);
+    const [x, y] = piece.position;
+    assert.ok(x < 286.1 || x > 353.9 || y < 286.1 || y > 353.9, `a piece got into the block at ${x}, ${y}`);
+    world.remove(piece);
   }
 });
 
@@ -106,9 +106,9 @@ test('a map costs what is near a body, not its size: 20 million tiles step like 
 test('a body pressed past a floor line is pushed back out the way it came', () => {
   const world = new World2D();
   level(world);
-  const shard = world.addBody({ size: [8, 8], position: [320, 483] });   // its centre 3 px under the floor line
+  const piece = world.addBody({ size: [8, 8], position: [320, 483] });   // its centre 3 px under the floor line
   steps(world, 120);
-  near(shard.position[1], 476, 0.1, 'back on the floor');
+  near(piece.position[1], 476, 0.1, 'back on the floor');
 });
 
 test('off the end of a map is empty, as a tilemap draws', () => {
@@ -184,17 +184,17 @@ test('a cast beside a wall one tile thick is not stopped by the far side of the 
   assert.equal(world.shapeCast({ shape: 'capsule', radius: 7, height: 44 }, [313, 320], [0, -1], { maxDistance: 60 }), null);
 });
 
-test('a thousand shards rained on a map land and stay on it, and sleep', () => {
+test('a thousand pieces rained on a map land and stay on it, and sleep', () => {
   const world = new World2D();
   level(world, 300);
-  const shards = [];
+  const pieces = [];
   for (let i = 0; i < 1000; i++) {
     const o = { position: [1000 + (i % 40) * 12, 300 - Math.floor(i / 40) * 12], angle: i * 0.37 };
-    shards.push(world.addBody(i % 2 ? { ...o, shape: 'polygon', vertices: [0, 0, 8, 1, 6, 7, 1, 5] } : { ...o, shape: 'compound', parts: [{ size: [8, 3], position: [4, 1.5] }, { size: [3, 6], position: [1.5, 6] }] }));
+    pieces.push(world.addBody(i % 2 ? { ...o, shape: 'polygon', vertices: [0, 0, 8, 1, 6, 7, 1, 5] } : { ...o, shape: 'compound', parts: [{ size: [8, 3], position: [4, 1.5] }, { size: [3, 6], position: [1.5, 6] }] }));
   }
   steps(world, 900);
-  for (const s of shards) assert.ok(s.worldCenterOfMass[1] < 481, `a shard sank to ${s.worldCenterOfMass}`);
-  let awake = shards.filter((s) => !s.asleep).length;
-  for (let i = 0; i < 1800 && awake > 0; i++) { world.step(DT); if (i % 60 === 0) awake = shards.filter((s) => !s.asleep).length; }
+  for (const s of pieces) assert.ok(s.worldCenterOfMass[1] < 481, `a piece sank to ${s.worldCenterOfMass}`);
+  let awake = pieces.filter((s) => !s.asleep).length;
+  for (let i = 0; i < 1800 && awake > 0; i++) { world.step(DT); if (i % 60 === 0) awake = pieces.filter((s) => !s.asleep).length; }
   assert.equal(awake, 0, `${awake} of 1,000 still awake after 45 s`);
 });

@@ -259,7 +259,7 @@ export function joints(): void {
 
 {
   const flat = new World2D({ gravity: [0, 980], substeps: 8 });
-  const shard: Body2D = flat.addBody({ shape: 'polygon', vertices: new Float32Array([0, 0, 6, 1, 4, 5]), position: [320, 96], angle: 0.3 });
+  const piece: Body2D = flat.addBody({ shape: 'polygon', vertices: new Float32Array([0, 0, 6, 1, 4, 5]), position: [320, 96], angle: 0.3 });
   flat.addBody({ shape: 'compound', parts: [{ size: [12, 4], position: [6, 2] }, { shape: 'circle', radius: 3, density: 0.4 }] });
   flat.addBody({ type: 'kinematic', lockPosition: [false, true], lockRotation: true, inertia: null, centerOfMass: null });
   const ground = flat.addBody({ shape: 'tilemap', tileSize: [16, 16], columns: 4, rows: 1, tiles: new Uint32Array(4) });
@@ -277,16 +277,16 @@ export function joints(): void {
   const under: [number, number] | undefined = flat.groundOf(walker)?.normal;
   void under;
   flat.addBody({ sensor: true });
-  const read: BodyInfo2D = flat.bodyOf(shard);
+  const read: BodyInfo2D = flat.bodyOf(piece);
   const at: Vec2 = read.position;
-  const [x, y] = shard.position;
-  const angle: number = shard.angle + shard.angularVelocity + shard.inertia + x + y + at[0];
-  shard.setPosition(1, 2).setAngle(angle).setVelocity(3, 4).setAngularVelocity(5).moveTo([1, 2], null, 1 / 60).moveTo(at, 2, 1 / 60);
-  shard.applyForce([1, 2], [3, 4]).applyTorque(1).applyImpulse([1, 2]).applyAngularImpulse(1);
+  const [x, y] = piece.position;
+  const angle: number = piece.angle + piece.angularVelocity + piece.inertia + x + y + at[0];
+  piece.setPosition(1, 2).setAngle(angle).setVelocity(3, 4).setAngularVelocity(5).moveTo([1, 2], null, 1 / 60).moveTo(at, 2, 1 / 60);
+  piece.applyForce([1, 2], [3, 4]).applyTorque(1).applyImpulse([1, 2]).applyAngularImpulse(1);
   const t: Float32Array = flat.transforms;
   flat.gravity = [0, 0];
-  flat.setBody(shard, { friction: t[0] });
-  flat.remove(flat.body(shard.id));
+  flat.setBody(piece, { friction: t[0] });
+  flat.remove(flat.body(piece.id));
   flat.step(1 / 60);
   flat.destroy();
 }
