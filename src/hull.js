@@ -131,18 +131,41 @@ export class Hull {
 }
 
 /**
+ * The points once each, in the order given. A repeated point can read a hair
+ * above a sliver of a face and be taken as its eye, and a triangle with two
+ * corners at one place has no plane: NaN, and then a body with NaN for a size,
+ * about 1 point set in 1,000 of the kind a model file's vertices make.
+ */
+function distinct(points) {
+  const seen = new Set(), out = [];
+  for (let i = 0; i < points.length; i += 3) {
+    const key = `${points[i] + 0},${points[i + 1] + 0},${points[i + 2] + 0}`;   // + 0: -0 is 0
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(points[i], points[i + 1], points[i + 2]);
+  }
+  return out;
+}
+
+/**
  * The hull of `points` (finite numbers, three to a point), or null if they
- * don't span a solid: fewer than four, or all on one plane, within rounding.
+ * don't span a solid: fewer than four, or all on one plane, within rounding
+ * or within FLAT of their size, thinner than which faces can't be told apart
+ * (merge()) and it would come out with no volume, or less.
  */
 export function build(points) {
-  const n = points.length / 3;
+  const P = Float64Array.from(distinct(points)), n = P.length / 3;
   if (n < 4) return null;
-  const P = Float64Array.from(points);
   let mx = 0, my = 0, mz = 0;
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < n; i++) {
     mx = Math.max(mx, Math.abs(P[3 * i])); my = Math.max(my, Math.abs(P[3 * i + 1])); mz = Math.max(mz, Math.abs(P[3 * i + 2]));
+    for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], P[3 * i + k]); hi[k] = Math.max(hi[k], P[3 * i + k]); }
   }
   const eps = ROUNDING * (mx + my + mz);
+  // Half its size each way: the same as mx + my + mz for a hull about the
+  // origin, and for one given in level coordinates, kilometres out, its own.
+  const scale = ((hi[0] - lo[0]) + (hi[1] - lo[1]) + (hi[2] - lo[2])) * 0.5;
 
   // The first tetrahedron: the two points farthest apart of the six extremes,
   // the point farthest from their line, and the point farthest from their plane.
@@ -181,7 +204,7 @@ export function build(points) {
     const d = Math.abs(above(P, base, i));
     if (d > far) { far = d; i3 = i; }
   }
-  if (!(far > eps)) return null;
+  if (!(far > eps) || !(far > FLAT * scale)) return null;
 
   // Faces as triangles while the hull grows: corners, plane, the points
   // above it, and whether it is still part of the hull. Directed edge u→v
@@ -255,7 +278,7 @@ export function build(points) {
     next = 0;   // the earliest face with points above it, so the order is the input's alone
   }
 
-  return merge(P, faces.filter((g) => g.alive), edge, n, mx + my + mz);
+  return merge(P, faces.filter((g) => g.alive), edge, n, scale);
 }
 
 /**

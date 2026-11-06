@@ -1520,7 +1520,8 @@ const hammer = world.addBody({
 - **A hull is convex.** An L, a bowl or a cup comes out as its hull, filled in. Make it a compound
   of convex parts instead.
 - **Its points must span a solid**: four or more, not all in one plane, or it throws. A flat hull
-  has no volume, so no mass.
+  has no volume, so no mass. Points within a part in about a million of the hull's size of one plane
+  count as flat, the same flatness that merges its faces. Repeated points are taken once.
 - **Building one costs once.** It happens in `addBody`, and in `setBody` when `vertices` change,
   never in a step: 200 points take about 3 ms on an i7-1260P. A step's cost grows with a hull's
   corners and faces: a pile of 60 hulls of about 10 corners each cost 1.5 times the same pile of
