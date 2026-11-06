@@ -1878,7 +1878,8 @@ function solveRows(world, c, h, bias, known, from, to) {
     cRelativeVelocity = c.relativeVelocity, cRollImpulse1 = c.rollImpulse1, cRollImpulse2 = c.rollImpulse2,
     cRollMass1 = c.rollMass1, cRollMass2 = c.rollMass2, cSliding = c.sliding, cSpinImpulse = c.spinImpulse,
     cSpinMass = c.spinMass, cT1 = c.t1, cT2 = c.t2, cTangentImpulse1 = c.tangentImpulse1,
-    cTangentImpulse2 = c.tangentImpulse2, cTolerance = c.tolerance;
+    cTangentImpulse2 = c.tangentImpulse2, cTolerance = c.tolerance, jac = c.jac, K = c.block, fj = c.fjac,
+    tm = c.tangentMass;
   const v = world._velocity, w = world._angular, invI = world._invI, invMass = world._invMass;
   const p = world._position, start = world._start, q = world._rotation;
   const inv = 1 / h;
@@ -1966,7 +1967,7 @@ function solveRows(world, c, h, bias, known, from, to) {
     // first point that pulls or closes too fast, until none does. It meets each
     // of the 2^count sets at most once, so that bounds it; a resting box's
     // first guess is the answer.
-    const jac = c.jac, ima = invMass[a], imb = invMass[b], kb = m * P * P, K = c.block;
+    const ima = invMass[a], imb = invMass[b], kb = m * P * P;
     let vax = v[a3], vay = v[a3 + 1], vaz = v[a3 + 2], wax = w[a3], way = w[a3 + 1], waz = w[a3 + 2];
     let vbx = v[b3], vby = v[b3 + 1], vbz = v[b3 + 2], wbx = w[b3], wby = w[b3 + 1], wbz = w[b3 + 2];
     if (count === 1 || !(K[kb] > 0)) {
@@ -2053,8 +2054,18 @@ function solveRows(world, c, h, bias, known, from, to) {
       pressed += cNormalImpulse[i];
       twisted += cLever[i] * cNormalImpulse[i];
     }
+    // Pushed by nothing, and holding nothing from before: friction, rolling and
+    // twist are each held within a limit of 0, so all three would add nothing.
+    // A contact still closing on its gap, 12 to 25% of a heap's solves.
+    if (pressed === 0 && cTangentImpulse1[m] === 0 && cTangentImpulse2[m] === 0 && cSpinImpulse[m] === 0
+      && cRollImpulse1[m] === 0 && cRollImpulse2[m] === 0) {
+      cSliding[m] = 1;
+      writeBack(v, w, ima, a3, vax, vay, vaz, wax, way, waz);
+      writeBack(v, w, imb, b3, vbx, vby, vbz, wbx, wby, wbz);
+      continue;
+    }
     {
-      const f = FJ * m, fj = c.fjac, g = f + 12;
+      const f = FJ * m, g = f + 12;
       const dvx = vbx - vax, dvy = vby - vay, dvz = vbz - vaz;
       let v1 = dvx * t1x + dvy * t1y + dvz * t1z
         + wbx * fj[f + 3] + wby * fj[f + 4] + wbz * fj[f + 5] - wax * fj[f] - way * fj[f + 1] - waz * fj[f + 2];
@@ -2072,7 +2083,7 @@ function solveRows(world, c, h, bias, known, from, to) {
         }
         v1 += b1; v2 += b2;
       }
-      const tm = c.tangentMass, o1 = cTangentImpulse1[m], o2 = cTangentImpulse2[m];
+      const o1 = cTangentImpulse1[m], o2 = cTangentImpulse2[m];
       let n1 = o1 - (tm[m3] * v1 + tm[m3 + 1] * v2), n2 = o2 - (tm[m3 + 1] * v1 + tm[m3 + 2] * v2);
       const limit = mu * pressed, l2 = n1 * n1 + n2 * n2;
       if (l2 > limit * limit) {
