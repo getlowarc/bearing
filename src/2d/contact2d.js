@@ -83,6 +83,14 @@ export class Contacts2D {
     grow('relativeVelocity', Float64Array, 2 * c); grow('k', Float64Array, 2 * c);
     this.capacity = c;
   }
+
+  /** Gives storage back after a burst, by the world's quarter rule, so it can't thrash. */
+  trim() {
+    if (this.capacity <= 16 || this.count > this.capacity / 4) return;
+    let c = 16;
+    while (c < this.count) c *= 2;
+    this._alloc(c);
+  }
 }
 
 const found = new Manifold2();

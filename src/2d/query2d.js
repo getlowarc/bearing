@@ -217,14 +217,25 @@ function weighAll(world, s, core, x, y, c, z, margin) {
 /** How far along unit (dx, dy) `core` goes before touching slot s: t, normal into s in cNx/Y, or -1. */
 function castBody(world, s, core, x, y, c, z, dx, dy, maxT, tolerance) {
   cDx = dx; cDy = dy; cTolerance = tolerance;
+  // A tilemap's cells are walked in a box as wide as the margin, every way, so
+  // a long cast goes a tile's length at a time: the whole length at once walked
+  // every cell around the shape in reach, 11 s for one cast over a map of
+  // 2,000 by 1,000. A cast shorter than a tile is as it was.
+  const level = world._level[s], stride = level instanceof Tilemap ? Math.max(level.tw, level.th) : Infinity;
   let t = 0;
-  for (let round = 0; round < ROUNDS; round++) {
-    cTime = Infinity; cHit = false; cLeft = round === 0 ? maxT : 0;
-    weighAll(world, s, core, x + dx * t, y + dy * t, c, z, maxT - t + tolerance);
+  for (let round = 0; round < ROUNDS;) {
+    const left = maxT - t, reach = left < stride ? left : stride;
+    cTime = Infinity; cHit = false; cLeft = t === 0 ? maxT : 0;
+    weighAll(world, s, core, x + dx * t, y + dy * t, c, z, reach + tolerance);
     if (cHit) return t;
-    if (cTime === Infinity) return -1;
+    if (cTime === Infinity) {
+      if (reach === left) return -1;
+      t += reach;   // nothing within this stride: not a round of closing in
+      continue;
+    }
     t += cTime;
     if (t > maxT) return -1;
+    round++;
   }
   return t;
 }

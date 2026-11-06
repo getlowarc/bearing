@@ -19,6 +19,20 @@ All notable changes to Bearing are recorded here. The format follows
   shape had this. A box touches at no distance, so a move from a touch had no direction to go by.
 - `shapeCast` with a box or hull gives the true normal and point. About half of all casts gave the
   normal against the move and the point at the cast's centre; the distance was right.
+- Repeated points can't break a hull any more, and a hull too thin to tell from flat is refused
+  with the message a flat one gets. Either used to give a body of NaN or no mass, about 1 point set
+  in 1,000 for repeats. A hull's flatness follows its size, not its distance from the origin: a rock
+  given in coordinates 1,000 km out collapsed from 396 faces to 4.
+- 2D: a capsule with `height` twice its `radius`, which is the default height of a large capsule,
+  collides as a circle. It passed through everything.
+- 2D: a circle spinning in place, and a kinematic body moving too slowly to leave its tolerance in a
+  second, no longer fall asleep and lose their velocity. A saw blade stopped after 1 s.
+- 2D: whatever takes a support away wakes what slept on it, as in 3D: a crate was left hanging when
+  its kinematic platform was moved by hand, filtered out or shrunk.
+- 2D: a touch ended by `setBody` reports its `end` after the next step. It was cleared unread.
+- 2D: `shapeCast` with no `maxDistance` over a large tilemap takes milliseconds: 11 s to 1.8 ms on a
+  map of 2,000 by 1,000. It walked every cell in a box as wide as the cast.
+- 2D: contact storage is given back after a burst, by the quarter rule, as in 3D.
 
 ### Changed
 

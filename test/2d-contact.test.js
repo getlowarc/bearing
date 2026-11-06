@@ -256,6 +256,20 @@ test('what the near-miss test calls apart, the full test never finds touching, f
   }
 });
 
+test('a capsule no longer than it is wide is a circle, and rests like one', () => {
+  // Two corners at one place have no side between them: a NaN normal, and a
+  // body that passed through every floor. This is also the default height of
+  // a capsule of radius 100.
+  for (const options of [{ radius: 10, height: 20 }, { radius: 100 }]) {
+    const world = new World2D();
+    floor(world);
+    const body = world.addBody({ shape: 'capsule', ...options, position: [0, -300] });
+    steps(world, 240);
+    near(body.position[1], -options.radius, 0.2, 'rests on the floor at');
+    assert.ok(body.asleep || Math.abs(body.velocity[1]) < 1);
+  }
+});
+
 test('shards a few pixels across rest on a floor and on each other', () => {
   const world = new World2D();
   floor(world);

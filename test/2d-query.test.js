@@ -203,6 +203,34 @@ test('sensors see what passes and push nothing; queries pass through them; they 
   assert.equal(world._sensorPasses > 0, true);
 });
 
+test('a shape cast of no limit over a big map of caves costs a walk along it, not every cell in reach', () => {
+  // The cast's length was a margin, and a margin is a box every way around
+  // the shape: 11 s for one cast over a map of 2,000 by 1,000.
+  const columns = 2000, rows = 1000, tiles = new Array(columns * rows).fill(0);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < columns; c++) if ((c * 7 + r * 13) % 11 === 0 && c % 40 !== 0) tiles[r * columns + c] = 1;
+  const world = new World2D();
+  world.addBody({ shape: 'tilemap', tileSize: [T, T], columns, rows, tiles });
+  const start = performance.now();
+  for (let i = 0; i < 20; i++) world.shapeCast({ size: [6, 6] }, [4 + 40 * T * i, 8], [0, 1]);
+  const each = (performance.now() - start) / 20;
+  assert.ok(each < 100, `${each} ms a cast`);
+});
+
+test('a long shape cast over a tilemap stops where short ones do', () => {
+  const columns = 60, tiles = new Array(columns * 40).fill(0);
+  for (let c = 0; c < columns; c++) tiles[30 * columns + c] = 1;
+  for (let r = 0; r < 40; r++) tiles[r * columns + 45] = 1;
+  const world = new World2D();
+  world.addBody({ shape: 'tilemap', tileSize: [T, T], columns, rows: 40, tiles });
+  for (let i = 0; i < 300; i++) {
+    const o = [between(40, 400), between(40, 300)], a = between(0, 6.28), d = [Math.cos(a), Math.sin(a)];
+    const long = world.shapeCast({ size: [6, 10] }, o, d), near2 = world.shapeCast({ size: [6, 10] }, o, d, { maxDistance: long ? long.distance + 1 : 1 });
+    if (long === null) continue;
+    assert.ok(near2 !== null, `cast ${i} missed with its own distance`);
+    near(long.distance, near2.distance, 1e-6, `cast ${i}`);
+  }
+});
+
 test('off means off: nothing changing, no events; no sensors, no sensor pass', () => {
   const world = new World2D({ sleeping: false });
   world.addBody({ type: 'static', size: [2000, 100], position: [0, 50] });

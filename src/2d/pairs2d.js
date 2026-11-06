@@ -173,6 +173,7 @@ export class Pairs2D {
     let c = 16;
     while (c < this.count) c *= 2;
     this._alloc(c);
+    if (this.extra.length > c) this.extra.length = c;
   }
 }
 

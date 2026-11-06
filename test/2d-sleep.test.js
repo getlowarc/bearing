@@ -232,6 +232,52 @@ test('a body in a reused slot still finds what it touches on the next step', () 
   assert.equal(world.touching(a)[0]?.id, b.id);
 });
 
+test('a wheel spinning in place and a slow kinematic body stay as they were told', () => {
+  // Distance alone said still: turning in place went unseen on a circle, and a
+  // wide body creeping under its tolerance a second counted as stopped. Asleep,
+  // both lost their velocity for good.
+  const world = new World2D();
+  const wheel = world.addBody({ shape: 'circle', radius: 40, gravityScale: 0, angularVelocity: 5 });
+  const roller = world.addBody({ type: 'kinematic', shape: 'circle', radius: 20, position: [200, 0], angularVelocity: 3 });
+  const door = world.addBody({ type: 'kinematic', size: [400, 200], position: [0, 500], velocity: [0, -0.9] });
+  steps(world, 300);
+  assert.ok(!wheel.asleep && !roller.asleep && !door.asleep, 'one of them slept');
+  assert.equal(wheel.angularVelocity, 5);
+  assert.equal(roller.angularVelocity, 3);
+  assert.equal(door.velocity[1], -0.9);
+  assert.ok(Math.abs(door.position[1] - 495.5) < 1e-6, `the door is at ${door.position[1]}`);
+});
+
+test('whatever takes a support away, what slept on it falls', () => {
+  for (const [what, change] of [
+    ['moved away', (w, k) => k.setPosition(1000, 0)],
+    ['filtered out', (w, k) => w.setBody(k, { mask: 0 })],
+    ['shrunk', (w, k) => w.setBody(k, { size: [4, 4], position: [300, 0] })],
+    ['removed', (w, k) => w.remove(k)],
+  ]) {
+    const world = new World2D(), k = world.addBody({ type: 'kinematic', size: [200, 20] });
+    const crate = world.addBody({ size: [40, 40], position: [0, -30] });
+    steps(world, 180);
+    assert.ok(crate.asleep, 'the crate slept');
+    change(world, k);
+    steps(world, 60);
+    assert.ok(crate.position[1] > 100, `platform ${what}: the crate hangs at ${crate.position[1]}`);
+  }
+});
+
+test('a touch that setBody ends reports its end, after the next step like any other', () => {
+  const world = new World2D();
+  const ground = floor(world);
+  const crate = world.addBody({ size: [40, 40], position: [0, -20] });
+  steps(world, 10);
+  assert.equal(world.touching(crate).length, 1);
+  world.setBody(crate, { mask: 0 });
+  world.step(DT);
+  const ends = world.contacts(crate).filter((e) => e.type === 'end');
+  assert.equal(ends.length, 1, `events ${JSON.stringify(world.contacts(crate).map((e) => e.type))}`);
+  assert.equal(ends[0].b.id, ground.id);
+});
+
 test('adding, removing and stepping at random keeps the list sound', () => {
   const world = new World2D({ gravity: [0, 0] }), live = [];
   for (let k = 0; k < 6000; k++) {

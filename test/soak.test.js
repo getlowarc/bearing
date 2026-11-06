@@ -9,6 +9,7 @@
 
 import assert from 'node:assert/strict';
 import { World, Joint } from '../src/bearing.js';
+import { World2D } from '../src/2d/bearing2d.js';
 import { suite, testAsync as test } from './test.js';
 import { mixed } from './scenes.js';
 import { sharedMemory, cores } from '../src/core/jobs.js';
@@ -453,7 +454,74 @@ await test('characters made, walked about a level and removed 30 times: nothing 
   assert.ok(grown < 256 * 1024, `grew ${(grown / 1024).toFixed(0)} KB`);
 });
 
-await test('removed bodies\' handles and destroyed worlds are collected', async () => {
+await await test('a 2D step makes no new arrays or views, whatever the world holds', async () => {
+  const world = new World2D(), tiles = new Array(40 * 8).fill(0);
+  tiles.fill(1, 40 * 6);
+  world.addBody({ shape: 'tilemap', tileSize: [16, 16], columns: 40, rows: 8, tiles, position: [-320, 0] });
+  world.addBody({ shape: 'chain', vertices: [-300, 90, 0, 80, 300, 90] });
+  for (let i = 0; i < 90; i++) {
+    const position = [(i % 15) * 28 - 200, -20 - (i >> 2) * 24], k = i % 4;
+    world.addBody(k === 0 ? { size: [16, 12], position } : k === 1 ? { shape: 'circle', radius: 8, position }
+      : k === 2 ? { shape: 'capsule', radius: 5, height: 22, position } : { shape: 'compound', parts: [{ size: [8, 8] }, { size: [8, 8], position: [8, 0] }], position });
+  }
+  world.addBody({ type: 'character', shape: 'capsule', radius: 7, height: 30, position: [100, -40], velocity: [40, 0] });
+  world.addBody({ size: [100, 20], position: [0, 40], sensor: true, type: 'static' });
+  // Settled first: storage grows and is given back as a pile lands, by the quarter rule.
+  for (let n = 0; n < 600; n++) world.step(1 / 60);
+  const typed = Object.getPrototypeOf(Int8Array.prototype);
+  const watched = [[typed, 'subarray'], [typed, 'slice'], [typed, 'map'], [typed, 'filter'],
+    [Array.prototype, 'slice'], [Array.prototype, 'map'], [Array.prototype, 'filter'], [Array.prototype, 'concat']];
+  const calls = new Map();
+  const saved = watched.map(([o, k]) => {
+    const f = o[k];
+    o[k] = function (...args) { calls.set(k, (calls.get(k) || 0) + 1); return f.apply(this, args); };
+    return f;
+  });
+  try {
+    for (let n = 0; n < 300; n++) world.step(1 / 60);
+  } finally {
+    watched.forEach(([o, k], i) => { o[k] = saved[i]; });
+  }
+  assert.deepEqual([...calls], []);
+});
+
+await test('a 2D pile built and cleared 40 times: slots, contact storage, pairs and memory come back', async () => {
+  const world = new World2D();
+  world.addBody({ type: 'static', size: [4000, 50], position: [0, 25] });
+  const round = () => {
+    const bodies = [];
+    for (let i = 0; i < 400; i++) bodies.push(world.addBody(i % 2 ? { size: [16, 14], position: [(i % 30) * 19 - 280, -14 - (i >> 4) * 17] } : { shape: 'circle', radius: 8, position: [(i % 30) * 19 - 280, -14 - (i >> 4) * 17] }));
+    for (let n = 0; n < 40; n++) world.step(1 / 60);
+    for (const b of bodies) world.remove(b);
+    for (let n = 0; n < 3; n++) world.step(1 / 60);
+  };
+  round();
+  round();
+  await collect();
+  const before = heap(), slots = world._slots.top;
+  for (let i = 0; i < 40; i++) round();
+  await collect();
+  assert.equal(world._slots.top, slots);
+  assert.ok(world._contacts.capacity <= 16, `contact storage ${world._contacts.capacity}`);
+  assert.ok(world._pairs.extra.length <= 16, `pair lists ${world._pairs.extra.length}`);
+  const grew = heap() - before;
+  assert.ok(grew < 2e6, `grew ${(grew / 1e6).toFixed(2)} MB over 40 rounds`);
+  world.destroy();
+});
+
+await test('a 2D world dropped is collected', async () => {
+  let world = new World2D();
+  world.addBody({ type: 'static', size: [400, 50], position: [0, 25] });
+  for (let i = 0; i < 40; i++) world.addBody({ size: [16, 16], position: [i * 18 - 200, -20] });
+  for (let n = 0; n < 30; n++) world.step(1 / 60);
+  const held = new WeakRef(world);
+  world.destroy();
+  world = null;
+  await collect();
+  assert.equal(held.deref(), undefined);
+});
+
+test('removed bodies\' handles and destroyed worlds are collected', async () => {
   const world = new World();
   let handle = world.addBody({});
   const body = new WeakRef(handle);
