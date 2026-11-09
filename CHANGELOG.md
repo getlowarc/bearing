@@ -13,6 +13,11 @@ All notable changes to Bearing are recorded here. The format follows
   joints with a cone, work out what depends only on where the bodies are 9 times a step, not 16.
   100 driven ragdolls with stops step 14% faster on one thread, ragdolls with stops and no motors
   1 to 5%.
+- Bodies resting on a mesh or a heightfield keep their contacts from step to step while they have
+  barely moved, as bodies resting on each other already did, instead of testing every triangle
+  under them again. A pile settling on terrain steps 6 to 9% faster over its first 12 s, and on a
+  level mesh 14 to 15%. Results change slightly where such a body rests, by no more than a fresh
+  look at the triangles may be off. Saves are now format 16.
 
 ## [1.3.4] - 2026-11-06
 

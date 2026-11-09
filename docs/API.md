@@ -942,7 +942,7 @@ stepping exactly as the saved world would have.
 Returns: a new [`World`](#world), its own: changing it changes nothing in the world it was saved
 from, or the data.
 
-Throws: `load: data must be what world.save() returned, got …`; `load: this data was saved by …, and this is …; a save loads only into the version that made it`; `load: data is format …; this Bearing reads format 15`; `load: data is damaged: …`.
+Throws: `load: data must be what world.save() returned, got …`; `load: this data was saved by …, and this is …; a save loads only into the version that made it`; `load: data is format …; this Bearing reads format 16`; `load: data is damaged: …`.
 
 ```js
 const checkpoint = world.save();

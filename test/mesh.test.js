@@ -1047,6 +1047,39 @@ test('a mesh of 100,000 triangles builds once, and a body on it looks only at th
   world.remove(big);
 });
 
+test('bodies at rest on a mesh or a heightfield keep their contacts from step to step', () => {
+  // As a hull keeps its manifold on a box (hulls.test.js): a pair barely moved
+  // since its manifolds were found has them rebuilt where its bodies are, not
+  // found again over every triangle under it. Found afresh, the pose they were
+  // found at would be written each step, the resting bodies still moving by
+  // rounding; kept, it stays as it was.
+  const rock = [0, 0.4, 0, 0.4, -0.2, 0.1, -0.3, -0.2, 0.3, -0.1, -0.2, -0.4, 0.2, 0.1, -0.2];
+  for (const floor of [
+    { shape: 'mesh', vertices: [-5, 0, -5, 5, 0, -5, 5, 0, 5, -5, 0, 5], indices: [0, 2, 1, 0, 3, 2] },
+    { shape: 'heightfield', heights: [0, 0, 0, 0, 0, 0, 0, 0, 0], columns: 3, spacing: 5 },
+  ]) {
+    const world = new World({ sleeping: false });
+    world.addBody(floor);
+    const bodies = [world.addBody({ position: [-2, 1, 0] }), world.addBody({ shape: 'hull', vertices: rock, position: [0, 1, 1] }),
+      world.addBody({ shape: 'capsule', radius: 0.2, height: 1, position: [2, 1, -1], rotation: [0, 0, 0.7071067811865476, 0.7071067811865476] })];
+    steps(world, 3);
+    // Each body's pair with the floor, in the bodies' order.
+    const pairs = world._pairs, slots = bodies.map((b) => b.id % 16777216), kept = slots.map(() => null);
+    for (let p = 0; p < pairs.count; p++) {
+      const k = Math.max(slots.indexOf(pairs.a[p]), slots.indexOf(pairs.b[p]));
+      if (pairs.memory[p]?.held > 0) kept[k] = pairs.memory[p];
+    }
+    assert.ok(kept.every((m) => m !== null), `${floor.shape}: each body keeps its manifolds`);
+    const poses = kept.map((m) => Array.from(m.pose));
+    steps(world, 0.5);
+    assert.deepEqual(kept.map((m) => Array.from(m.pose)), poses, `${floor.shape}: kept, not found again`);
+    // Moved by hand past what may be kept: found again where it is.
+    bodies[0].setPosition(-2.01, bodies[0].position[1], 0);
+    world.step(1 / 60);
+    assert.notDeepEqual(Array.from(kept[0].pose), poses[0], `${floor.shape}: found again once moved`);
+  }
+});
+
 test('errors name the mesh option at fault, and where in a long list', () => {
   const world = new World();
   assert.equal(thrown(() => world.addBody({ shape: 'mesh', vertices: [0, 0, NaN] })),

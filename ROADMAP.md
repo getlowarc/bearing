@@ -1147,3 +1147,13 @@ Winding's way, copied before the first one:
   ragdolls with stops took 33 ms a step, 56% of it in the one-at-a-time pass, against 19 ms for the
   same with no stops. That pass 18.5 -> 11.9 ms; pinned, both load orders, 13.5 to 14.7% faster. Same bits,
   against 1.3.4 on 120 runs of drives pressed into stops; a stored hash now holds it.
+- **2026-11-09.** Mesh and heightfield pairs keep their manifolds, at Nolan's word ("Go ahead with
+  finding contacts on hulls and terrain"). Measured first: finding contacts was 36 to 47% of a
+  step on hulls, terrain and meshes, spread thin (no function over 6%). Remembering each pair's
+  separating axis was dropped before writing it: 86% of the hull tests that find nothing stop at
+  the first face they try. While a pile settles on terrain, 87% of the time spent on the ground
+  went to pairs that had barely moved. Kept by REUSE's touching rule, 2 drift <= tolerance, not
+  for jointed bodies or compounds. Pinned, both orders, 12 s: terrain 5.6 to 8.7%, mesh 14 to 15%;
+  box and hull piles even. 640 heaps: 1 body through the ground before and after (a rock landing
+  fast, as known); 576 ridge drops 575 on the solid hull's side before and after; bodies awake at
+  30 s the same (91 to 104 of 4,800, nearly all capsules, before and after). FORMAT 16.

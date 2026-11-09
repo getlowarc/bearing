@@ -440,8 +440,14 @@ These were made with Nolan and override the rules below where they differ.
   `_pairEpoch`). Kept while `loss + 2 drift <= tolerance` and `drift + moving() <= tolerance`, the
   drift measured from the pose it was found at; `Manifold.loss` is how far `collide()` let it fall
   short of exact (a face kept on a tie, a corner left out), so a kept manifold is never worse than
-  a fresh one. Not for impact manifolds, meshes, heightfields or parts; boxes measured no faster.
-  Hull pile 30% faster pinned; FORMAT 3.
+  a fresh one. Not for impact manifolds or parts; boxes measured no faster.
+  Hull pile 30% faster pinned; FORMAT 3. Mesh and heightfield pairs since 2026-11-09 (Nolan: "Go
+  ahead with finding contacts on hulls and terrain"): `levelKept()` in `contact.js`, every
+  manifold of a touching pair kept while 2 drift <= tolerance, normals in the mesh's frame; Memory
+  `held`, `pose`, `axis`, `heldPoints`, `ends`, `ids` (FORMAT 16), dropped where `count` is and on a
+  new `_pairEpoch`; not for jointed bodies or parts. Shares `rebuild()`, `holdEnds()`,
+  `driftSince()` with convex pairs. Terrain 6-9%, level mesh 14-15% faster; heaps, ridge drops and
+  sleep as before.
   Inscribed spheres (2026-10-29, from the speed research; Catto's post and Box3D; same bits):
   `Hull.inner`, the least over faces of the lowest corner along its normal, is a ball about the
   centre inside the hull (`Placed.inner`/`reach`; a box its smallest half-size). In `hullHull` and
