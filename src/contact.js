@@ -634,11 +634,20 @@ function holdEnds(world, a, b, mf, nx, ny, nz, f, axis, i, local, ids, at) {
   axis[i] = A[f9] * nx + A[f9 + 1] * ny + A[f9 + 2] * nz;
   axis[i + 1] = A[f9 + 3] * nx + A[f9 + 4] * ny + A[f9 + 5] * nz;
   axis[i + 2] = A[f9 + 6] * nx + A[f9 + 7] * ny + A[f9 + 8] * nz;
+  // A round end goes down to its core along the normal, the way it came up
+  // from it (collide() and touch() put a capsule's point a radius along the
+  // normal from its segment), and only then onto the core (cored()). Put
+  // square onto the axis instead, a point whose normal leans along a capsule
+  // slid along it by r (n . axis), and rebuilt its depth was out by
+  // r (n . axis)²: a capsule lying across a peak of a mesh, leaning 11° to
+  // the slope beyond, read 3.5 mm into a triangle it was 10 mm clear of, and
+  // was kicked up every few steps for good.
+  const ra = rounded(world, a), rb = rounded(world, b);
   for (let k = 0; k < mf.count; k++) {
     const o = 6 * (at + k), k3 = 3 * k, half = 0.5 * mf.separations[k];
-    const px = mf.points[k3], py = mf.points[k3 + 1], pz = mf.points[k3 + 2];
-    const ax = px - nx * half - pos[a3], ay = py - ny * half - pos[a3 + 1], az = pz - nz * half - pos[a3 + 2];
-    const bx = px + nx * half - pos[b3], by = py + ny * half - pos[b3 + 1], bz = pz + nz * half - pos[b3 + 2];
+    const px = mf.points[k3], py = mf.points[k3 + 1], pz = mf.points[k3 + 2], da = half + ra, db = half + rb;
+    const ax = px - nx * da - pos[a3], ay = py - ny * da - pos[a3 + 1], az = pz - nz * da - pos[a3 + 2];
+    const bx = px + nx * db - pos[b3], by = py + ny * db - pos[b3 + 1], bz = pz + nz * db - pos[b3 + 2];
     local[o] = A[a9] * ax + A[a9 + 1] * ay + A[a9 + 2] * az;
     local[o + 1] = A[a9 + 3] * ax + A[a9 + 4] * ay + A[a9 + 5] * az;
     local[o + 2] = A[a9 + 6] * ax + A[a9 + 7] * ay + A[a9 + 8] * az;

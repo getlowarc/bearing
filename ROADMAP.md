@@ -1157,3 +1157,10 @@ Winding's way, copied before the first one:
   box and hull piles even. 640 heaps: 1 body through the ground before and after (a rock landing
   fast, as known); 576 ridge drops 575 on the solid hull's side before and after; bodies awake at
   30 s the same (91 to 104 of 4,800, nearly all capsules, before and after). FORMAT 16.
+- **2026-11-09.** The capsules still awake, at Nolan's word ("Look into the capsules first"). Most
+  roll: their energy falls by exactly what 1% rolling resistance takes (10.9 J/kg against 10.3 over
+  105 m), and from a heap they roll 30 to 40 m on flat ground. A few buzzed in place, gaining
+  energy (2 heaps in 40 on a mesh, 4 on a heightfield): a capsule across a peak, its kept contact
+  with the slope beyond rebuilt 3.5 mm deep where it was 10 mm clear. `holdEnds()` put a round end
+  square onto the axis rather than along the normal; fixed, both sleep within 1.5 s, no body in 80
+  heaps gains energy, heaps and ridge drops as before. Convex pairs had it since 2026-10-29.

@@ -447,7 +447,11 @@ These were made with Nolan and override the rules below where they differ.
   `held`, `pose`, `axis`, `heldPoints`, `ends`, `ids` (FORMAT 16), dropped where `count` is and on a
   new `_pairEpoch`; not for jointed bodies or parts. Shares `rebuild()`, `holdEnds()`,
   `driftSince()` with convex pairs. Terrain 6-9%, level mesh 14-15% faster; heaps, ridge drops and
-  sleep as before.
+  sleep as before. A round end is kept at its core along the normal (`holdEnds()`, 2026-11-09,
+  Nolan: "Look into the capsules first"): put square onto a capsule's axis, a leaning contact
+  rebuilt r (n . axis)^2 too deep, and capsules across mesh peaks buzzed for good (the kept mesh
+  manifolds showed it; convex pairs had it since 2026-10-29). Hash changed. Capsules awake long after
+  a heap lands are rolling: they lose exactly the 1% rolling resistance takes, 30-40 m from 3 m/s.
   Inscribed spheres (2026-10-29, from the speed research; Catto's post and Box3D; same bits):
   `Hull.inner`, the least over faces of the lowest corner along its normal, is a ball about the
   centre inside the hull (`Placed.inner`/`reach`; a box its smallest half-size). In `hullHull` and

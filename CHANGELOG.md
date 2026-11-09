@@ -19,6 +19,13 @@ All notable changes to Bearing are recorded here. The format follows
   level mesh 14 to 15%. Results change slightly where such a body rests, by no more than a fresh
   look at the triangles may be off. Saves are now format 16.
 
+### Fixed
+
+- A capsule leaning against what it rests on could have the contact it kept from the last step
+  rebuilt too deep, by its radius times the square of the lean, and be kicked up by it. On a mesh
+  or heightfield, a capsule lying across a peak buzzed in place for good (4 to 6 heaps in 80); against
+  a box, a hull or another capsule the same could happen where a contact wasn't at its rounded end.
+
 ## [1.3.4] - 2026-11-06
 
 Joints that stay where they are put. A jointed body given a new shape keeps its joints on the same

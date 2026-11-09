@@ -1080,6 +1080,25 @@ test('bodies at rest on a mesh or a heightfield keep their contacts from step to
   }
 });
 
+test('a capsule lying across a peak, leaning to the slope beyond, sleeps', () => {
+  // Taken from a heap at 30 s: a capsule over a mesh's highest corner, its
+  // contact with the triangle sloping away beyond kept from step to step
+  // (levelKept). Its end was put onto the capsule's axis square to it, not
+  // along the normal it came up by, so the rebuilt contact read 3.5 mm into
+  // a triangle the capsule was 10 mm clear of, and kicked it up for good.
+  const H = (x, z) => 0.35 * (((Math.floor(x / 3) * 7 + Math.floor(z / 3) * 13) % 5 + 5) % 5) / 4 - 0.1
+    + 0.05 * (((Math.floor(x / 3) * 3 + Math.floor(z / 3) * 5) % 3 + 3) % 3);
+  const vertices = [], indices = [];
+  for (let j = 0; j <= 4; j++) for (let i = 0; i <= 4; i++) vertices.push(i * 3 - 9, H(i * 3 - 8.9, j * 3 - 5.9), j * 3 - 6);
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { const a = j * 5 + i; indices.push(a, a + 5, a + 6, a, a + 6, a + 1); }
+  const world = new World();
+  world.addBody({ shape: 'mesh', vertices, indices });
+  const capsule = world.addBody({ shape: 'capsule', radius: 0.2, height: 0.9, position: [-3.098857003659179, 0.3557271170034077, 0.058235251868195004],
+    rotation: [-0.03966163632456596, -0.32534958667655234, -0.7279761417669821, -0.6021838075467602] });
+  steps(world, 3);
+  assert.ok(capsule.asleep, `still moving at ${Math.hypot(...capsule.velocity).toFixed(4)} m/s`);
+});
+
 test('errors name the mesh option at fault, and where in a long list', () => {
   const world = new World();
   assert.equal(thrown(() => world.addBody({ shape: 'mesh', vertices: [0, 0, NaN] })),
