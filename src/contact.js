@@ -336,10 +336,11 @@ export function narrow(world, pairs, broadphase, next, from) {
  * moving, reshaping or refiltering it, at any type of body, in any order. Those
  * are too many to tell apart at each setter, where only static bodies were told,
  * and frozen bodies, whose pairs aren't asleep, were never told at all. A sensor
- * holds nothing up.
+ * holds nothing up, but water does.
  */
 function released(world, a, b) {
-  if (world._sensor[a] !== 0 || world._sensor[b] !== 0) return;
+  // A sensor holds nothing up; water does (fluid.js).
+  if ((world._sensor[a] !== 0 && world._fluid[a] === 0) || (world._sensor[b] !== 0 && world._fluid[b] === 0)) return;
   const island = world._island, frozen = world._frozen;
   if (island[a] !== 0 || frozen[a] !== 0) world._wake(a);
   if (island[b] !== 0 || frozen[b] !== 0) world._wake(b);
@@ -361,6 +362,9 @@ function find(world, pairs, p, a, b, next, tolerance, sensing) {
   }
   if (sensing && (world._sensor[a] === 1 || world._sensor[b] === 1)) {
     world._sense(p);
+    // Water that moves wakes what it holds: a sensor wakes nothing, but water
+    // pushes, and a boat asleep on a rising tide would stay where it was.
+    if (world._fluidCount > 0) stirred(world, a, b);
     return false;
   }
   if (shape[a] >= MESH || shape[b] >= MESH) {
@@ -388,6 +392,15 @@ function find(world, pairs, p, a, b, next, tolerance, sensing) {
     remember(world, pairs, p, a, b);
   }
   return true;
+}
+
+/** Wakes whichever of a and b is asleep if the other is water moving (see find()). */
+function stirred(world, a, b) {
+  const f = world._fluid[a] === 1 ? a : world._fluid[b] === 1 ? b : -1;
+  if (f < 0) return;
+  const s = f === a ? b : a, v = world._velocity, w = world._angular, f3 = 3 * f;
+  if (world._awake[s] === 1 || world._type[s] !== 0) return;
+  if (v[f3] !== 0 || v[f3 + 1] !== 0 || v[f3 + 2] !== 0 || w[f3] !== 0 || w[f3 + 1] !== 0 || w[f3 + 2] !== 0) world._wake(s);
 }
 
 /**

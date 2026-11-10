@@ -81,6 +81,9 @@ mine as the game runs, and characters that walk on them.
 - **Contact events and sensors**: which bodies began and stopped touching in each step, where and
   how hard, read after the step; what touches a body now; and sensors, zones that report what
   enters them and push nothing. See [Contact events and sensors](docs/API.md#events).
+- **Water**: boxes of water that hold up what is in them as Archimedes says, at the centre of
+  the part under the surface, so planks float flat and rafts drift on a current. See
+  [Water](docs/API.md#water).
 - **Save and load**: [`world.save()`](docs/API.md#world-save) gives the whole world as plain data,
   and [`World.load`](docs/API.md#world-load) steps on from it exactly, for replays, checkpoints
   and bug reports that reproduce. [`world.debugLines()`](docs/API.md#world-debuglines) gives the

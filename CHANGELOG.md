@@ -7,6 +7,16 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Water: a static or kinematic box given `fluid: true` holds up every dynamic body in it by the
+  weight of the water it displaces, at the centre of the part of it under the surface, so a body
+  of half water's density floats half under and a plank rights itself and floats flat. The
+  water's `density`, `damping` and `angularDamping` (3 each for new water unless given) and its
+  `flow`, a current, set how it holds and carries what is in it. Water is a sensor, so nothing
+  collides with it, and water added, moved or taken away wakes what it covers. See
+  [Water](docs/API.md#water). Saves are now format 17.
+
 ### Changed
 
 - Joints with stops are faster, to the same bits: ball joints and hinges in a tree, and rotation
@@ -17,7 +27,7 @@ All notable changes to Bearing are recorded here. The format follows
   barely moved, as bodies resting on each other already did, instead of testing every triangle
   under them again. A pile settling on terrain steps 6 to 9% faster over its first 12 s, and on a
   level mesh 14 to 15%. Results change slightly where such a body rests, by no more than a fresh
-  look at the triangles may be off. Saves are now format 16.
+  look at the triangles may be off.
 
 ### Fixed
 

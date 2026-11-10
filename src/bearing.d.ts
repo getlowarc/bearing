@@ -60,6 +60,10 @@ interface BodyCommon {
   group?: number;
   /** Reports what overlaps it and pushes nothing, default false. */
   sensor?: boolean;
+  /** Water: a static or kinematic box that holds up the dynamic bodies in it, its top the surface; a sensor. Default false. */
+  fluid?: boolean;
+  /** Water's current, m/s, world space, default [0, 0, 0]. Only for a fluid. */
+  flow?: readonly [number, number, number];
   /** The world axes it never turns about, x, y and z, default [false, false, false]. */
   lockRotation?: readonly [boolean, boolean, boolean];
   /** The world axes its centre of mass never moves along, x, y and z, default [false, false, false]. */
@@ -236,6 +240,10 @@ interface BodyInfoCommon {
   mask: number;
   group: number;
   sensor: boolean;
+  /** Only for water. */
+  fluid?: boolean;
+  /** Only for water. */
+  flow?: [number, number, number];
   lockRotation: [boolean, boolean, boolean];
   lockPosition: [boolean, boolean, boolean];
   /** A character's. */

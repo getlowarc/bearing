@@ -52,7 +52,7 @@ const joined = () => {
 };
 
 const JOINT_OPTIONS = 'type, a, b, anchor, anchorB, axis, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide';
-const OPTIONS = 'type, shape, size, radius, height, vertices, indices, heights, columns, spacing, parts, density, mass, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity';
+const OPTIONS = 'type, shape, size, radius, height, vertices, indices, heights, columns, spacing, parts, density, mass, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, fluid, flow, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity';
 
 /** The smallest .glb: one node, 'floor', showing one triangle; `json` adds to its JSON. */
 function glb(json = {}) {
@@ -173,6 +173,11 @@ const cases = [
       [e, run({ mask: 0.5 }), `${call}: mask must be a whole number that fits in 32 bits, got 0.5`],
       [e, run({ group: -1 }), `${call}: group must be a whole number, 0 or more, got -1`],
       [e, run({ sensor: 1 }), `${call}: sensor must be true or false, got 1`],
+      [e, run({ fluid: 1 }), `${call}: fluid must be true or false, got 1`],
+      [e, run({ flow: [1, 2] }), `${call}: flow must be 3 finite numbers, got 1,2`],
+      [e, run({ type: 'static', shape: 'sphere', fluid: true }), `${call}: a fluid must be a box, got 'sphere'`],
+      [e, run({ fluid: true }), `${call}: type must be 'static' or 'kinematic' for a fluid, got 'dynamic'`],
+      [e, run({ type: 'static', fluid: true, sensor: false }), `${call}: a fluid is a sensor: sensor must be true or left out`],
       [e, run({ inertia: [1, 0, 1] }), `${call}: inertia must be 3 positive numbers, or null to follow the shape, got 1,0,1`],
       [e, run({ position: { x: 1, y: 2, z: 3 } }), `${call}: position must be 3 finite numbers, got an object`],
       [e, run({ rotation: [0, 0, 0, 0] }), `${call}: rotation must be 4 finite numbers, not all zero, got 0,0,0,0`],
@@ -193,8 +198,8 @@ const cases = [
     `load: this data was saved by Bearing 0.13.0, and this is ${VERSION}; a save loads only into the version that made it`],
   ['world-load', () => World.load({ format: 9, objects: [] }),
     `load: this data was saved by a Bearing from before saves were stamped, and this is ${VERSION}; a save loads only into the version that made it`],
-  ['world-load', () => World.load({ ...new World().save(), format: 14 }), 'load: data is format 14; this Bearing reads format 16'],
-  ['world-load', () => World.load({ version: VERSION, format: 16, objects: [{ c: 'Box', f: {} }] }), "load: data is damaged: an object of an unknown kind, 'Box'"],
+  ['world-load', () => World.load({ ...new World().save(), format: 14 }), 'load: data is format 14; this Bearing reads format 17'],
+  ['world-load', () => World.load({ version: VERSION, format: 17, objects: [{ c: 'Box', f: {} }] }), "load: data is damaged: an object of an unknown kind, 'Box'"],
   ['world-debuglines', () => gone().world.debugLines(), 'debugLines: this world was destroyed'],
   ['world-debuglines', () => fresh().world.debugLines(true), 'debugLines: options must be an object, got true'],
   ['world-debuglines', () => fresh().world.debugLines({ shape: true }), "debugLines: unknown option 'shape' (did you mean 'shapes'?)"],

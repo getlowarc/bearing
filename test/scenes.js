@@ -38,5 +38,10 @@ export function mixed(options = {}) {
   world.addBody({ type: 'kinematic', size: [2, 0.2, 2], position: [6, 0.5, 6], velocity: [0, 0, -1] });
   world.addBody({ size: [0.1, 0.02, 0.02], position: [-12, 1, 12], velocity: [200, 0, 0], rotation: [0.2, 0.3, 0.1, 1] });
   world.addBody({ type: 'static', size: [0.01, 4, 4], position: [-8, 2, 12] });
+  // Water, with a current, and a raft, a ball and a rock dropped in.
+  world.addBody({ type: 'static', fluid: true, size: [4, 1.5, 4], position: [-12, 0.75, -12], flow: [0.3, 0, 0] });
+  world.addBody({ size: [1, 0.3, 0.6], density: 500, position: [-12, 2.5, -12], rotation: [0.2, 0.1, 0, 1] });
+  world.addBody({ shape: 'sphere', radius: 0.3, density: 400, position: [-13, 3, -11] });
+  world.addBody({ shape: 'hull', vertices: [0, 0.3, 0, 0.3, -0.15, 0.1, -0.2, -0.15, 0.2, -0.1, -0.1, -0.3], density: 1500, position: [-11, 3, -13] });
   return { world, walker };
 }

@@ -157,6 +157,17 @@ These were made with Nolan and override the rules below where they differ.
   tolerance (`collide()` may snap a point a tolerance). 99.6% of full tests on a hull pile found
   nothing. `test/collide.test.js` holds it to never calling apart what `collide()` finds. Confirm
   speed leads with direct timers: V8's profiler misattributes under inlining.
+- **Water** (2026-11-10, milestone 22, API approved: "Approved as proposed, go ahead and start on
+  water"): body options `fluid` (static or kinematic box only; a sensor, `sensor: false` throws)
+  and `flow`; the water's `density`, `damping`, `angularDamping` (`WATER_DAMPING` 3 for new water,
+  measured). `src/fluid.js`: `submerged()` (boxes and hulls cut as faces fanned from a point on the
+  plane, so the cap adds nothing; balls by the cap formula; capsules by Gauss-Legendre over discs
+  between kinks, points bunched by x = (3u - u³)/2, 5e-7 of the volume) and `float()`, called each
+  substep after `_accelerate` over `World._sensed`, the narrowphase's sensor pairs. The push reads
+  the body's turn now (`Shape.place` from `_rotation`), not `load()`'s step-start `_axes`: from
+  those it lagged and fed every rock. Waking: `_wet`/`_soak` (added, changed, moved by hand),
+  `stirred()` in `contact.js` (moving water), `released()` lets water's ending wake. Only the box's
+  top is asked. Columns `_fluid`, `_flow`; `_fluidCount`, `_floatSteps` (off means off); FORMAT 17.
 - **Joints that can't all be held** (2026-11-06, Nolan: "Go ahead with the joint anchors and NaN"):
   `rehome()` re-expresses a joint's anchors and frames when `setBody` moves a body's centre or
   principal axes. TORN: what a joint asks for is held to the reach of its moving bodies (`tear`,

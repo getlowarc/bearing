@@ -748,6 +748,65 @@ with the version and loaded only by it; `docs/API.md`'s "What 1.x promises" and 
 messages for a bad handle, and properties named `world.gravity`, `body.position`, `joint.force` in
 theirs; `ShapeType` for the type `Shape`.
 
+### Part five: the kit
+
+Planned 2026-11-10, at Nolan's word ("Approved as proposed, go ahead and start on water"): what a
+game reaches for beyond rigid bodies and joints, where it needs the solver or shape maths only
+Bearing has. Each is a minor version. The rule that kept a vehicle controller and a ragdoll builder
+out still holds: choices and feel stay in the game.
+
+**22. Water ✅** *(done 2026-11-10)*
+*Concepts:* Archimedes' principle; the submerged volume of a shape below a plane, and its centre
+(the centre of buoyancy); drag in a fluid; why the push acts on every substep.
+A static or kinematic box marked `fluid: true` is water: a sensor, so nothing collides with it, and
+every dynamic body in it is pushed up by the weight of the water it displaces, at the centre of its
+submerged part, and slowed by the water's `damping` and `angularDamping` by how much of it is under.
+`density` is the water's, `flow` its current. The surface is the box's top, flat.
+*Belongs in Bearing because* the submerged part of a box, ball, capsule, hull or compound is shape
+maths only Bearing has, and a buoyant body is a spring that must be pushed every substep, or it bobs.
+*Done when:* a body of half water's density floats half under, still; a cube and a ball float
+where Archimedes puts them to a tenth of a millimetre; a long box floats flat, its centre of
+buoyancy righting it; the submerged volume of every shape matches a brute-force sum; a body
+dropped in bobs, settles and sleeps; a current carries it; bodies on a floor under water added
+later rise; off means off; the bits are the same on every machine.
+*Done (2026-11-10):* `src/fluid.js`; options `fluid` and `flow`; a fluid is a sensor, its
+`density` the water's, its dampings 3 when new and not given. Boxes and hulls cut exactly, balls
+in closed form, capsules in slices to within 5e-7 of their volume; every shape held to a count of
+points. A body of half density floats with its centre at the surface; a flat plank floats flat and
+a square timber of 0.6 corner down, its centre 30.2 mm under as worked out by hand; seven shapes
+dropped in sleep within 20 s; a current carries a raft at its speed; water added, raised, lowered by
+a tide or removed wakes what it covers. Two bugs found on the way: the push read a body's turn
+from the step's start, which fed every rock (an undamped plank 0.89 to 5.5 rad/s in 30 s); and
+sensors never woke what they let go of, which water must. 1,000 floating bodies, all awake, 3.1 ms a
+step on one thread. 3D only for now.
+
+**23. Wheels ⬜**
+*Concepts:* suspension as a soft constraint; a wheel joint, slider and hinge in one; tyre grip as
+contact friction.
+A joint type `'wheel'` between a wheel body and a chassis: the wheel slides along `axis` on a spring
+(`frequency`, `dampingRatio`, `min`, `max`) and spins about its axle, driven by its motor; steering
+turns the axle with `setJoint`. Box2D's wheel joint, in 3D. A vehicle controller (engine, gears,
+steering feel) stays outside Bearing.
+*Belongs in Bearing because* a stiff suspension spring is only steady inside the substeps.
+*Done when:* a four-wheeled car stands level, drives, brakes, steers and crosses a heightfield at
+speed without hopping on its seams. A cylinder shape is proposed separately, if wheels want one.
+
+**24. Pieces ⬜**
+*Concepts:* Voronoi cells; cutting a convex shape into convex pieces that fill it.
+`fracture(shape, { count, seed })`, exported beside `readGlb`: hulls that fill a box or hull
+exactly, the same on every machine for a seed. When to break stays in the game, which removes the
+body and adds the pieces.
+*Done when:* the pieces' volumes sum to the shape's, none overlap, and they rest as the whole did.
+
+**25. Soft bodies ⬜**
+*Concepts:* XPBD; distance, bending and volume constraints; particles against rigid shapes, both
+ways.
+`world.addSoftBody` / `setSoftBody` / `softBodyOf` / `remove`: an open mesh is cloth, a closed one
+with `pressure` a volume; `attach` pins vertices to bodies; `positions` is read after each step,
+as `transforms` is. Nothing in Bearing draws it.
+*Done when:* a flag waves on a pole and drapes over a box, a ball keeps its volume as it lands, a
+soft body pushes a rigid one and is pushed back, and off means off.
+
 ### After 1.0
 
 - **2D**, under way (2026-11-04, see the log): `bearing-physics/2d`, `src/2d/`, `World2D`, `Body2D`,
@@ -767,8 +826,6 @@ theirs; `ShapeType` for the type `Shape`.
 - Not in Bearing: a vehicle controller and a ragdoll builder. Arcade handling and a humanoid from
   a config file are game feel, built from raycasts, forces, joints and pose motors Bearing already
   gives, so they stay outside it.
-- Not planned: soft bodies, cloth and fluids. They are different solvers, and would be a different
-  package.
 
 ---
 
@@ -844,6 +901,10 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.3.2 | — | Released 2026-11-05: bodies pressed into a mesh or heightfield stay on their side. |
 | 1.3.3 | — | Released 2026-11-06: an audit's fixes, and 3 to 8% on most heaps. |
 | 1.3.4 | — | Released 2026-11-06: joints stay on their bodies, and can't run away. |
+| 1.4.0 | 22 | Water. |
+| 1.5.0 | 23 | Wheels. |
+| 1.6.0 | 24 | Pieces. |
+| 1.7.0 | 25 | Soft bodies. |
 
 ### How a release is made
 
@@ -1164,3 +1225,16 @@ Winding's way, copied before the first one:
   with the slope beyond rebuilt 3.5 mm deep where it was 10 mm clear. `holdEnds()` put a round end
   square onto the axis rather than along the normal; fixed, both sleep within 1.5 s, no body in 80
   heaps gains energy, heaps and ridge drops as before. Convex pairs had it since 2026-10-29.
+- **2026-11-10.** Part five, the kit, at Nolan's word ("Approved as proposed, go ahead and start on
+  water"): water, wheels, pieces and soft bodies, milestones 22 to 25, each a minor version, their
+  API approved as proposed. Nolan: "If it truly belongs in Bearing and not in a game's code, I am
+  for it." Each was weighed by that: wheels belong (a stiff suspension is only steady inside the
+  substeps), a vehicle controller still doesn't; the pieces' geometry belongs, when to break
+  doesn't. This replaces "Not planned: soft bodies, cloth and fluids", which judged them a
+  different package: they collide with rigid bodies both ways inside the same substeps, which
+  nothing outside can do.
+- **2026-11-10.** Water, milestone 22. A light cube floats on a corner and a square timber on an
+  edge, as real ones do: the tests use slabs where they need a body flat. Water's damping
+  defaults to 3 for new water, measured as the least whole number that put six shapes dropped 2 m
+  to sleep within 9 to 16 s (at 0 a body bobs for good: a flat surface has no waves to take the
+  energy). That default wasn't in the approved proposal; it is Nolan's to change.
