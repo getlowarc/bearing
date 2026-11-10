@@ -102,7 +102,7 @@
 // since a sensor pushes nothing; World asks about them after the step, where
 // the bodies end up.
 
-import { collide, Shape, Manifold, Parts, Placed, placePart, SPHERE, CAPSULE, BOX as BOX_KIND, HULL } from './collide.js';
+import { collide, Shape, Manifold, Parts, Placed, placePart, SPHERE, CAPSULE, BOX as BOX_KIND, HULL, CYLINDER } from './collide.js';
 import { touchLevel, Touches } from './triangle.js';
 import { rotate, atan2, axesOf } from './core/math.js';
 import { resized } from './core/slots.js';
@@ -112,7 +112,7 @@ import { COLOURS, DIGITS, OVERFLOW } from './graph.js';
 import { BEGIN, IMPACT } from './events.js';
 
 const DYNAMIC = 0, STATIC = 1;
-const BOX = 0, SPHERE_SHAPE = 1, CAPSULE_SHAPE = 2, HULL_SHAPE = 3, MESH = 5;   // World's shape codes; a heightfield is 6
+const BOX = 0, SPHERE_SHAPE = 1, CAPSULE_SHAPE = 2, HULL_SHAPE = 3, CYLINDER_SHAPE = 5, MESH = 6;   // World's shape codes; a heightfield is 7
 
 /**
  * A contact may sink this much of the smaller body's thinnest size, and the
@@ -431,6 +431,7 @@ function extent(world, s, x, y, z) {
   const A = world._axes, a9 = 9 * s;
   const ax = A[a9] * x + A[a9 + 1] * y + A[a9 + 2] * z, ay = A[a9 + 3] * x + A[a9 + 4] * y + A[a9 + 5] * z;
   if (shape === CAPSULE_SHAPE) return dims[s3] + (dims[s3 + 1] - 2 * dims[s3]) * 0.5 * Math.abs(ay);
+  if (shape === CYLINDER_SHAPE) return dims[s3 + 1] * 0.5 * Math.abs(ay) + dims[s3] * Math.sqrt(Math.max(0, 1 - ay * ay));
   const az = A[a9 + 6] * x + A[a9 + 7] * y + A[a9 + 8] * z;
   if (shape === BOX) return 0.5 * (dims[s3] * Math.abs(ax) + dims[s3 + 1] * Math.abs(ay) + dims[s3 + 2] * Math.abs(az));
   const v = world._inner[s].vertices;
@@ -673,6 +674,15 @@ function holdEnds(world, a, b, mf, nx, ny, nz, f, axis, i, local, ids, at) {
   }
 }
 
+/**
+ * The size slot s rolls on, which its patch is PIXEL of (see PATCHES): its
+ * thinnest, but a cylinder's diameter, as a wheel narrower than it is tall
+ * rolls on its round side, so its rolling resistance is 0.01 as a ball's is.
+ */
+function rolls(world, s) {
+  return world._shape[s] === CYLINDER_SHAPE ? 2 * world._dims[3 * s] : world._size[s];
+}
+
 /** A ball's or a capsule's radius, the depth of its surface over its core; 0 for any other shape. */
 function rounded(world, s) {
   const shape = world._shape[s];
@@ -821,9 +831,9 @@ function back(world, a, b, t, mf, partA, partB) {
   for (let k = 0; k < mf.count; k++) {
     const k3 = 3 * k, half = 0.5 * mf.separations[k];
     const px = mf.points[k3], py = mf.points[k3 + 1], pz = mf.points[k3 + 2];
-    carried(world, a, partA, QA, px - nx * half - CA[0], py - ny * half - CA[1], pz - nz * half - CA[2]);
+    carried(world, a, partA, QA, px - nx * half - CA[0], py - ny * half - CA[1], pz - nz * half - CA[2], nx, ny, nz);
     const ax = p[a3] + v3[0], ay = p[a3 + 1] + v3[1], az = p[a3 + 2] + v3[2];
-    carried(world, b, partB, QB, px + nx * half - CB[0], py + ny * half - CB[1], pz + nz * half - CB[2]);
+    carried(world, b, partB, QB, px + nx * half - CB[0], py + ny * half - CB[1], pz + nz * half - CB[2], nx, ny, nz);
     const bx = p[b3] + v3[0] - ax, by = p[b3 + 1] + v3[1] - ay, bz = p[b3 + 2] + v3[2] - az;
     mf.separations[k] = bx * nx + by * ny + bz * nz;
     mf.points[k3] = ax; mf.points[k3 + 1] = ay; mf.points[k3 + 2] = az;
@@ -841,16 +851,19 @@ function back(world, a, b, t, mf, partA, partB) {
  * the point of a ball spinning fast was carried round its side, its gap read
  * 4 cm wider than the solver held, and two balls met with nothing between.
  */
-function carried(world, s, part, qt, x, y, z) {
+function carried(world, s, part, qt, x, y, z, nx, ny, nz) {
   if (part !== null) {
-    carriedPart(world, s, part, qt, x, y, z);
+    carriedPart(world, s, part, qt, x, y, z, nx, ny, nz);
     return;
   }
   const shape = world._shape[s];
   if (shape === SPHERE_SHAPE) { v3[0] = x; v3[1] = y; v3[2] = z; return; }
   rotate(qt, 0, x, y, z, true, v3);
-  if (shape !== CAPSULE_SHAPE) { rotate(world._rotation, 4 * s, v3[0], v3[1], v3[2], false, v3); return; }
-  const half = (world._dims[3 * s + 1] - 2 * world._dims[3 * s]) * 0.5;
+  if (shape !== CAPSULE_SHAPE && (shape !== CYLINDER_SHAPE || onEnd(qt, 0, nx, ny, nz))) {
+    rotate(world._rotation, 4 * s, v3[0], v3[1], v3[2], false, v3);
+    return;
+  }
+  const half = shape === CYLINDER_SHAPE ? world._dims[3 * s + 1] * 0.5 : (world._dims[3 * s + 1] - 2 * world._dims[3 * s]) * 0.5;
   const c = v3[1] < -half ? -half : v3[1] > half ? half : v3[1];
   // The radial part, from the axis to the point, as it is in the world at t.
   rotate(qt, 0, 0, c, 0, false, v3);
@@ -864,7 +877,7 @@ function carried(world, s, part, qt, x, y, z) {
  * part's point is carried with its centre, which orbits the body's, and
  * doesn't turn about it; a capsule part's turns only along its axis.
  */
-function carriedPart(world, s, part, qt, x, y, z) {
+function carriedPart(world, s, part, qt, x, y, z, nx, ny, nz) {
   if (part.kind === SPHERE) {
     rotate(qt, 0, part.position[0], part.position[1], part.position[2], false, C3);
     const rx = x - C3[0], ry = y - C3[1], rz = z - C3[2];
@@ -873,7 +886,7 @@ function carriedPart(world, s, part, qt, x, y, z) {
     return;
   }
   rotate(qt, 0, x, y, z, true, C3);
-  if (part.kind !== CAPSULE) {
+  if (part.kind !== CAPSULE && (part.kind !== CYLINDER || partOnEnd(world, s, part, nx, ny, nz))) {
     rotate(world._rotation, 4 * s, C3[0], C3[1], C3[2], false, v3);
     return;
   }
@@ -884,7 +897,16 @@ function carriedPart(world, s, part, qt, x, y, z) {
   v3[0] += rx; v3[1] += ry; v3[2] += rz;
 }
 
-/** The point of capsule part's axis nearest (x, y, z), all in its body's frame, into out. */
+/** onEnd() for a cylinder part of slot s: its axis turned by the part's rotation, then the body's. */
+function partOnEnd(world, s, part, nx, ny, nz) {
+  rotate(part.rotation, 0, 0, 1, 0, false, PART_AXIS);
+  rotate(world._rotation, 4 * s, PART_AXIS[0], PART_AXIS[1], PART_AXIS[2], false, PART_AXIS);
+  const t = PART_AXIS[0] * nx + PART_AXIS[1] * ny + PART_AXIS[2] * nz;
+  return t * t > 0.5;
+}
+const PART_AXIS = new Float64Array(3);
+
+/** The point of capsule or cylinder part's axis nearest (x, y, z), all in its body's frame, into out. */
 function axisPoint(part, x, y, z, out) {
   const o = part.position, h = part.half[1];
   rotate(part.rotation, 0, 0, 1, 0, false, AXIS);
@@ -1057,8 +1079,8 @@ function emit(world, next, p, a, b, mf, sign, tolerance, sub, partA, partB, key)
   // The patch is the rolling body's: a ball's is the same on any floor,
   // however thin. Between two dynamic bodies, the smaller one's.
   const type = world._type;
-  next.patch[m] = PIXEL * (type[a] !== DYNAMIC ? world._size[b] : type[b] !== DYNAMIC ? world._size[a]
-    : Math.min(world._size[a], world._size[b]));
+  next.patch[m] = PIXEL * (type[a] !== DYNAMIC ? rolls(world, b) : type[b] !== DYNAMIC ? rolls(world, a)
+    : Math.min(rolls(world, a), rolls(world, b)));
   next.rollImpulse1[m] = 0; next.rollImpulse2[m] = 0; next.spinImpulse[m] = 0;
   next.tangentImpulse1[m] = 0; next.tangentImpulse2[m] = 0; next.drift1[m] = 0; next.drift2[m] = 0;
   for (let k = 0; k < mf.count; k++) {
@@ -1350,9 +1372,9 @@ function turned(world, s, T, o) {
  * Leaves the anchor's world offset at the start in v3: for a box, the
  * offset it was given, unchanged; a ball's, zero.
  */
-function core(world, s, part, x, y, z, out, o) {
+function core(world, s, part, x, y, z, out, o, nx, ny, nz) {
   if (part !== null) {
-    corePart(world, s, part, x, y, z, out, o);
+    corePart(world, s, part, x, y, z, out, o, nx, ny, nz);
     return;
   }
   const shape = world._shape[s];
@@ -1362,18 +1384,32 @@ function core(world, s, part, x, y, z, out, o) {
     return;
   }
   rotate(world._rotation, s * 4, x, y, z, true, v3);
-  if (shape !== CAPSULE_SHAPE) {
+  if (shape !== CAPSULE_SHAPE && (shape !== CYLINDER_SHAPE || onEnd(world._rotation, 4 * s, nx, ny, nz))) {
     out[o] = v3[0]; out[o + 1] = v3[1]; out[o + 2] = v3[2];
     v3[0] = x; v3[1] = y; v3[2] = z;
     return;
   }
-  const d = world._dims, half = (d[s * 3 + 1] - 2 * d[s * 3]) * 0.5;
+  const d = world._dims, half = shape === CYLINDER_SHAPE ? d[s * 3 + 1] * 0.5 : (d[s * 3 + 1] - 2 * d[s * 3]) * 0.5;
   out[o] = 0; out[o + 1] = v3[1] < -half ? -half : v3[1] > half ? half : v3[1]; out[o + 2] = 0;
   rotate(world._rotation, s * 4, 0, out[o + 1], 0, false, v3);
 }
 
+/**
+ * Whether a cylinder turned by q[o..] meets what it touches along normal n
+ * with its end: n within 45° of its axis, nearer the end's face than the
+ * side. Its end's points then turn with it, as a box's face's do; on its side
+ * or its rim it rolls about its axis, as a capsule does, and its anchor is on
+ * the axis, or a wheel's contact, carried round with the wheel through the
+ * step, would read as lifting off the ground.
+ */
+function onEnd(q, o, nx, ny, nz) {
+  rotate(q, o, 0, 1, 0, false, AXIS);
+  const t = AXIS[0] * nx + AXIS[1] * ny + AXIS[2] * nz;
+  return t * t > 0.5;
+}
+
 /** core() for a part of slot s: its anchor on the part's own core, in the body's frame. */
-function corePart(world, s, part, x, y, z, out, o) {
+function corePart(world, s, part, x, y, z, out, o, nx, ny, nz) {
   const q = world._rotation, s4 = 4 * s;
   if (part.kind === SPHERE) {
     out[o] = part.position[0]; out[o + 1] = part.position[1]; out[o + 2] = part.position[2];
@@ -1381,7 +1417,7 @@ function corePart(world, s, part, x, y, z, out, o) {
     return;
   }
   rotate(q, s4, x, y, z, true, v3);
-  if (part.kind !== CAPSULE) {
+  if (part.kind !== CAPSULE && (part.kind !== CYLINDER || partOnEnd(world, s, part, nx, ny, nz))) {
     out[o] = v3[0]; out[o + 1] = v3[1]; out[o + 2] = v3[2];
     v3[0] = x; v3[1] = y; v3[2] = z;
     return;
@@ -1406,6 +1442,10 @@ export function load(world, slot, s) {
   } else if (shape === HULL_SHAPE) {
     s.kind = HULL;
     s.hull = world._inner[slot];
+  } else if (shape === CYLINDER_SHAPE) {
+    s.kind = CYLINDER;
+    s.half[0] = d[s3];
+    s.half[1] = d[s3 + 1] * 0.5;
   } else {
     s.kind = CAPSULE;
     s.half[0] = d[s3];
@@ -1535,9 +1575,9 @@ function prepareRows(world, c, from, to) {
       // Separation as the bodies move during the step is the starting
       // separation plus how far the two anchors have moved apart along the
       // normal; this is the part of that sum fixed at the start.
-      core(world, a, partA, rax, ray, raz, c.la, i3);
+      core(world, a, partA, rax, ray, raz, c.la, i3, nx, ny, nz);
       const cax = v3[0], cay = v3[1], caz = v3[2];
-      core(world, b, partB, rbx, rby, rbz, c.lb, i3);
+      core(world, b, partB, rbx, rby, rbz, c.lb, i3, nx, ny, nz);
       cAdjusted[i] = cSeparation[i] - ((v3[0] - cax) * nx + (v3[1] - cay) * ny + (v3[2] - caz) * nz);
       cNormalMass[i] = lever(c.jac, J * i, invI, ima, imb, a, b, rax, ray, raz, rbx, rby, rbz, nx, ny, nz);
       cMaxNormalImpulse[i] = 0;

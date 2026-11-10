@@ -76,15 +76,17 @@ import { Softs, Soft } from './soft.js';
  * body may be water (World._fluid, _flow, _fluidCount): data of format 16
  * has none. 18 since a joint may be a wheel, with an axle (joints.js, the
  * axle column): data of format 17 has none. 19 since a world holds soft
- * bodies (World._softs, soft.js): data of format 18 has none.
+ * bodies (World._softs, soft.js): data of format 18 has none. 20 since a body
+ * may be a cylinder, shape code 5, and a mesh and a heightfield are 6 and 7:
+ * in data of format 19 a 5 is a mesh.
  */
-export const FORMAT = 19;
+export const FORMAT = 20;
 
 /**
  * The version of Bearing this is, stamped into every save: package.json's,
  * which test/save.test.js holds it to, so a release can't change one alone.
  */
-export const VERSION = '1.4.0';
+export const VERSION = '1.5.0';
 
 /** The classes a world holds, by the name their objects are written under. */
 const CLASSES = { Slots, Broadphase, Tree, Pairs, Memory, Contacts, Joints, Forest, Events, Mesh, Heightfield, Hull, Parts, Part, Softs, Soft };

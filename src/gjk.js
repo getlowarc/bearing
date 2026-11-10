@@ -11,7 +11,7 @@
 // serves shape casts, convex hulls and continuous collision (impact.js).
 //
 // CORES. A sphere is a point and a capsule a segment, each with a radius
-// around it; a box or a hull is its own core, radius 0. GJK runs on the cores, and the
+// around it; a box, a hull or a cylinder is its own core, radius 0. GJK runs on the cores, and the
 // radii are taken off the distance after, which is exact for these shapes
 // and quicker than giving GJK the round surfaces. Box2D does the same.
 //
@@ -21,7 +21,7 @@
 // known. Exact operations and square roots only, so the result is the same
 // to the bit on every machine.
 
-import { SPHERE, CAPSULE, HULL, TRIANGLE } from './collide.js';
+import { SPHERE, CAPSULE, HULL, TRIANGLE, CYLINDER } from './collide.js';
 
 /**
  * A round's progress counts while it brings the squared distance in by more
@@ -96,6 +96,12 @@ function support(s, x, y, z, out) {
   } else if (s.kind === CAPSULE) {
     const e = x * a[3] + y * a[4] + z * a[5] >= 0 ? h[1] : -h[1];
     out[0] = c[0] + e * a[3]; out[1] = c[1] + e * a[4]; out[2] = c[2] + e * a[5];
+  } else if (s.kind === CYLINDER) {
+    // The end it leans to, and out across it to the rim the way it points; straight along the axis, the end's centre.
+    const t = x * a[3] + y * a[4] + z * a[5], e = t >= 0 ? h[1] : -h[1];
+    const px = x - t * a[3], py = y - t * a[4], pz = z - t * a[5], l = Math.sqrt(px * px + py * py + pz * pz);
+    const k = l > 0 ? h[0] / l : 0;
+    out[0] = c[0] + e * a[3] + k * px; out[1] = c[1] + e * a[4] + k * py; out[2] = c[2] + e * a[5] + k * pz;
   } else {
     const ex = x * a[0] + y * a[1] + z * a[2] >= 0 ? h[0] : -h[0];
     const ey = x * a[3] + y * a[4] + z * a[5] >= 0 ? h[1] : -h[1];

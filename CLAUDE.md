@@ -185,6 +185,16 @@ These were made with Nolan and override the rules below where they differ.
   (a crossing corner from the kept end, so faces agree to the bit; the cap ordered by `atan2`),
   `solid()` for volume and centre. `HASH_PIECES` in `test/determinism.test.js`. Not in the step,
   so it allocates freely. Work grows as count².
+- **Cylinders** (2026-11-10, milestone 26): `shape: 'cylinder'` (`radius`, `height` along y), bodies
+  and parts; never a character or a query shape. World shape code 5 (MESH 6, heightfield 7; every
+  module's MESH constant moved), collide kind `CYLINDER` 5. `src/cylinder.js` `cylinderPair()`: every
+  pair with one, `ball()` exact for spheres, else GJK closest points apart / `parting()` separating
+  axes overlapping, then `feature()` of each (disc, line, rim point; face, edge, corner) and clipping
+  (`onFace`, `onDisc`, `lines`); a cylinder against a face is taken `whole` (its end within 45° of the
+  normal, else its side). Feature slack is the tolerance, never the margin. Triangles: `cylinder()` in
+  triangle.js, as capsule(), with `cylinderPair` against the triangle where it cuts in beside its
+  feature (`MOST` 19). contact.js `onEnd()`: side or rim contacts anchor on the axis, end contacts
+  turn with it; `rolls()` gives a cylinder's patch its diameter. FORMAT 20.
 - **Soft bodies** (2026-11-10, milestone 25, API approved; Nolan chose `density` kg/m³, air drag with
   `wind`, and bodies' options: `position`, `rotation`, `velocity`, `friction`, `damping`, `layers`,
   `mask`): `world.addSoftBody`/`setSoftBody`/`softBodyOf`/`softBody(id)`, `SoftBody` handle

@@ -16,7 +16,7 @@ import { World2D } from '../src/2d/bearing2d.js';
 
 suite('determinism');
 
-const HASH = '5856c1a303a77010a05dce7a9d4f419f288754f3595593057f7ff45676e9d6f7';
+const HASH = '5e5b898f02e5af7cd7a010daf6f6875022f834ceec9db087bc54c4d937a49030';
 const HASH_2D = 'b41b4c94c33da216b500e4d47af29ef3941a436503784e07d10494bf976105a8';
 const HASH_STOPS = '3c890bc7d753531340e4416e84fdf6f0dbf1a85c61d630ae38a7f76627bed7af';
 const HASH_PIECES = '19993e3c075df87bee0a1e0d29395ae1d953b95fb38bbd9d1677eff09350407c';

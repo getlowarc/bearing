@@ -800,12 +800,28 @@ brakes to a stop, turns steered every step, and crosses a flat heightfield and a
 with no wheel lifting, its chassis moving exactly as on one flat box. A wheel under a fixed frame
 sags g / (2π f)² and stops at `min`. FORMAT 18.
 
-**26. Cylinders ⬜**
+**26. Cylinders ✅** *(done 2026-11-10)*
 *Concepts:* a cylinder's contacts against every shape: its flat ends, its rim, its round side.
 `shape: 'cylinder'` (`radius`, `height`), for bodies and compound parts: what wheels are, round
 one way and flat the other, so a car's wheel doesn't roll over its own edge in a hard turn. Asked
 for by Nolan (2026-11-10: "Definitely add a cylinder at some point"); after the kit's four, or
 when wheels need it.
+*Done (2026-11-10):* `src/cylinder.js`, one way for every pair with a cylinder, there being no
+finite list of faces and edges to test: GJK's closest points when apart, separating axes over the
+axes that can part it when overlapping (its axis, the other's faces, its axis across the other's
+edges, the way to the other's centre), then each shape's feature facing the other (an end's disc,
+a side's line, a rim point; a box's or hull's face, edge or corner) clipped to the flat one. A
+ball against it exactly, as GJK was out by 0.1 mm a few tenths of a millimetre off a turned one.
+Triangles as a capsule's, with the cylinder's feature over the triangle, and separating axes where
+it cuts in beside its feature, which let 114 of 150 dropped on rough terrain through until added.
+On its side its contacts follow its axis, as a capsule's, on its end its points turn with it, as
+a box's (`onEnd()` in contact.js). Found on the way: the feature was chosen within the margin, so
+a wheel spinning at 57 rad/s took its end for its side and leapt; a fallback point at a triangle's
+middle, 0.3 m from the wheel, kicked it up at seams; and a tilted end gave its lowest rim point
+only, which over the next triangle let a cylinder sink. 300 random poses against every shape agree
+with a brute-force count; 150 dropped on rough terrain, none through; a wheel at 20 m/s on a box,
+heightfield and mesh never leaves the ground; a car on four drives, turns hard and crosses a
+heightfield at 20 m/s. Rolling resistance 0.01 as a ball's (the patch is its diameter's). FORMAT 20.
 
 **24. Pieces ✅** *(done 2026-11-10)*
 *Concepts:* Voronoi cells; cutting a convex shape into convex pieces that fill it.
@@ -945,7 +961,7 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.3.3 | — | Released 2026-11-06: an audit's fixes, and 3 to 8% on most heaps. |
 | 1.3.4 | — | Released 2026-11-06: joints stay on their bodies, and can't run away. |
 | 1.4.0 | 22, 23, 24, 25 | Released 2026-11-10: the kit, water, wheels, pieces and soft bodies, together (Nolan chose one release over four). |
-| 1.5.0 | 26 | Cylinders. |
+| 1.5.0 | 26 | Released 2026-11-10: cylinders. |
 
 ### How a release is made
 
@@ -1290,5 +1306,8 @@ Winding's way, copied before the first one:
   `rotation`, `velocity`, `friction`, `damping`, `layers`, `mask`). He chose all three as
   recommended. `world.softBody(id)` added as `world.body(id)` is, or a loaded world's soft bodies
   had no handle.
+- **2026-11-10.** Cylinders, milestone 26, at Nolan's word ("Go ahead with cylinders"), as the
+  roadmap had them: `shape: 'cylinder'`, `radius`, `height`. Not a character, nor a query's shape,
+  as hulls aren't. Released as 1.5.0 at his word ("Release it as 1.5.0").
 - **2026-11-10.** The kit released as one version, 1.4.0, at Nolan's word ("Release them all
   together as 1.4.0"), not the four minors planned (1.4.0 to 1.7.0); cylinders become 1.5.0.

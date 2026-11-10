@@ -42,7 +42,7 @@ import { colour } from './graph.js';
 import { Pairs } from './pairs.js';
 import { Body } from './body.js';
 import {
-  Shape, Manifold, Part, Parts, SPHERE as SPHERE_KIND, CAPSULE as CAPSULE_KIND, BOX as BOX_KIND, HULL as HULL_KIND,
+  Shape, Manifold, Part, Parts, SPHERE as SPHERE_KIND, CAPSULE as CAPSULE_KIND, BOX as BOX_KIND, HULL as HULL_KIND, CYLINDER as CYLINDER_KIND,
 } from './collide.js';
 import { ray, shapeCast as cast, overlap as overlapping, sense, sweep } from './query.js';
 import { Events, END, IMPACT } from './events.js';
@@ -60,8 +60,8 @@ const DYNAMIC = 0, STATIC = 1, KINEMATIC = 2;   // and CHARACTER, 3, from charac
 /** Options only a character has. */
 const WALKING = ['maxSlope', 'stepHeight', 'pushForce'];
 
-const SHAPES = ['box', 'sphere', 'capsule', 'hull', 'compound', 'mesh', 'heightfield'];
-const BOX = 0, SPHERE = 1, CAPSULE = 2, HULL = 3, COMPOUND = 4, MESH = 5;   // a heightfield is 6: shape >= MESH is level geometry
+const SHAPES = ['box', 'sphere', 'capsule', 'hull', 'compound', 'cylinder', 'mesh', 'heightfield'];
+const BOX = 0, SPHERE = 1, CAPSULE = 2, HULL = 3, COMPOUND = 4, CYLINDER = 5, MESH = 6;   // a heightfield is 7: shape >= MESH is level geometry
 /**
  * What a query's shape can be: a box, ball or capsule. A hull is built from
  * its points by quickhull, too dear to do afresh for each query.
@@ -69,12 +69,12 @@ const BOX = 0, SPHERE = 1, CAPSULE = 2, HULL = 3, COMPOUND = 4, MESH = 5;   // a
 const QUERY_SHAPES = ['box', 'sphere', 'capsule'];
 /** Which sizes each shape has; giving one another shape has throws. */
 const SHAPE_SIZES = {
-  box: ['size'], sphere: ['radius'], capsule: ['radius', 'height'], hull: ['vertices'], compound: ['parts'],
+  box: ['size'], sphere: ['radius'], capsule: ['radius', 'height'], hull: ['vertices'], compound: ['parts'], cylinder: ['radius', 'height'],
   mesh: ['vertices', 'indices'], heightfield: ['heights', 'columns', 'spacing'],
 };
 const SIZES = ['size', 'radius', 'height', 'vertices', 'indices', 'heights', 'columns', 'spacing', 'parts'];
 /** What a compound's part can be, and what it takes. */
-const PART_SHAPES = ['box', 'sphere', 'capsule', 'hull'];
+const PART_SHAPES = ['box', 'sphere', 'capsule', 'hull', 'cylinder'];
 const PART_OPTIONS = ['shape', 'size', 'radius', 'height', 'vertices', 'position', 'rotation', 'density'];
 /** A 1 m cube's corners: a hull with no vertices given starts as the box a body starts as. */
 const CUBE_CORNERS = [-0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5,
@@ -1749,6 +1749,12 @@ export class World {
         ez = Math.abs(ax[a9 + 2]) * hx + Math.abs(ax[a9 + 5]) * hy + Math.abs(ax[a9 + 8]) * hz;
       } else if (shape === SPHERE) {
         ex = ey = ez = d[s3];
+      } else if (shape === CYLINDER) {
+        // Its axis's reach along each world axis, and the rim's: r times the sine of the axis off it.
+        const r = d[s3], hl = d[s3 + 1] * 0.5, x = ax[a9 + 3], y = ax[a9 + 4], z = ax[a9 + 5];
+        ex = Math.abs(x) * hl + r * Math.sqrt(Math.max(0, 1 - x * x));
+        ey = Math.abs(y) * hl + r * Math.sqrt(Math.max(0, 1 - y * y));
+        ez = Math.abs(z) * hl + r * Math.sqrt(Math.max(0, 1 - z * z));
       } else {
         const r = d[s3], hl = (d[s3 + 1] - 2 * r) * 0.5;
         ex = Math.abs(ax[a9 + 3]) * hl + r; ey = Math.abs(ax[a9 + 4]) * hl + r; ez = Math.abs(ax[a9 + 5]) * hl + r;
@@ -2311,7 +2317,7 @@ export class World {
       geometry: this._geometry[s],
       size: shape === 'box' ? [d[s3], d[s3 + 1], d[s3 + 2]] : [...DEFAULTS.size],
       radius: shape === 'box' ? DEFAULTS.radius : d[s3],
-      height: shape === 'capsule' ? d[s3 + 1] : DEFAULTS.height,
+      height: shape === 'capsule' || shape === 'cylinder' ? d[s3 + 1] : DEFAULTS.height,
       density: this._density[s],
       mass: this._mass[s],
       massGiven: this._massGiven[s] === 1,
@@ -2353,7 +2359,7 @@ export class World {
     const d = this._dims;
     if (shape === BOX) d.set(spec.size, s3);
     else if (shape === HULL || shape === COMPOUND || shape >= MESH) d.fill(0, s3, s3 + 3);
-    else { d[s3] = spec.radius; d[s3 + 1] = shape === CAPSULE ? spec.height : 0; d[s3 + 2] = 0; }
+    else { d[s3] = spec.radius; d[s3 + 1] = shape === CAPSULE || shape === CYLINDER ? spec.height : 0; d[s3 + 2] = 0; }
 
     // Mass follows the shape unless it was given (rule 36: no
     // updateMassProperties()). Given a mass, the density is what makes it.
@@ -2399,7 +2405,7 @@ export class World {
     this._framed[s] = framed ? 1 : 0;
     this._inner[s] = shape === HULL ? spec.geometry.hull.moved(center, transposed(R))
       : shape === COMPOUND ? new Parts(spec.geometry.parts.map((part) => inner(part, center, turn)))
-        : shape <= CAPSULE && framed ? new Parts([inner({ ...spec, position: ZERO, rotation: IDENTITY }, center, turn)]) : null;
+        : (shape <= CAPSULE || shape === CYLINDER) && framed ? new Parts([inner({ ...spec, position: ZERO, rotation: IDENTITY }, center, turn)]) : null;
     // Level geometry has none, and is never dynamic: nothing turns it.
     for (let k = 0; k < 3; k++) this._invInertia[s3 + k] = this._inertia[s3 + k] > 0 ? 1 / this._inertia[s3 + k] : 0;
     // What contacts use: how much a push moves it (nothing, unless it is
@@ -2427,6 +2433,9 @@ export class World {
     } else if (shape === BOX) {
       this._size[s] = Math.min(spec.size[0], spec.size[1], spec.size[2]);
       this._reach[s] = 0.5 * Math.sqrt(spec.size[0] * spec.size[0] + spec.size[1] * spec.size[1] + spec.size[2] * spec.size[2]);
+    } else if (shape === CYLINDER) {
+      this._size[s] = Math.min(2 * spec.radius, spec.height);
+      this._reach[s] = Math.sqrt(spec.radius * spec.radius + spec.height * spec.height * 0.25);
     } else if (shape >= MESH) {
       // A surface, with no thickness: its contacts take the other body's tolerance (contact.js).
       this._size[s] = 0;
@@ -2435,8 +2444,8 @@ export class World {
       this._size[s] = 2 * spec.radius;
       this._reach[s] = shape === CAPSULE ? spec.height * 0.5 : spec.radius;
     }
-    // A box, ball or capsule given a centre of mass reaches that much farther from it.
-    if (shape <= CAPSULE && framed) this._reach[s] += Math.sqrt(center[0] * center[0] + center[1] * center[1] + center[2] * center[2]);
+    // A box, ball, capsule or cylinder given a centre of mass reaches that much farther from it.
+    if ((shape <= CAPSULE || shape === CYLINDER) && framed) this._reach[s] += Math.sqrt(center[0] * center[0] + center[1] * center[1] + center[2] * center[2]);
     this._friction[s] = spec.friction;
     this._restitution[s] = spec.restitution;
     this._damping[s] = spec.damping;
@@ -2587,7 +2596,7 @@ function resolve(caller, base, given) {
   }
   // A character finds its way by casting its own shape, and stands on its
   // lowest point: a box, ball or capsule's, found in closed form.
-  if ((shape === 'hull' || shape === 'compound') && type === 'character') {
+  if ((shape === 'hull' || shape === 'compound' || shape === 'cylinder') && type === 'character') {
     fail(caller, `type must be 'dynamic', 'static' or 'kinematic' for a ${shape}, got 'character'`);
   }
   // A new shape starts from its own defaults; sizes of the old one don't carry over.
@@ -2858,9 +2867,11 @@ function inner(part, center, turn) {
   const position = [0, 1, 2].map((k) => R[k] * x + R[3 + k] * y + R[6 + k] * z);
   const rotation = [0, 0, 0, 0];
   quatMultiply([-turn[0], -turn[1], -turn[2], turn[3]], 0, q, 0, rotation, 0);
-  const kind = part.shape === 'box' ? BOX_KIND : part.shape === 'sphere' ? SPHERE_KIND : part.shape === 'capsule' ? CAPSULE_KIND : HULL_KIND;
+  const kind = part.shape === 'box' ? BOX_KIND : part.shape === 'sphere' ? SPHERE_KIND : part.shape === 'capsule' ? CAPSULE_KIND
+    : part.shape === 'cylinder' ? CYLINDER_KIND : HULL_KIND;
   const half = part.shape === 'box' ? part.size.map((x) => x * 0.5)
-    : part.shape === 'capsule' ? [part.radius, (part.height - 2 * part.radius) * 0.5, 0] : [part.radius, 0, 0];
+    : part.shape === 'capsule' ? [part.radius, (part.height - 2 * part.radius) * 0.5, 0]
+      : part.shape === 'cylinder' ? [part.radius, part.height * 0.5, 0] : [part.radius, 0, 0];
   return new Part(kind, half, part.shape === 'hull' ? part.hull : null, position, rotation);
 }
 

@@ -81,6 +81,8 @@ mine as the game runs, and characters that walk on them.
 - **Contact events and sensors**: which bodies began and stopped touching in each step, where and
   how hard, read after the step; what touches a body now; and sensors, zones that report what
   enters them and push nothing. See [Contact events and sensors](docs/API.md#events).
+- **Cylinders**: wheels, logs and barrels, round one way and flat the other, rolling on their
+  side and standing on their ends, on any ground. See [Cylinders](docs/API.md#cylinders).
 - **Pieces**: `fracture()` cuts a box or a hull into pieces that fill it exactly, the same for a
   seed on every machine, for things that break. See [Pieces](docs/API.md#pieces).
 - **Soft bodies**: cloth, flags and sails, and closed shapes that keep their volume, colliding
@@ -182,7 +184,7 @@ import are the files in this repository.
 
 ```html
 <script type="module">
-  import { World } from 'https://cdn.jsdelivr.net/npm/bearing-physics@1.4.0/src/bearing.js';
+  import { World } from 'https://cdn.jsdelivr.net/npm/bearing-physics@1.5.0/src/bearing.js';
 </script>
 ```
 
@@ -202,9 +204,9 @@ import { World } from 'bearing-physics';
 <script type="importmap">
 {
   "imports": {
-    "bearing-physics": "https://cdn.jsdelivr.net/npm/bearing-physics@1.4.0/src/bearing.js",
-    "bearing-physics/2d": "https://cdn.jsdelivr.net/npm/bearing-physics@1.4.0/src/2d/bearing2d.js",
-    "bearing-physics/": "https://cdn.jsdelivr.net/npm/bearing-physics@1.4.0/src/"
+    "bearing-physics": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.0/src/bearing.js",
+    "bearing-physics/2d": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.0/src/2d/bearing2d.js",
+    "bearing-physics/": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.0/src/"
   }
 }
 </script>

@@ -312,3 +312,15 @@ export function softBodies(): void {
   world.remove(world.softBody(flag.id));
   flag.destroy();
 }
+
+export function cylinders(): void {
+  const world = new World();
+  const wheel = world.addBody({ shape: 'cylinder', radius: 0.35, height: 0.25, rotation: [0, 0, Math.SQRT1_2, Math.SQRT1_2], friction: 1 });
+  world.addBody({ shape: 'compound', parts: [{ shape: 'cylinder', radius: 0.1, height: 0.5 }, { size: [0.2, 0.2, 0.2] }] });
+  const read: BodyInfo = world.bodyOf(wheel);
+  if (read.shape === 'cylinder') { const r: number = read.radius + read.height; void r; }
+  // @ts-expect-error a cylinder is never a character
+  world.addBody({ shape: 'cylinder', type: 'character' });
+  // @ts-expect-error a cylinder has no size
+  world.addBody({ shape: 'cylinder', size: [1, 1, 1] });
+}

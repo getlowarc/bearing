@@ -13,13 +13,13 @@
 //
 // Nothing here runs unless asked for, and nothing is kept but the array.
 
-import { Shape, Parts, placePart, BOX as BOX_KIND, SPHERE as SPHERE_KIND, CAPSULE as CAPSULE_KIND, HULL as HULL_KIND } from './collide.js';
+import { Shape, Parts, placePart, BOX as BOX_KIND, SPHERE as SPHERE_KIND, CAPSULE as CAPSULE_KIND, HULL as HULL_KIND, CYLINDER as CYLINDER_KIND } from './collide.js';
 import { load } from './contact.js';
 import { worldAnchor, ROTATION } from './joints.js';
 import { sin, cos } from './core/math.js';
 
 const DYNAMIC = 0, STATIC = 1, KINEMATIC = 2, CHARACTER = 3;   // World's type codes
-const MESH = 5;                                                // World's shape code; a heightfield is 6
+const MESH = 6;                                                // World's shape code; a heightfield is 7
 const P = 4;                                                   // points a manifold holds (contact.js)
 
 // Colours, chosen to tell kinds apart at a glance on a dark or light
@@ -125,6 +125,17 @@ function outline(world, s) {
     const r = h[0];
     room(world, 3 * CHORDS);
     for (let plane = 0; plane < 3; plane++) ring(at, plane, 0, r);
+  } else if (s.kind === CYLINDER_KIND) {
+    // A ring round each end, and four lines down its side.
+    const r = h[0], half = h[1];
+    room(world, 2 * CHORDS + 4);
+    ring(at, 1, -half, r);
+    ring(at, 1, half, r);
+    for (let k = 0; k < 4; k++) {
+      const x = k === 0 ? r : k === 1 ? -r : 0, z = k === 2 ? r : k === 3 ? -r : 0;
+      at(x, -half, z, a3); at(x, half, z, b3);
+      line(a3[0], a3[1], a3[2], b3[0], b3[1], b3[2]);
+    }
   } else if (s.kind === CAPSULE_KIND) {
     // A ring round each end of its axis, and its four sides along y.
     const r = h[0], half = h[1];
