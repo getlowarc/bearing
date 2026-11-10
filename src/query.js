@@ -730,3 +730,45 @@ function deepKeep(s) {
   deepSlot = s;
   deepNormal.set(manifold.normal);
 }
+
+// ---- for soft bodies (soft.js) ----
+
+let nearWorld = null, nearShape = null, nearLevel = -1, nearSep = 0, nearMargin = 0, nearTolerance = 0, nearFound = false;
+const nearNormal = new Float64Array(3);
+
+/**
+ * Where `shape`, placed, comes nearest slot s within `margin`, any of its
+ * parts or triangles: into out [separation, normal], the normal from the
+ * shape towards the body, as collide() gives it; whether any was found. A
+ * mesh's seams count as seams, as for a character. Inside the step: nothing
+ * allocated, nothing re-entered.
+ */
+export function nearestOf(world, s, shape, margin, tolerance, out) {
+  nearSep = Infinity; nearFound = false;
+  if (world._shape[s] < MESH) {
+    for (let k = 0; k < shapes(world, s); k++) {
+      if (collide(shape, shapeOf(world, s, k, body), margin, tolerance, manifold) > 0) nearKeep();
+    }
+  } else {
+    nearWorld = world; nearShape = shape; nearLevel = s; nearMargin = margin; nearTolerance = tolerance;
+    const c = shape.center, r = shape.half[0] + margin;
+    inward(world, s, c[0], c[1], c[2], true, local);
+    extentsIn(world, s, r, r, r, levelHalf);
+    world._geometry[s].triangles(local[0] - levelHalf[0], local[1] - levelHalf[1], local[2] - levelHalf[2],
+      local[0] + levelHalf[0], local[1] + levelHalf[1], local[2] + levelHalf[2], nearTriangle);
+    nearWorld = null; nearShape = null;
+  }
+  if (nearFound) { out[0] = nearSep; out[1] = nearNormal[0]; out[2] = nearNormal[1]; out[3] = nearNormal[2]; }
+  return nearFound;
+}
+
+function nearTriangle(t) {
+  const g = nearWorld._geometry[nearLevel];
+  if (touch(nearShape, triangle(nearWorld, nearLevel, t), g.edge(t, deepFolds), deepFolds, nearMargin, nearTolerance, manifold, t) > 0) nearKeep();
+}
+
+function nearKeep() {
+  for (let k = 0; k < manifold.count; k++) {
+    if (manifold.separations[k] < nearSep) { nearSep = manifold.separations[k]; nearNormal.set(manifold.normal); nearFound = true; }
+  }
+}

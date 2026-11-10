@@ -7,7 +7,9 @@ import { World } from '../src/bearing.js';
  * balls, capsules, a hull and a compound, a chain of joints, a character
  * walking, a sensor, a kinematic platform, a mesh and a heightfield, a fast
  * rod, a force waiting, and joints driven to targets: a limb, a hand after a
- * moving angle, a post kept upright, and a crate whose turn is held.
+ * moving angle, a post kept upright, and a crate whose turn is held; water;
+ * a cart on wheels; and soft bodies: a flag in the wind, a ball, and a cloth
+ * thrown over a crate.
  */
 export function mixed(options = {}) {
   const world = new World(options);
@@ -49,5 +51,46 @@ export function mixed(options = {}) {
   world.addBody({ size: [1, 0.3, 0.6], density: 500, position: [-12, 2.5, -12], rotation: [0.2, 0.1, 0, 1] });
   world.addBody({ shape: 'sphere', radius: 0.3, density: 400, position: [-13, 3, -11] });
   world.addBody({ shape: 'hull', vertices: [0, 0.3, 0, 0.3, -0.15, 0.1, -0.2, -0.15, 0.2, -0.1, -0.1, -0.3], density: 1500, position: [-11, 3, -13] });
+  // A flag on a pole in the wind, a soft ball, and a cloth over a crate.
+  const pole = world.addBody({ type: 'static', shape: 'capsule', radius: 0.05, height: 3, position: [16, 1.5, 6] });
+  const flag = sheet(8, 5, 1.2, 0.75);
+  world.addSoftBody({ ...flag, rotation: [Math.SQRT1_2, 0, 0, Math.SQRT1_2], position: [16.65, 2.6, 6], wind: [6, 0, 1],
+    attach: [0, 9, 18, 27, 36, 45].map((vertex) => ({ vertex, body: pole })) });
+  world.addSoftBody({ ...ball(1, 0.3), pressure: 1, stretch: 0.98, bend: 0.1, density: 200, position: [16, 2, 2], velocity: [0, 0, 1] });
+  world.addBody({ size: [0.6, 0.6, 0.6], density: 200, position: [16, 0.3, -2] });
+  world.addSoftBody({ ...sheet(8, 8, 1.6, 1.6), position: [16, 1.2, -2], bend: 0.05 });
   return { world, walker };
+}
+
+/** A flat sheet in x and z, `columns` by `rows` squares, each cut corner to corner, centred: corners row by row. */
+export function sheet(columns, rows, width, depth) {
+  const vertices = [], indices = [];
+  for (let j = 0; j <= rows; j++) for (let i = 0; i <= columns; i++) vertices.push(width * (i / columns - 0.5), 0, depth * (j / rows - 0.5));
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < columns; i++) {
+      const a = j * (columns + 1) + i, b = a + 1, c = a + columns + 1, d = c + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+  return { vertices, indices };
+}
+
+/** A ball of radius r: an icosahedron, its triangles split k times, wound counter-clockwise seen from outside. */
+export function ball(k, r) {
+  const t = (1 + Math.sqrt(5)) / 2;
+  let v = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
+  let f = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+    [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
+  for (let s = 0; s < k; s++) {
+    const mid = new Map(), next = [];
+    const m = (a, b) => {
+      const key = a < b ? `${a},${b}` : `${b},${a}`;
+      if (!mid.has(key)) { mid.set(key, v.length); v.push(v[a].map((x, i) => (x + v[b][i]) / 2)); }
+      return mid.get(key);
+    };
+    for (const [a, b, c] of f) { const ab = m(a, b), bc = m(b, c), ca = m(c, a); next.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]); }
+    f = next;
+  }
+  const vertices = v.flatMap((p) => { const l = Math.hypot(...p); return p.map((x) => (x / l) * r); });
+  return { vertices, indices: f.flat() };
 }

@@ -27,6 +27,16 @@ All notable changes to Bearing are recorded here. The format follows
   ready for `addBody({ shape: 'hull', ... })`. A seed gives the same pieces on every machine. When
   something breaks is the game's to say: remove the body and add the pieces. See
   [Pieces](docs/API.md#pieces).
+- Soft bodies: `world.addSoftBody`, `setSoftBody`, `softBodyOf` and `softBody(id)`, and the
+  `SoftBody` handle, exported beside `Body` and `Joint`, with `positions`, its corners, written by
+  every step. An open mesh is cloth; a closed one given `pressure` keeps its volume. `stretch` and
+  `bend` say how stiff it is, the same at any size or mesh spacing; `attach` pins corners to bodies
+  or the world; `wind` is the air around it, which pushes each triangle as a flat plate. It
+  collides with every rigid body, both ways, with friction, and sleeps and wakes as bodies do. A
+  cloth hung by its edge hangs its own length however fine its mesh, a flag waves on its pole, a
+  cloth drapes over a crate and sleeps, and a ball keeps its volume to 1.5% as it lands. See
+  [Soft bodies](docs/API.md#soft-bodies). `world.remove` takes a soft body too. Saves are now
+  format 19.
 
 ### Changed
 

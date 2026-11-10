@@ -16,7 +16,7 @@ import { World2D } from '../src/2d/bearing2d.js';
 
 suite('determinism');
 
-const HASH = '735a1fe9f9e2a523aaaed2873e9aed9d92cd3ab7cd2ad2c231a4bd7f8e88e8e5';
+const HASH = '5856c1a303a77010a05dce7a9d4f419f288754f3595593057f7ff45676e9d6f7';
 const HASH_2D = 'b41b4c94c33da216b500e4d47af29ef3941a436503784e07d10494bf976105a8';
 const HASH_STOPS = '3c890bc7d753531340e4416e84fdf6f0dbf1a85c61d630ae38a7f76627bed7af';
 const HASH_PIECES = '19993e3c075df87bee0a1e0d29395ae1d953b95fb38bbd9d1677eff09350407c';
@@ -34,6 +34,8 @@ test('a world of everything steps to the stored bits', () => {
     bytes(world.transforms);
     // The full state, not only the float32 transforms, every second and at the end.
     if (n % 60 === 0) for (const column of [world._position, world._rotation, world._velocity, world._angular]) bytes(column);
+    // And every soft body's corners and their velocities.
+    if (n % 60 === 0) for (const soft of world._softs.list) if (soft) { bytes(soft.x); bytes(soft.v); }
   }
   world.destroy();
   const got = hash.digest('hex');

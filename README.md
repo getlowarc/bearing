@@ -83,6 +83,9 @@ mine as the game runs, and characters that walk on them.
   enters them and push nothing. See [Contact events and sensors](docs/API.md#events).
 - **Pieces**: `fracture()` cuts a box or a hull into pieces that fill it exactly, the same for a
   seed on every machine, for things that break. See [Pieces](docs/API.md#pieces).
+- **Soft bodies**: cloth, flags and sails, and closed shapes that keep their volume, colliding
+  with every rigid body both ways, pushed by the wind, pinned to bodies or the world, and drawn
+  from one array of their corners. See [Soft bodies](docs/API.md#soft-bodies).
 - **Water**: boxes of water that hold up what is in them as Archimedes says, at the centre of
   the part under the surface, so planks float flat and rafts drift on a current. See
   [Water](docs/API.md#water).

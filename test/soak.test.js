@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { World, Joint } from '../src/bearing.js';
 import { World2D } from '../src/2d/bearing2d.js';
 import { suite, testAsync as test } from './test.js';
-import { mixed } from './scenes.js';
+import { mixed, sheet, ball } from './scenes.js';
 import { sharedMemory, cores } from '../src/core/jobs.js';
 
 if (typeof globalThis.gc !== 'function') {
@@ -421,6 +421,34 @@ await test('chains and ragdoll-like trees made, swung and removed 30 times: join
   // round's chains hold 889 KB, so even a quarter of one kept each round
   // would show as 4.4 MB over the 20 measured rounds: 1 MB tells them apart.
   assert.ok(grown < 1024 * 1024, `grew ${(grown / 1024).toFixed(0)} KB`);
+});
+
+await test('soft bodies made, draped, hung and removed 30 times: their slots and memory come back', async () => {
+  const world = new World(ONE);
+  world.addBody({ type: 'static', size: [40, 1, 40], position: [0, -0.5, 0] });
+  const crate = world.addBody({ size: [0.6, 0.6, 0.6], position: [0, 0.3, 0] });
+  world.step(1 / 60);
+  let before = 0;
+  for (let round = 0; round < 30; round++) {
+    if (round === WARM) {
+      await collect();
+      before = heap();
+    }
+    const made = [];
+    for (let k = 0; k < 6; k++) {
+      made.push(world.addSoftBody({ ...sheet(10, 10, 1.4, 1.4), position: [(k % 3) * 2 - 2, 1 + k * 0.2, 0], wind: [2, 0, 1],
+        attach: k === 0 ? [{ vertex: 0, body: crate }, { vertex: 10 }] : [] }));
+    }
+    made.push(world.addSoftBody({ ...ball(1, 0.3), pressure: 1, position: [3, 1, 2] }));
+    for (let s = 0; s < 30; s++) world.step(1 / 60);
+    for (const soft of made) world.remove(soft);
+    world.step(1 / 60);
+    assert.equal(world._softs.count, 0, `round ${round}: soft bodies left`);
+    assert.equal(world._softs.slots.capacity, 0, `round ${round}: soft body storage kept`);
+  }
+  await collect();
+  const grown = heap() - before;
+  assert.ok(grown < 256 * 1024, `grew ${(grown / 1024).toFixed(0)} KB`);
 });
 
 await test('characters made, walked about a level and removed 30 times: nothing of them stays', async () => {

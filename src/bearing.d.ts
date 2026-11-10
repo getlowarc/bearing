@@ -588,6 +588,71 @@ export type JointInfo =
   | (JointInfoBase & DriveInfo & { type: 'rotation'; axis: [number, number, number]; cone: number | [number, number]; swing: [number, number, number] | null; target: [number, number, number, number] | null })
   | (JointInfoCommon & DriveInfo & { type: 'wheel'; anchorB?: [number, number, number]; axis: [number, number, number]; axle: [number, number, number]; min: number | null; max: number | null; motorSpeed: number });
 
+/** A corner of a soft body held to a body, or to where it is in the world. */
+export interface Attachment {
+  /** The corner: its place in `vertices`, counting from 0. */
+  vertex: number;
+  /** The body it is held to, where it is on it now; null or left out for the world. */
+  body?: Body | null;
+}
+
+export interface SoftBodyOptions {
+  /** Its corners, m, three numbers each, in its own frame. Given with indices; left out, a 1 m square sheet, flat in x and z. */
+  vertices?: Numbers;
+  /** Its triangles, three corners each. Open, it is cloth; closed, wound alike, it encloses a volume. */
+  indices?: Numbers;
+  /** kg/m³, default 1000. Cloth weighs density × area × thickness; a closed mesh density × its volume. */
+  density?: number;
+  /** How little it stretches, 0 to 1, default 1 (not at all): hung by an edge it stretches (1 - s) / s at the top. */
+  stretch?: number;
+  /** How little it folds, 0 to 1, default 0 (freely, as silk); 1 not at all. */
+  bend?: number;
+  /** m, default 0.001: its corners stay half this out of what they touch. */
+  thickness?: number;
+  /** A closed mesh's volume held at this times the one it was made with; 0 (default) none. */
+  pressure?: number;
+  /** Corners held to bodies or the world, where they are now. */
+  attach?: Attachment[];
+  /** As a body's, default 0.5. */
+  friction?: number;
+  /** As a body's: velocity lost per second, 1/s, default 0. */
+  damping?: number;
+  /** The air's velocity around it, m/s, default still. */
+  wind?: Vec3;
+  /** As a body's: 32 bits, default 1. */
+  layers?: number;
+  /** As a body's: 32 bits, default every layer. */
+  mask?: number;
+  /** m, where its frame is, default [0, 0, 0]. */
+  position?: Vec3;
+  /** Its frame's turn, [x, y, z, w], default none. */
+  rotation?: Quat;
+  /** m/s, every corner's, default [0, 0, 0]. */
+  velocity?: Vec3;
+}
+
+export type SoftBodyChanges = SoftBodyOptions;
+
+export interface SoftBodyInfo {
+  vertices: number[];
+  indices: number[];
+  density: number;
+  stretch: number;
+  bend: number;
+  thickness: number;
+  pressure: number;
+  attach: { vertex: number; body: Body | null }[];
+  friction: number;
+  damping: number;
+  wind: [number, number, number];
+  layers: number;
+  mask: number;
+  position: [number, number, number];
+  rotation: [number, number, number, number];
+  /** The mean of its corners' velocities, weighed by their mass. */
+  velocity: [number, number, number];
+}
+
 export interface WorldOptions {
   /** m/s², default [0, -9.81, 0]. */
   gravity?: Vec3;
@@ -632,11 +697,15 @@ export class World {
   setBody(body: Body, changes: BodyChanges): void;
   bodyOf(body: Body): BodyInfo;
   /** A body, with its joints, or a joint. Does nothing if it is already gone. */
-  remove(handle: Body | Joint): void;
+  remove(handle: Body | Joint | SoftBody): void;
   /** Holds a to b, or to a point in the world, as its type allows. */
   addJoint(options: JointOptions): Joint;
   setJoint(joint: Joint, changes: JointChanges): void;
   jointOf(joint: Joint): JointInfo;
+  /** A soft body: cloth, or a closed volume. */
+  addSoftBody(options?: SoftBodyOptions): SoftBody;
+  setSoftBody(softBody: SoftBody, changes: SoftBodyChanges): void;
+  softBodyOf(softBody: SoftBody): SoftBodyInfo;
   /** The nearest body a ray meets. direction is normalized, so distance is in metres. */
   raycast(origin: Vec3, direction: Vec3, options?: RayOptions): Hit | null;
   /** Every body a ray meets, nearest first. */
@@ -655,6 +724,8 @@ export class World {
   body(id: number): Body;
   /** A handle for a joint's id. Doesn't check the joint is alive. Joints count their ids apart from bodies'. */
   joint(id: number): Joint;
+  /** A handle for a soft body's id. */
+  softBody(id: number): SoftBody;
   /** Moves the world on by dt seconds, exactly. */
   step(dt: number): void;
   /** The whole world as plain, JSON-safe data, for World.load. */
@@ -729,5 +800,22 @@ export class Joint {
   /** The mean torque it turned a with over the last step, N·m, world space, about its anchor on a. A frozen copy. */
   readonly torque: readonly [number, number, number];
   /** Same as world.remove(joint). */
+  destroy(): void;
+}
+
+/** A handle to a soft body: a world and an id. Compare a.id === b.id, not a === b. */
+export class SoftBody {
+  private constructor();
+
+  readonly world: World;
+  /** Unique to this soft body for the life of its world. */
+  readonly id: number;
+  /** false once removed, or once its world is destroyed. */
+  readonly alive: boolean;
+  /** true while it is asleep. */
+  readonly asleep: boolean;
+  /** Its corners where the last step left them, x, y, z each, m: the world's own array, updated by every step. */
+  readonly positions: Float32Array;
+  /** Same as world.remove(softBody). */
   destroy(): void;
 }

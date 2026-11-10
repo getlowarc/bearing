@@ -12,7 +12,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { World, Body, Joint, readGlb, fracture } from '../src/bearing.js';
+import { World, Body, Joint, SoftBody, readGlb, fracture } from '../src/bearing.js';
 import * as bearing from '../src/bearing.js';
 import { suite, test } from './test.js';
 
@@ -40,10 +40,10 @@ function statics(prefix, cls) {
     .map((name) => `${prefix}-${name.toLowerCase()}`);
 }
 
-const expected = ['world', 'readglb', 'fracture', ...surface('world', World), ...statics('world', World), ...surface('body', Body), ...surface('joint', Joint)];
+const expected = ['world', 'readglb', 'fracture', ...surface('world', World), ...statics('world', World), ...surface('body', Body), ...surface('joint', Joint), ...surface('softbody', SoftBody)];
 
-test('the package exports World, Body, Joint, readGlb and fracture, and nothing else', () => {
-  assert.deepEqual(Object.keys(bearing).sort(), ['Body', 'Joint', 'World', 'fracture', 'readGlb']);
+test('the package exports World, Body, Joint, SoftBody, readGlb and fracture, and nothing else', () => {
+  assert.deepEqual(Object.keys(bearing).sort(), ['Body', 'Joint', 'SoftBody', 'World', 'fracture', 'readGlb']);
 });
 
 test('every public method and getter has an entry', () => {
@@ -59,7 +59,7 @@ test('every type the package exports is named in the reference', () => {
 });
 
 test('every entry is for something that exists', () => {
-  const entries = [...API.matchAll(/<a id="((?:world|body|joint)-[^"]+|world|readglb|fracture)"><\/a>\s*\n###/g)].map((m) => m[1]);
+  const entries = [...API.matchAll(/<a id="((?:world|body|joint|softbody)-[^"]+|world|readglb|fracture)"><\/a>\s*\n###/g)].map((m) => m[1]);
   const stale = entries.filter((id) => !expected.includes(id));
   assert.deepEqual(stale, [], `entries for nothing: ${stale.join(', ')}`);
 });

@@ -11,8 +11,8 @@ import { World } from 'bearing-physics';
 
 TypeScript types come with the package, so an editor shows these calls' options as you type. The
 option shapes have names you can import, such as `BodyOptions`:
-`import type { BodyOptions } from 'bearing-physics'`. Besides `World`, `Body`, `Joint` and
-`readGlb`, the package's types are: `Vec3`, `Quat` and `Numbers` (what vectors, rotations and lists
+`import type { BodyOptions } from 'bearing-physics'`. Besides `World`, `Body`, `Joint`, `SoftBody`,
+`readGlb` and `fracture`, the package's types are: `Vec3`, `Quat` and `Numbers` (what vectors, rotations and lists
 of numbers may be given as); `BodyType`, `ShapeType` and `JointType`; `WorldOptions`;
 `BodyOptions`, `BoxOptions`, `SphereOptions`, `CapsuleOptions`, `HullOptions`, `CompoundOptions`,
 `PartOptions`, `MeshOptions`, `HeightfieldOptions` and `BodyChanges`; `BodyInfo` and `PartInfo`
@@ -20,7 +20,7 @@ of numbers may be given as); `BodyType`, `ShapeType` and `JointType`; `WorldOpti
 `HingeJointOptions`, `SliderJointOptions`, `DistanceJointOptions`, `RotationJointOptions`, `WheelJointOptions` and
 `JointChanges`; `JointInfo` (what [`jointOf`](#world-jointof) gives); `RayOptions`,
 `CastOptions`, `OverlapOptions`, `QueryShape` and `Hit`; `ContactEvent`, `BeginEvent`, `ImpactEvent`
-and `EndEvent`; `Ground`; `DebugLineOptions`; `GlbOptions`; `FractureShape`, `FractureOptions` and `Piece` (what [`fracture`](#fracture) takes and gives); and `SavedWorld`.
+and `EndEvent`; `Ground`; `DebugLineOptions`; `GlbOptions`; `FractureShape`, `FractureOptions` and `Piece` (what [`fracture`](#fracture) takes and gives); `SoftBodyOptions`, `Attachment`, `SoftBodyChanges` and `SoftBodyInfo` (what [`softBodyOf`](#world-softbodyof) gives); and `SavedWorld`.
 
 <a id="conventions"></a>
 ## Conventions
@@ -106,20 +106,20 @@ Before 1.0, a renamed option or property throws instead, saying what it is calle
 <a id="contents"></a>
 ## Contents
 
-[What 1.x promises](#promises) · [World](#world-class) · [Body](#body) · [Joint](#joint) · [Hulls and compounds](#hulls) · [Pieces](#pieces) · [Meshes and heightfields](#meshes) · [Character bodies](#characters) · [Joints](#joints) · [Contacts](#contacts) · [Contact events and sensors](#events) · [Water](#water) · [Layers, masks and groups](#layers) · [Sleeping](#sleeping) · [Queries](#queries) · [Determinism](#determinism) · [Limits](#limits) · [Renamed](#renamed)
+[What 1.x promises](#promises) · [World](#world-class) · [Body](#body) · [Joint](#joint) · [SoftBody](#softbody) · [Hulls and compounds](#hulls) · [Pieces](#pieces) · [Meshes and heightfields](#meshes) · [Character bodies](#characters) · [Joints](#joints) · [Contacts](#contacts) · [Contact events and sensors](#events) · [Water](#water) · [Soft bodies](#soft-bodies) · [Layers, masks and groups](#layers) · [Sleeping](#sleeping) · [Queries](#queries) · [Determinism](#determinism) · [Limits](#limits) · [Renamed](#renamed)
 
 <a id="index"></a>
 ## Index
 
 Every call, setting and entry, A to Z by its name.
 
-**A** &nbsp; [`world.addBody()`](#world-addbody) · [`world.addJoint()`](#world-addjoint) · [`body.alive`](#body-alive) · [`joint.alive`](#joint-alive) · [`body.angularVelocity`](#body-angularvelocity) · [`body.applyAngularImpulse()`](#body-applyangularimpulse) · [`body.applyForce()`](#body-applyforce) · [`body.applyImpulse()`](#body-applyimpulse) · [`body.applyTorque()`](#body-applytorque) · [`body.asleep`](#body-asleep)
+**A** &nbsp; [`world.addBody()`](#world-addbody) · [`world.addJoint()`](#world-addjoint) · [`world.addSoftBody()`](#world-addsoftbody) · [`body.alive`](#body-alive) · [`joint.alive`](#joint-alive) · [`softBody.alive`](#softbody-alive) · [`body.angularVelocity`](#body-angularvelocity) · [`body.applyAngularImpulse()`](#body-applyangularimpulse) · [`body.applyForce()`](#body-applyforce) · [`body.applyImpulse()`](#body-applyimpulse) · [`body.applyTorque()`](#body-applytorque) · [`body.asleep`](#body-asleep) · [`softBody.asleep`](#softbody-asleep)
 
 **B** &nbsp; [`world.body()`](#world-body) · [`world.bodyCount`](#world-bodycount) · [`world.bodyOf()`](#world-bodyof)
 
 **C** &nbsp; [`body.centerOfMass` (renamed)](#body-centerofmass) · [Character bodies](#characters) · [Contact events and sensors](#events) · [Contacts](#contacts) · [`world.contacts()`](#world-contacts)
 
-**D** &nbsp; [`world.debugLines()`](#world-debuglines) · [`body.destroy()`](#body-destroy) · [`joint.destroy()`](#joint-destroy) · [`world.destroy()`](#world-destroy) · [Determinism](#determinism)
+**D** &nbsp; [`world.debugLines()`](#world-debuglines) · [`body.destroy()`](#body-destroy) · [`joint.destroy()`](#joint-destroy) · [`softBody.destroy()`](#softbody-destroy) · [`world.destroy()`](#world-destroy) · [Determinism](#determinism)
 
 **F** &nbsp; [`joint.force`](#joint-force) · [`fracture()`](#fracture)
 
@@ -127,7 +127,7 @@ Every call, setting and entry, A to Z by its name.
 
 **H** &nbsp; [Hulls and compounds](#hulls)
 
-**I** &nbsp; [`body.id`](#body-id) · [`joint.id`](#joint-id) · [`body.inertia`](#body-inertia)
+**I** &nbsp; [`body.id`](#body-id) · [`joint.id`](#joint-id) · [`softBody.id`](#softbody-id) · [`body.inertia`](#body-inertia)
 
 **J** &nbsp; [Joint](#joint) · [`world.joint()`](#world-joint) · [`world.jointCount`](#world-jointcount) · [`world.jointOf()`](#world-jointof) · [Joints](#joints)
 
@@ -137,19 +137,19 @@ Every call, setting and entry, A to Z by its name.
 
 **O** &nbsp; [`world.overlap()`](#world-overlap)
 
-**P** &nbsp; [Pieces](#pieces) · [`body.position`](#body-position) · [`world.previous`](#world-previous)
+**P** &nbsp; [Pieces](#pieces) · [`body.position`](#body-position) · [`softBody.positions`](#softbody-positions) · [`world.previous`](#world-previous)
 
 **Q** &nbsp; [Queries](#queries)
 
 **R** &nbsp; [`world.raycast()`](#world-raycast) · [`world.raycastAll()`](#world-raycastall) · [`readGlb()`](#readglb) · [`world.remove()`](#world-remove) · [Renamed](#renamed) · [`body.rotation`](#body-rotation)
 
-**S** &nbsp; [`world.save()`](#world-save) · [`body.setAngularVelocity()`](#body-setangularvelocity) · [`body.setAxisAngle()`](#body-setaxisangle) · [`world.setBody()`](#world-setbody) · [`body.setEuler()`](#body-seteuler) · [`world.setJoint()`](#world-setjoint) · [`body.setPosition()`](#body-setposition) · [`body.setRotation()`](#body-setrotation) · [`body.setVelocity()`](#body-setvelocity) · [`world.shapeCast()`](#world-shapecast) · [`world.sleeping`](#world-sleeping) · [Sleeping](#sleeping) · [`body.slot`](#body-slot) · [`world.step()`](#world-step) · [`world.stepCount`](#world-stepcount) · [`world.substeps`](#world-substeps)
+**S** &nbsp; [`world.save()`](#world-save) · [`body.setAngularVelocity()`](#body-setangularvelocity) · [`body.setAxisAngle()`](#body-setaxisangle) · [`world.setBody()`](#world-setbody) · [`body.setEuler()`](#body-seteuler) · [`world.setJoint()`](#world-setjoint) · [`body.setPosition()`](#body-setposition) · [`body.setRotation()`](#body-setrotation) · [`body.setVelocity()`](#body-setvelocity) · [`world.shapeCast()`](#world-shapecast) · [`world.sleeping`](#world-sleeping) · [Sleeping](#sleeping) · [`body.slot`](#body-slot) · [Soft bodies](#soft-bodies) · [SoftBody](#softbody) · [`world.softBody()`](#world-softbody) · [`world.softBodyOf()`](#world-softbodyof) · [`world.setSoftBody()`](#world-setsoftbody) · [`world.step()`](#world-step) · [`world.stepCount`](#world-stepcount) · [`world.substeps`](#world-substeps)
 
 **T** &nbsp; [`joint.torque`](#joint-torque) · [`world.touching()`](#world-touching) · [`world.transforms`](#world-transforms)
 
 **V** &nbsp; [`body.velocity`](#body-velocity)
 
-**W** &nbsp; [Water](#water) · [What 1.x promises](#promises) · [`new World()`](#world) · [`world.workers`](#world-workers) · [`body.world`](#body-world) · [`joint.world`](#joint-world) · [`body.worldCenterOfMass`](#body-worldcenterofmass)
+**W** &nbsp; [Water](#water) · [What 1.x promises](#promises) · [`new World()`](#world) · [`world.workers`](#world-workers) · [`body.world`](#body-world) · [`joint.world`](#joint-world) · [`softBody.world`](#softbody-world) · [`body.worldCenterOfMass`](#body-worldcenterofmass)
 
 <a id="world-class"></a>
 ## World
@@ -526,11 +526,12 @@ world.setBody(crate, world.bodyOf(crate));   // changes nothing
 <a id="world-remove"></a>
 ### `world.remove(handle)`
 
-Removes a body, with every joint holding it, or a joint. Its handle stops working:
-[`body.alive`](#body-alive) or [`joint.alive`](#joint-alive) becomes `false`, and its methods throw.
+Removes a body, with every joint holding it, a joint, or a soft body. Its handle stops working:
+[`body.alive`](#body-alive), [`joint.alive`](#joint-alive) or [`softBody.alive`](#softbody-alive)
+becomes `false`, and its methods throw.
 Removing what is already gone does nothing.
 
-Throws: `remove: this world was destroyed`; `remove: handle must be a Body or a Joint, got …`; `remove: handle belongs to another world`.
+Throws: `remove: this world was destroyed`; `remove: handle must be a Body, a Joint or a SoftBody, got …`; `remove: handle belongs to another world`.
 
 ```js
 world.remove(crate);
@@ -539,8 +540,9 @@ world.remove(crate);
 Notes: the body's slot is given to a later body, under a new id, so an old handle can never reach
 the new body. When the bodies left use a quarter of the world's storage or less, the storage
 shrinks to half, which replaces [`world.transforms`](#world-transforms). Same as
-[`body.destroy()`](#body-destroy) and [`joint.destroy()`](#joint-destroy). What a removed joint
-held wakes.
+[`body.destroy()`](#body-destroy), [`joint.destroy()`](#joint-destroy) and
+[`softBody.destroy()`](#softbody-destroy). What a removed joint held wakes, and so does a soft body
+a removed body held up or held: its attachments to it let go.
 
 <a id="world-body"></a>
 ### `world.body(id)` → `Body`
@@ -572,6 +574,21 @@ Throws: `joint: this world was destroyed`; `joint: id must be a whole number fro
 const lid = world.addJoint({ type: 'hinge', a: crate });
 const again = world.joint(lid.id);
 console.log(again.id === lid.id);   // true
+```
+
+<a id="world-softbody"></a>
+### `world.softBody(id)` → `SoftBody`
+
+A handle for a soft body's id, as [`world.body`](#world-body) is for a body's: for an id you
+stored, sent over a network, or saved. It does not check that the soft body is alive; check
+[`softBody.alive`](#softbody-alive).
+
+Throws: `softBody: this world was destroyed`; `softBody: id must be a whole number from 0 to 9007199254740991, got …`.
+
+```js
+const cloth = world.addSoftBody({});
+const again = world.softBody(cloth.id);
+console.log(again.positions === cloth.positions);   // true
 ```
 
 <a id="world-addjoint"></a>
@@ -683,6 +700,89 @@ are now counts from there. `axis` isn't read back from how the bodies have turne
 would come back a rounding off what was given and look like a change: it is what was given, so a
 copy made after the bodies have turned has that axis in the world, not the one the bodies have
 carried it to.
+
+<a id="world-addsoftbody"></a>
+### `world.addSoftBody(options)` → `SoftBody`
+
+Makes a soft body, a triangle mesh whose corners move on their own, held together by its edges,
+and returns its [handle](#softbody). An open mesh is cloth; a closed one, given `pressure`, keeps
+its volume. See [Soft bodies](#soft-bodies).
+
+| Option | Default | Meaning |
+|---|---|---|
+| `vertices` | a 1 m square, flat in x and z | Its corners, in metres, three numbers each, in its own frame. Given with `indices`. |
+| `indices` | the square's two triangles | Its triangles, three corners each, counting from 0. An edge between two triangles is a fold; a mesh whose every edge is between two, wound the same way round, is closed. |
+| `density` | `1000` | kg/m³; water's, as a body's. Cloth weighs its density times its area times its `thickness`; a closed mesh its density times its volume. Each corner carries a third of each triangle it is in. |
+| `stretch` | `1` | How little it stretches, from 0 to 1. 1: not at all. Hung by an edge under its own weight, in Earth's gravity, it would stretch by (1 − s) / s at the top, for small stretches: 0.99 by 1%, 0.9 by 11%. 0: nothing holds it together. It never resists being squashed, as cloth doesn't. |
+| `bend` | `0` | How little it folds, from 0 to 1, measured as `stretch` is, across each fold: 0 folds freely, as silk; 1 not at all, as card. |
+| `thickness` | `0.001` | Metres: its corners stay half this out of what they touch. 1 mm, about everyday cloth's, so a square metre of cloth weighs 1 kg. |
+| `pressure` | `0` (none) | A closed mesh's volume is held at this times the one it was made with: 1 keeps it, more swells it as far as its `stretch` gives, less lets it slump. 0 holds none. Only a closed mesh. |
+| `attach` | `[]` | Corners held where they are now: `{ vertex, body }`, to that point on `body`, or with no `body` (or `null`) to that point in the world. A body holds it both ways: the cloth hangs from it and pulls on it. |
+| `friction` | `0.5` | As a body's: how much sideways push its corners resist for each newton pressing them on what they touch. |
+| `damping` | `0` | As a body's: velocity lost per second, in 1/s. |
+| `wind` | `[0, 0, 0]` | The air's velocity around it, m/s. The air pushes each triangle along its normal by how fast it moves through the air that way, as on a flat plate; still air slows it as it falls. |
+| `layers` | `1` | As a body's: which of the 32 [layers](#layers) it is in, as bits. |
+| `mask` | `0xffffffff` | As a body's: which layers it collides with. |
+| `position` | `[0, 0, 0]` | Where its frame is, in metres: `vertices` are placed from here. |
+| `rotation` | `[0, 0, 0, 1]` | How its frame is turned, a quaternion. |
+| `velocity` | `[0, 0, 0]` | Every corner's velocity, m/s. |
+
+Returns: a [`SoftBody`](#softbody), whose [`positions`](#softbody-positions) are its corners.
+
+Throws: `addSoftBody: this world was destroyed`; `addSoftBody: options must be an object, got …`; `addSoftBody: unknown option '…' (did you mean '…'?)`; `addSoftBody: unknown option '…' (the options are vertices, indices, density, stretch, bend, thickness, pressure, attach, friction, damping, wind, layers, mask, position, rotation, velocity)`; `addSoftBody: vertices and indices must be given together`; `addSoftBody: density must be a positive number, got …`; `addSoftBody: thickness must be a positive number, got …`; `addSoftBody: stretch must be from 0 to 1, got …`; `addSoftBody: bend must be from 0 to 1, got …`; `addSoftBody: pressure must be 0 or more, got …`; `addSoftBody: friction must be 0 or more, got …`; `addSoftBody: damping must be 0 or more, got …`; `addSoftBody: wind must be 3 finite numbers, got …`; `addSoftBody: layers must be a whole number that fits in 32 bits, got …`; `addSoftBody: mask must be a whole number that fits in 32 bits, got …`; `addSoftBody: position must be 3 finite numbers, got …`; `addSoftBody: rotation must be 4 finite numbers, not all zero, got …`; `addSoftBody: vertices must be finite numbers, three to a vertex, got …`; `addSoftBody: indices must be whole numbers below the vertex count (…), three to a triangle, one triangle or more, got …`; `addSoftBody: triangle … names a vertex twice: …`; `addSoftBody: vertex … is in no triangle`; `addSoftBody: triangle … has no area: its corners are in a line`; `addSoftBody: pressure needs a closed mesh: every edge between two triangles, wound the same way round`; `addSoftBody: velocity must be 3 finite numbers, got …`; `addSoftBody: attach must be a list of { vertex, body }, got …`; `addSoftBody: attach[…] must be an object, got …`; `addSoftBody: attach[…]: unknown option '…' (did you mean '…'?)`; `addSoftBody: attach[…]: unknown option '…' (the options are vertex, body)`; `addSoftBody: attach[…].vertex must be a whole number below the vertex count (…), got …`; `addSoftBody: attach[…].body must be a Body, got …`; `addSoftBody: attach[…].body belongs to another world`; `addSoftBody: attach[…].body was removed`; `addSoftBody: a world holds at most 16777216 soft bodies (the slot field of an id is 24 bits)`.
+
+```js
+const sheet = { vertices: [-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1], indices: [0, 2, 1, 0, 3, 2] };
+const tarp = world.addSoftBody({ ...sheet, position: [2, 1.5, 0], density: 400, thickness: 0.0005 });
+const banner = world.addSoftBody({ position: [0, 3, 0], wind: [4, 0, 1], attach: [{ vertex: 0, body: crate }, { vertex: 1 }] });
+```
+
+Notes: a soft body collides with every body its layers and mask allow, both ways, but not with
+itself or other soft bodies (see [Soft bodies](#soft-bodies)). An attached corner doesn't collide
+with the body it is attached to. A triangle's corners must not lie in a line.
+
+<a id="world-setsoftbody"></a>
+### `world.setSoftBody(softBody, changes)`
+
+Changes any of the options [`addSoftBody`](#world-addsoftbody) took, with the same names,
+defaults and checks, and leaves the rest as they are; the soft body wakes.
+
+Throws: `setSoftBody: this world was destroyed`; `setSoftBody: softBody must be a SoftBody, got …`; `setSoftBody: softBody belongs to another world`; `setSoftBody: softBody was removed`; `setSoftBody: changes must be an object, got …`; `setSoftBody: unknown option '…' (did you mean '…'?)`; `setSoftBody: unknown option '…' (the options are vertices, indices, density, stretch, bend, thickness, pressure, attach, friction, damping, wind, layers, mask, position, rotation, velocity)`; `setSoftBody: density must be a positive number, got …`; `setSoftBody: thickness must be a positive number, got …`; `setSoftBody: stretch must be from 0 to 1, got …`; `setSoftBody: bend must be from 0 to 1, got …`; `setSoftBody: pressure must be 0 or more, got …`; `setSoftBody: friction must be 0 or more, got …`; `setSoftBody: damping must be 0 or more, got …`; `setSoftBody: wind must be 3 finite numbers, got …`; `setSoftBody: layers must be a whole number that fits in 32 bits, got …`; `setSoftBody: mask must be a whole number that fits in 32 bits, got …`; `setSoftBody: position must be 3 finite numbers, got …`; `setSoftBody: rotation must be 4 finite numbers, not all zero, got …`; `setSoftBody: vertices must be finite numbers, three to a vertex, got …`; `setSoftBody: indices must be whole numbers below the vertex count (…), three to a triangle, one triangle or more, got …`; `setSoftBody: triangle … names a vertex twice: …`; `setSoftBody: vertex … is in no triangle`; `setSoftBody: triangle … has no area: its corners are in a line`; `setSoftBody: pressure needs a closed mesh: every edge between two triangles, wound the same way round`; `setSoftBody: velocity must be 3 finite numbers, got …`; `setSoftBody: attach must be a list of { vertex, body }, got …`; `setSoftBody: attach[…] must be an object, got …`; `setSoftBody: attach[…]: unknown option '…' (did you mean '…'?)`; `setSoftBody: attach[…]: unknown option '…' (the options are vertex, body)`; `setSoftBody: attach[…].vertex must be a whole number below the vertex count (…), got …`; `setSoftBody: attach[…].body must be a Body, got …`; `setSoftBody: attach[…].body belongs to another world`; `setSoftBody: attach[…].body was removed`.
+
+```js
+const cloth = world.addSoftBody({ position: [0, 2, 0] });
+world.setSoftBody(cloth, { wind: [6, 0, 2] });                     // a gust
+world.setSoftBody(cloth, { position: [0, 3, 0] });                 // moved by hand, as it is
+world.setSoftBody(cloth, { attach: [{ vertex: 0 }, { vertex: 1 }] });   // pinned where they are now
+world.setSoftBody(cloth, world.softBodyOf(cloth));                 // changes nothing but its velocities
+```
+
+Notes: a new `position` or `rotation` moves every corner as one, keeping its shape, with its
+pins to the world; pins to bodies stay on their bodies. New `vertices` or `indices` start it again
+from them, at its pose, at rest unless `velocity` is given, with a fresh
+[`positions`](#softbody-positions) array, and drop its attachments unless `attach` is given too.
+New `attach` replaces them all, each holding its corner where it is now. `velocity` sets every
+corner's. A setting changes nothing else: changing `stretch` leaves where the corners are.
+
+<a id="world-softbodyof"></a>
+### `world.softBodyOf(softBody)` → `object`
+
+A copy of the soft body's options as they are now, in the form
+[`addSoftBody`](#world-addsoftbody) takes, so `world.addSoftBody(world.softBodyOf(softBody))`
+makes another like it. Changing the result changes nothing.
+
+Returns: `{ vertices, indices, density, stretch, bend, thickness, pressure, attach, friction, damping, wind, layers, mask, position, rotation, velocity }`:
+`vertices` as given, in its own frame, not where its corners are now (read
+[`positions`](#softbody-positions) for that); `attach` as `{ vertex, body }`, `body` a
+[`Body`](#body) handle or `null`; `position` and `rotation` as last given; `velocity` the mean of
+its corners' velocities, weighed by their mass.
+
+Throws: `softBodyOf: this world was destroyed`; `softBodyOf: softBody must be a SoftBody, got …`; `softBodyOf: softBody belongs to another world`; `softBodyOf: softBody was removed`.
+
+```js
+const cloth = world.addSoftBody({ stretch: 0.98 });
+console.log(world.softBodyOf(cloth).stretch);   // 0.98
+```
 
 <a id="world-raycast"></a>
 ### `world.raycast(origin, direction, options)` → `{ body, point, normal, distance } | null`
@@ -945,7 +1045,7 @@ stepping exactly as the saved world would have.
 Returns: a new [`World`](#world), its own: changing it changes nothing in the world it was saved
 from, or the data.
 
-Throws: `load: data must be what world.save() returned, got …`; `load: this data was saved by …, and this is …; a save loads only into the version that made it`; `load: data is format …; this Bearing reads format 18`; `load: data is damaged: …`.
+Throws: `load: data must be what world.save() returned, got …`; `load: this data was saved by …, and this is …; a save loads only into the version that made it`; `load: data is format …; this Bearing reads format 19`; `load: data is damaged: …`.
 
 ```js
 const checkpoint = world.save();
@@ -1495,6 +1595,101 @@ Throws: `destroy: this world was destroyed`.
 ```js
 const tie = world.addJoint({ a: ball, b: crate });
 tie.destroy();
+```
+
+<a id="softbody"></a>
+## SoftBody
+
+A SoftBody is a handle to one soft body in a world, as a [`Body`](#body) is to a body:
+`softBody.world` is its world and `softBody.id` its id. Compare `a.id === b.id`, not `a === b`.
+[`world.addSoftBody`](#world-addsoftbody) and [`world.softBody`](#world-softbody) make one.
+Change it with [`world.setSoftBody`](#world-setsoftbody), read it with
+[`world.softBodyOf`](#world-softbodyof), and where its corners are with
+[`softBody.positions`](#softbody-positions). See [Soft bodies](#soft-bodies).
+
+<a id="softbody-id"></a>
+### `softBody.id` → `number`
+
+The soft body's id: a whole number, unique to it for the life of its world. Soft bodies count their
+own ids, apart from bodies' and joints'. Read only.
+
+Throws: `softBody.id is read only`.
+
+```js
+const cloth = world.addSoftBody({});
+const names = new Map([[cloth.id, 'sail']]);
+```
+
+<a id="softbody-world"></a>
+### `softBody.world` → `World`
+
+The world the soft body is in. Read only.
+
+Throws: `softBody.world is read only`.
+
+```js
+const cloth = world.addSoftBody({});
+cloth.world.remove(cloth);
+```
+
+<a id="softbody-alive"></a>
+### `softBody.alive` → `boolean`
+
+`false` once the soft body has been removed, or its world destroyed. Never throws. Read only.
+
+Throws: `softBody.alive is read only`.
+
+```js
+const cloth = world.addSoftBody({});
+world.remove(cloth);
+console.log(cloth.alive);   // false
+```
+
+<a id="softbody-asleep"></a>
+### `softBody.asleep` → `boolean`
+
+`true` while the soft body is asleep: at rest, and left out of steps until something disturbs it,
+by the rule bodies sleep by (see [Sleeping](#sleeping)). Read only.
+
+Throws: `softBody.asleep: this world was destroyed`; `softBody.asleep: this soft body was removed`; `softBody.asleep is read only`.
+
+```js
+const cloth = world.addSoftBody({ position: [0, 0.3, 0] });
+for (let i = 0; i < 300; i++) world.step(1 / 60);
+console.log(cloth.asleep);
+```
+
+<a id="softbody-positions"></a>
+### `softBody.positions` → `Float32Array`
+
+Where the soft body's corners are, three numbers each (x, y, z), in metres, in world space, in
+the order of its `vertices`: the world's own array, which every step writes into. Draw the mesh
+from it, with its `indices`, as [`world.transforms`](#world-transforms) draws bodies. Read only.
+
+Throws: `softBody.positions: this world was destroyed`; `softBody.positions: this soft body was removed`; `softBody.positions is read only`.
+
+```js
+const cloth = world.addSoftBody({ position: [0, 2, 0] });
+world.step(1 / 60);
+const p = cloth.positions;
+console.log(p.length / 3, 'corners; the first at', p[0], p[1], p[2]);
+```
+
+Notes: the same array from step to step, so keep it; a new one only when
+[`setSoftBody`](#world-setsoftbody) gives new `vertices` or `indices`. Not a copy: what the
+engine draws from it it must copy before the next step, as with `transforms`.
+
+<a id="softbody-destroy"></a>
+### `softBody.destroy()`
+
+Removes the soft body from its world. Same as [`world.remove(softBody)`](#world-remove); does
+nothing if it is already gone.
+
+Throws: `destroy: this world was destroyed`.
+
+```js
+const cloth = world.addSoftBody({});
+cloth.destroy();
 ```
 
 <a id="hulls"></a>
@@ -2153,6 +2348,71 @@ world.step(1 / 60);
   both push.
 - **Waking.** Water added, changed or moved by hand wakes what is asleep in it, as does water that
   moves, and water taken away wakes what it held, so it falls.
+
+<a id="soft-bodies"></a>
+## Soft bodies
+
+A soft body is a triangle mesh whose corners move on their own, held together by its edges:
+cloth, a flag, a sail, a cape, or, closed and given `pressure`, a ball or a balloon that keeps
+its volume. Make one with [`world.addSoftBody`](#world-addsoftbody); draw it from
+[`softBody.positions`](#softbody-positions) with its own `indices`. Nothing in Bearing draws it.
+
+**How it moves.** Each corner is a particle with its share of the mass. Each substep, as gravity
+and the air push them and they move, every edge is put back to no longer than it was made
+(`stretch`), the two corners across each fold kept apart (`bend`), a closed mesh's volume put back
+(`pressure`), attached corners held to their points, and corners kept out of rigid bodies. This
+is XPBD, the method Jolt's soft bodies use. An edge's give is worked out from the sheet's own
+weight and size, so `stretch` and `bend` mean the same for a cloth of any size, weight or number
+of triangles, and in a world with any gravity. A corner hanging from an attachment is also held to
+no further from it than the mesh's length between, so a cloth hung by its edge hangs its own
+length however fine its mesh.
+
+**Touching rigid bodies.** Each corner is a ball of half the `thickness`, kept out of the two
+bodies nearest it, of every shape, meshes and heightfields too, with friction. Both ways: a
+cloth's weight presses on what it lies on, a ball thrown at a box moves it and bounces off it, a
+hammock holds a ball five times its weight, and what is attached to a body pulls on it. A soft
+body's own wobble and sway die away by themselves (a material's own damping, 1 per second), but
+how it falls, slides or spins as a whole is left as it is.
+
+**The air.** Each triangle is pushed along its normal by the air it moves through, as a flat plate
+is (air of 1.2 kg/m³, a drag coefficient of 1.17), relative to `wind`. Still air slows cloth as it
+falls, more the lighter it is; a flag in a wind with some crosswise part waves. A flag edge-on to a
+wind feels none of it, as the push is only along the triangles' normals: give the wind a little
+crosswise part. Gusts are the game's: set `wind` with [`setSoftBody`](#world-setsoftbody).
+
+**Sleeping.** As bodies do: a soft body none of whose corners strays a pixel (1/200) of its size
+from where it rested, for a second, sleeps, and wakes when a body it touches or hangs from moves,
+is set by hand or removed, or anything not still comes within its reach.
+
+```js
+// A flag on a pole, in the wind.
+const pole = world.addBody({ type: 'static', shape: 'capsule', radius: 0.03, height: 3, position: [6, 1.5, 0] });
+const columns = 12, rows = 8, vertices = [], indices = [], attach = [];
+for (let j = 0; j <= rows; j++) for (let i = 0; i <= columns; i++) vertices.push(1.2 * i / columns, -0.8 * j / rows, 0);
+for (let j = 0; j < rows; j++) for (let i = 0; i < columns; i++) {
+  const a = j * (columns + 1) + i, b = a + 1, c = a + columns + 1, d = c + 1;
+  indices.push(a, c, b, b, c, d);
+}
+for (let j = 0; j <= rows; j++) attach.push({ vertex: j * (columns + 1), body: pole });
+const flag = world.addSoftBody({ vertices, indices, position: [6.03, 2.9, 0], wind: [7, 0, 1.5], attach });
+world.step(1 / 60);
+```
+
+Notes and limits, each with what to do when it is reached:
+- Its corners collide, not its triangles, so a rigid edge thinner than the mesh's spacing can pass
+  between them: use a finer mesh where that matters.
+- A corner is kept out of the two bodies nearest it as a step begins, as planes: one pressed into
+  where three meet is held out of the nearer two only.
+- A soft body doesn't collide with itself or with other soft bodies, isn't seen by
+  [queries](#queries) or [contact events](#events), and doesn't float in [water](#water).
+- A closed body heavy enough to sag under its own weight, as a 60 kg ball of water does, may go on
+  wobbling by a few tenths of a millimetre a step and not sleep. A lighter one, or one whose skin gives
+  (`stretch` a little under 1) or holds its shape (`bend` above 0), settles sooner.
+- A body much heavier than the cloth holding it sinks into it further than the cloth's own
+  stiffness would let it: a hammock of 8 kg sags 6 cm more under a 40 kg ball than under 1 kg.
+- 3D only.
+
+The same on every machine, as a step is, and saved by [`world.save()`](#world-save).
 
 <a id="layers"></a>
 ## Layers, masks and groups

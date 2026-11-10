@@ -1637,7 +1637,7 @@ export function turnedInertias(world) {
  * At the first substep the rotation is the one inertias() read, so this is
  * the same to the bit.
  */
-function turnedInverse(world, s, out, o) {
+export function turnedInverse(world, s, out, o) {
   axesOf(world._rotation, 4 * s, AXES, 0);
   inverseAt(world, s, AXES, 0, out, o);
 }

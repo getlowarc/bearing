@@ -822,7 +822,7 @@ on Bun too. Slabs broken into 6 and 12 rest within 2 mm and sleep; of 30, one at
 a cut of 44° slides off, friction 0.5 holding 27°, as a real one would. 20 pieces of a rock in about
 5 ms. Found on the way: the default box was 2 m, not 1.
 
-**25. Soft bodies ⬜**
+**25. Soft bodies ✅** *(done 2026-11-10)*
 *Concepts:* XPBD; distance, bending and volume constraints; particles against rigid shapes, both
 ways.
 `world.addSoftBody` / `setSoftBody` / `softBodyOf` / `remove`: an open mesh is cloth, a closed one
@@ -830,6 +830,25 @@ with `pressure` a volume; `attach` pins vertices to bodies; `positions` is read 
 as `transforms` is. Nothing in Bearing draws it.
 *Done when:* a flag waves on a pole and drapes over a box, a ball keeps its volume as it lands, a
 soft body pushes a rigid one and is pushed back, and off means off.
+*Done (2026-11-10):* `src/soft.js`. Approved options plus, at Nolan's word, the body options rule 13
+asks for and four with bodies' meanings: `position`, `rotation`, `velocity`, `friction`,
+`damping`, `layers`, `mask`; `wind` for the air (Nolan chose air drag over none); `density` kg/m³
+as bodies' (Nolan chose it over kg/m² for cloth). `world.softBody(id)` as `body(id)`, for a loaded
+world. XPBD, one pass a substep, after `_accelerate`, before the rigid solve: edges that resist
+stretching only (a ball's bottom couldn't flatten on a floor without buckling, and buzzed), folds,
+the volume, tethers, attachments, contacts, then XPBD's velocity pass. Stiffness from the sheet's own
+weight and size: hung by an edge, 1% at the top at 0.99, 10.7% at 0.9 (11.1 asked). Tethers keep a
+cloth hung by its edge its own length at 40 edges as at 10 (it hung 4% long). Contacts found once a
+step, two planes a corner (one buzzed where a crate meets the floor), both ways. Found on the way:
+constraints solved one at a time spun a ball at rest on a frictionless floor about the vertical,
+0.3 rad/s more each second, now taken back each substep (SPIN); a volume put back into the floor it
+had just been pushed off kept a ball wobbling; and a corner pushed out further than it came in bounced.
+A material's own damping, 1/s, measured, puts six drapes to sleep in 4.5 to 8.8 s (two never did) and
+leaves a flag waving. Two-way: momentum kept through a ball hitting a box to the air's drag; a hammock
+of 8 kg holds 40 kg. Known limits, documented: corners collide, not triangles; no self-collision; a
+heavy closed body may wobble a few tenths of a millimetre a step and not sleep; a body much heavier
+than the cloth sinks further than its stiffness says. 961 corners draped on a crate 1.1 ms a step,
+a 176-corner flag 0.11 ms. FORMAT 19.
 
 ### After 1.0
 
@@ -1268,3 +1287,9 @@ Winding's way, copied before the first one:
   its default. Cylinders added as milestone 26, at his word, wheels being balls until then.
 - **2026-11-10.** Pieces, milestone 24, at Nolan's word ("Go ahead with pieces"), as approved:
   `fracture(shape, { count, seed })`, defaults 8 pieces of a 1 m cube from seed 0.
+- **2026-11-10.** Soft bodies, milestone 25, at Nolan's word ("Go ahead with soft bodies"). Asked
+  before starting: `density` in kg/m³ as bodies' (not kg/m² for cloth); air drag on each triangle
+  with a `wind` option (not none); and the body options with their own meanings (`position`,
+  `rotation`, `velocity`, `friction`, `damping`, `layers`, `mask`). He chose all three as
+  recommended. `world.softBody(id)` added as `world.body(id)` is, or a loaded world's soft bodies
+  had no handle.

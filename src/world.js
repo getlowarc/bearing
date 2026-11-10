@@ -53,6 +53,7 @@ import { Mesh, Heightfield } from './mesh.js';
 import { save, load } from './save.js';
 import { debugLines } from './debug.js';
 import { float } from './fluid.js';
+import { Softs, SoftBody, addSoftBody, setSoftBody, softBodyOf, softSlot, dropSoft, bodyRemoved, bodySet, findSoft, stepSoft, endSoft, wakeSofts } from './soft.js';
 
 const TYPES = ['dynamic', 'static', 'kinematic', 'character'];
 const DYNAMIC = 0, STATIC = 1, KINEMATIC = 2;   // and CHARACTER, 3, from character.js
@@ -151,7 +152,7 @@ const DAMPING_RATIO = 10;
 // slowly than 2 tolerance / SLEEP_TIME², 0.01 m/s² for a 1 m box, strays less
 // than a pixel in it and can fall asleep before it moves, such as a box on a
 // slope within 0.05° of its friction angle.
-const SLEEP_TIME = 1;
+export const SLEEP_TIME = 1;
 // _freeze's bits in _calm (see FREEZING): still for SLEEP_TIME; that, and
 // everything it touches too; that, and everything it touches quiet; and set
 // by hand since the step before, which keeps it from the first; and, at a
@@ -375,6 +376,10 @@ export class World {
     this._contacts = new Contacts();
     /** Every joint, in columns of its own (joints.js). */
     this._joints = new Joints();
+    /** Every soft body (soft.js). */
+    this._softs = new Softs();
+    /** Steps that moved soft bodies: for the off-means-off test, which reads it. */
+    this._softSteps = 0;
     /** Steps that ran the joint solver: for the off-means-off test, which reads it. */
     this._jointSteps = 0;
     /** Drives toward a target solved, one a joint a pass: for the off-means-off test, which reads it. */
@@ -502,6 +507,7 @@ export class World {
     this._sleeping = flag(null, 'world.sleeping', value);
     if (!value) {
       this._wakeAll();
+      wakeSofts(this);
     } else {
       // Still times stopped counting while it was off; they start again from now.
       for (let i = 0; i < this._awakeCount; i++) this._settle(this._awakeList[i]);
@@ -607,7 +613,14 @@ export class World {
     const placed = o.position !== undefined || o.rotation !== undefined;
     const s3 = s * 3, s4 = s * 4, com = this._com, frame = this._frame;
     const center = [com[s3], com[s3 + 1], com[s3 + 2]], turn = [frame[s4], frame[s4 + 1], frame[s4 + 2], frame[s4 + 3]];
+    // Where soft bodies' points on it are measured from, as it was (soft.js, bodySet).
+    let before = null;
+    if (this._softs.count > 0) {
+      const p = this._position, q = this._rotation;
+      before = [p[s3], p[s3 + 1], p[s3 + 2], q[s4], q[s4 + 1], q[s4 + 2], q[s4 + 3], ...this._pose(s, [0, 0, 0, 0, 0, 0, 0])];
+    }
     this._write(s, spec, placed);
+    if (before !== null) bodySet(this, s, body.id, before, this._pose(s, [0, 0, 0, 0, 0, 0, 0]));
     if (this._jointHead[s] !== 0 && (center[0] !== com[s3] || center[1] !== com[s3 + 1] || center[2] !== com[s3 + 2]
       || turn[0] !== frame[s4] || turn[1] !== frame[s4 + 1] || turn[2] !== frame[s4 + 2] || turn[3] !== frame[s4 + 3])) {
       rehome(this, s, center, turn);
@@ -712,6 +725,20 @@ export class World {
 
   jointOf(joint) {
     return jointOf(this, jointSlot(this, 'jointOf', joint));
+  }
+
+  // ---- soft bodies (soft.js) ----
+
+  addSoftBody(options_) {
+    return addSoftBody(this, options_);
+  }
+
+  setSoftBody(softBody, changes) {
+    setSoftBody(this, softBody, changes);
+  }
+
+  softBodyOf(softBody) {
+    return softBodyOf(this, softBody);
   }
 
   /**
@@ -888,6 +915,11 @@ export class World {
     return new Joint(this, this._id('joint', id));
   }
 
+  /** A handle for a soft body's id, as body(id) is for a body's. Doesn't check it is alive. */
+  softBody(id) {
+    return new SoftBody(this, this._id('softBody', id));
+  }
+
   /** An id given to body() or joint(): any whole number an id can be. */
   _id(caller, id) {
     this._live(caller);
@@ -967,6 +999,10 @@ export class World {
     broadphase.update(this, dt);
     broadphase.candidates(this, pairs);
     if (this._wetted.length > 0) this._soak();
+    // Soft bodies find what their corners touch before the narrowphase, so a
+    // sleeping body one lands on wakes in time to have its contacts this step.
+    const softly = this._softs.count > 0;
+    if (softly) { this._softSteps++; findSoft(this, dt); }
     // A touch that wakes an island brings its pairs into the awake run, past
     // where the pass stopped, and they are narrowed in turn until nothing
     // more wakes: a woken stack is held in the step it wakes, rather than
@@ -1063,6 +1099,9 @@ export class World {
       for (let sub = 0; sub < substeps; sub++) {
         this._accelerate(h);
         if (floating) float(this, h);
+        // Soft bodies move, and push what they touch, before the rigid solve
+        // answers: a cloth's weight on a crate is held by the floor in the same substep.
+        if (softly) stepSoft(this, h, sub === 0, dt);
         if (touching > 0) warmStart(this, next);
         if (lull) jobs.lull(0);
         if (held > 0) warmStartJoints(this);
@@ -1128,6 +1167,7 @@ export class World {
       while (c < this._sensedCount) c *= 2;
       this._sensed = resized(this._sensed, c);
     }
+    if (softly) endSoft(this, dt);
     if (this._sleeping) this._sleep(dt);
   }
 
@@ -1895,6 +1935,7 @@ export class World {
     this._pairs = new Pairs(this);
     this._contacts = new Contacts();
     this._joints = new Joints();
+    this._softs = new Softs();
     this._reset();
   }
 
@@ -2179,9 +2220,16 @@ export class World {
       if (j >= 0) dropJoint(this, j);
       return;
     }
-    if (!(body instanceof Body)) fail(caller, `handle must be a Body or a Joint, got ${show(body)}`);
+    if (body instanceof SoftBody) {
+      const j = handle(caller, 'handle', body, this, SoftBody, this._softs.slots, true);
+      if (j >= 0) dropSoft(this, j);
+      return;
+    }
+    if (!(body instanceof Body)) fail(caller, `handle must be a Body, a Joint or a SoftBody, got ${show(body)}`);
     const s = handle(caller, 'handle', body, this, Body, this._slots, true);
     if (s < 0) return;   // already gone: removing twice is harmless, as in Winding
+    // What hangs from it lets go, and what lay on it wakes (soft.js).
+    if (this._softs.count > 0) bodyRemoved(this, s, body.id);
     // Its joints go with it: a joint to nothing has no meaning.
     if (this._jointHead[s] !== 0) dropJointsOf(this, s);
     // A force waiting on this slot must not land on whichever body gets it next.

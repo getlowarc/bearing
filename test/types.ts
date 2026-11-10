@@ -2,10 +2,10 @@
 //   npx -y -p typescript@7 tsc --noEmit --strict --target es2022 --module nodenext --lib es2022 test/types.ts
 // Each @ts-expect-error is a mistake the types must refuse; tsc fails if one is let through.
 
-import { World, Body, Joint, readGlb } from '../src/bearing.js';
+import { World, Body, Joint, SoftBody, readGlb } from '../src/bearing.js';
 import { World2D, Body2D } from '../src/2d/bearing2d.js';
 import type { BodyInfo2D, Vec2 } from '../src/2d/bearing2d.js';
-import type { BodyOptions, BodyInfo, JointOptions, JointInfo, Vec3, ShapeType, SavedWorld } from '../src/bearing.js';
+import type { BodyOptions, BodyInfo, JointOptions, JointInfo, Vec3, ShapeType, SavedWorld, SoftBodyOptions, SoftBodyInfo } from '../src/bearing.js';
 
 export function examples(): void {
   const world = new World();
@@ -289,4 +289,26 @@ export function joints(): void {
   flat.remove(flat.body(piece.id));
   flat.step(1 / 60);
   flat.destroy();
+}
+
+export function softBodies(): void {
+  const world = new World();
+  const pole = world.addBody({ type: 'static', shape: 'capsule', radius: 0.05, height: 3 });
+  const options: SoftBodyOptions = { vertices: [0, 0, 0, 1, 0, 0, 0, 0, 1], indices: [0, 1, 2], density: 300, stretch: 0.99, bend: 0.1,
+    thickness: 0.002, wind: [5, 0, 1], attach: [{ vertex: 0, body: pole }, { vertex: 1 }], friction: 0.4, damping: 0.1, layers: 2, mask: ~1,
+    position: [0, 2, 0], rotation: [0, 0, 0, 1], velocity: new Float32Array([1, 0, 0]) };
+  const flag: SoftBody = world.addSoftBody(options);
+  world.addSoftBody();
+  const p: Float32Array = flag.positions;
+  const asleep: boolean = flag.asleep && flag.alive;
+  void asleep;
+  world.setSoftBody(flag, { wind: [p[0], 0, 0], pressure: 0 });
+  const read: SoftBodyInfo = world.softBodyOf(flag);
+  const holder: Body | null = read.attach[0].body;
+  void holder;
+  world.addSoftBody(read);
+  // @ts-expect-error a soft body's stretch is a number
+  world.setSoftBody(flag, { stretch: 'a lot' });
+  world.remove(world.softBody(flag.id));
+  flag.destroy();
 }

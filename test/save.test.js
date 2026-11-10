@@ -94,7 +94,7 @@ test('the save holds every field of the world: a new one must change FORMAT and 
     '_movedOut', '_movedStatics', '_node', '_offset', '_pairEpoch', '_pairs', '_parent', '_position', '_previous', '_pushForce',
     '_reach', '_rest', '_restitution', '_rotation', '_seen', '_seenMark', '_sensed', '_sensedCount',
     '_sensor', '_sensorCount', '_sensorPasses', '_shape', '_size', '_sleeping', '_slept', '_sleptCount', '_slopeCos',
-    '_slots', '_solverSteps', '_start', '_startQ', '_staticMoved', '_stepCount', '_stepDt', '_stepGiven', '_stepHeight',
+    '_slots', '_softSteps', '_softs', '_solverSteps', '_start', '_startQ', '_staticMoved', '_stepCount', '_stepDt', '_stepGiven', '_stepHeight',
     '_still', '_stillReady', '_strays', '_straysAt', '_straysEpoch', '_substeps', '_torque', '_transforms', '_tumbled',
     '_type', '_velocity', '_wakePending', '_walk', '_wetted',
   ]);
@@ -106,7 +106,7 @@ test('load refuses what save() didn\'t write, data of another version or format,
   const data = new World().save();
   assert.equal(data.version, VERSION);
   assert.throws(() => World.load({ ...data, version: '9.9.9' }), /^Error: load: this data was saved by Bearing 9\.9\.9, and this is /);
-  assert.throws(() => World.load({ ...data, format: 0 }), /^Error: load: data is format 0; this Bearing reads format 18$/);
+  assert.throws(() => World.load({ ...data, format: 0 }), /^Error: load: data is format 0; this Bearing reads format 19$/);
   const damaged = JSON.parse(JSON.stringify(data));
   damaged.objects[0].f._slots = { r: 999 };
   assert.throws(() => World.load(damaged), /^Error: load: data is damaged: a link to object 999, of \d+$/);

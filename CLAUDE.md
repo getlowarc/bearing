@@ -185,6 +185,20 @@ These were made with Nolan and override the rules below where they differ.
   (a crossing corner from the kept end, so faces agree to the bit; the cap ordered by `atan2`),
   `solid()` for volume and centre. `HASH_PIECES` in `test/determinism.test.js`. Not in the step,
   so it allocates freely. Work grows as count².
+- **Soft bodies** (2026-11-10, milestone 25, API approved; Nolan chose `density` kg/m³, air drag with
+  `wind`, and bodies' options: `position`, `rotation`, `velocity`, `friction`, `damping`, `layers`,
+  `mask`): `world.addSoftBody`/`setSoftBody`/`softBodyOf`/`softBody(id)`, `SoftBody` handle
+  (`positions` Float32Array, `asleep`), `remove` takes one. `src/soft.js`, store `Softs`/`Soft`
+  (FORMAT 19). XPBD, one pass a substep after `_accelerate` (`stepSoft`), contacts found before the
+  narrowphase (`findSoft`, `nearestOf` in query.js, two planes a corner, `PLANES`), `endSoft`
+  writes positions and sleeps (PIXEL of `size`). Edges resist stretching only; `compliance()` from
+  the sheet's weight and size (STIFFNESS); tethers from non-dynamic attachments (TETHERS); volume
+  after contacts, never into what they pushed off (`pressed`, a moving body bears it); SPIN taken
+  back each substep; `unbounce()` (XPBD's velocity pass); `settle()` damps deformation at
+  `SETTLE` = 1/s, measured; air once a step (`AIR` 1.2, `DRAG` 1.17). Body impulses through a
+  step-start world inverse inertia (`INVERSE`, `turnedInverse` from contact.js). Tried and dropped:
+  making a corner on a taut tether heavy (pumped energy into a hung box), alternating sweep order
+  (worse), iterating twice (no steady gain). Heavy closed bodies may not sleep: documented.
 - **Joints that can't all be held** (2026-11-06, Nolan: "Go ahead with the joint anchors and NaN"):
   `rehome()` re-expresses a joint's anchors and frames when `setBody` moves a body's centre or
   principal axes. TORN: what a joint asks for is held to the reach of its moving bodies (`tear`,
