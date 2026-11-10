@@ -336,10 +336,11 @@ export function narrow(world, pairs, broadphase, next, from) {
  * moving, reshaping or refiltering it, at any type of body, in any order. Those
  * are too many to tell apart at each setter, where only static bodies were told,
  * and frozen bodies, whose pairs aren't asleep, were never told at all. A sensor
- * holds nothing up.
+ * holds nothing up, but water does.
  */
 function released(world, a, b) {
-  if (world._sensor[a] !== 0 || world._sensor[b] !== 0) return;
+  // A sensor holds nothing up; water does (fluid.js).
+  if ((world._sensor[a] !== 0 && world._fluid[a] === 0) || (world._sensor[b] !== 0 && world._fluid[b] === 0)) return;
   const island = world._island, frozen = world._frozen;
   if (island[a] !== 0 || frozen[a] !== 0) world._wake(a);
   if (island[b] !== 0 || frozen[b] !== 0) world._wake(b);
@@ -361,6 +362,9 @@ function find(world, pairs, p, a, b, next, tolerance, sensing) {
   }
   if (sensing && (world._sensor[a] === 1 || world._sensor[b] === 1)) {
     world._sense(p);
+    // Water that moves wakes what it holds: a sensor wakes nothing, but water
+    // pushes, and a boat asleep on a rising tide would stay where it was.
+    if (world._fluidCount > 0) stirred(world, a, b);
     return false;
   }
   if (shape[a] >= MESH || shape[b] >= MESH) {
@@ -388,6 +392,15 @@ function find(world, pairs, p, a, b, next, tolerance, sensing) {
     remember(world, pairs, p, a, b);
   }
   return true;
+}
+
+/** Wakes whichever of a and b is asleep if the other is water moving (see find()). */
+function stirred(world, a, b) {
+  const f = world._fluid[a] === 1 ? a : world._fluid[b] === 1 ? b : -1;
+  if (f < 0) return;
+  const s = f === a ? b : a, v = world._velocity, w = world._angular, f3 = 3 * f;
+  if (world._awake[s] === 1 || world._type[s] !== 0) return;
+  if (v[f3] !== 0 || v[f3 + 1] !== 0 || v[f3 + 2] !== 0 || w[f3] !== 0 || w[f3 + 1] !== 0 || w[f3 + 2] !== 0) world._wake(s);
 }
 
 /**
@@ -525,23 +538,36 @@ function took(world, pairs, p, next, verdict) {
  * The rules are measured against the pose the manifold was found at, not the
  * last step's, so a slow creep can't add up past them unseen. Rebuilt
  * further apart than the margin, the manifold is dropped for a fresh one:
- * a contact must be one collide() could find.
+ * a contact must be one collide() could find. Mesh pairs: see levelKept().
  */
 function reused(world, pairs, p, a, b, tolerance, margin) {
   if (pairs.cache[p] === 0 || !keeps(world, pairs, p, a, b, tolerance)) return false;
   const r = pairs.cache[p] - 1, count = pairs.cachePoints[r];
-  const pos = world._position, A = world._axes, a3 = 3 * a, b3 = 3 * b, a9 = 9 * a, b9 = 9 * b;
-  const local = pairs.cacheLocal, ln = pairs.cacheNormal, p3 = 3 * r;
-  const n = manifold.normal, lx = ln[p3], ly = ln[p3 + 1], lz = ln[p3 + 2];
-  const nx = A[a9] * lx + A[a9 + 3] * ly + A[a9 + 6] * lz;
-  const ny = A[a9 + 1] * lx + A[a9 + 4] * ly + A[a9 + 7] * lz;
-  const nz = A[a9 + 2] * lx + A[a9 + 5] * ly + A[a9 + 8] * lz;
+  rebuild(world, a, b, a, pairs.cacheNormal, 3 * r, count, pairs.cacheLocal, pairs.cacheId, P * r);
+  // Kept further apart than the margin: a fresh collide() might find nothing,
+  // and a contact must be one it could find (test/broadphase.test.js), so it decides.
+  if (least(manifold) > margin) return false;
+  shifted = false;
+  return true;
+}
+
+/**
+ * A kept manifold into `manifold`, where its bodies are now: its normal from
+ * axis[i..], in slot f's frame, and `count` points from point `at` of `local`
+ * and `ids`.
+ */
+function rebuild(world, a, b, f, axis, i, count, local, ids, at) {
+  const pos = world._position, A = world._axes, a3 = 3 * a, b3 = 3 * b, a9 = 9 * a, b9 = 9 * b, f9 = 9 * f;
+  const n = manifold.normal, lx = axis[i], ly = axis[i + 1], lz = axis[i + 2];
+  const nx = A[f9] * lx + A[f9 + 3] * ly + A[f9 + 6] * lz;
+  const ny = A[f9 + 1] * lx + A[f9 + 4] * ly + A[f9 + 7] * lz;
+  const nz = A[f9 + 2] * lx + A[f9 + 5] * ly + A[f9 + 8] * lz;
   n[0] = nx; n[1] = ny; n[2] = nz;
   // A round end's core, put back on its surface: a's toward b, b's toward a.
   const ra = rounded(world, a), rb = -rounded(world, b);
   manifold.count = count;
   for (let k = 0; k < count; k++) {
-    const o = 6 * (P * r + k), k3 = 3 * k;
+    const o = 6 * (at + k), k3 = 3 * k;
     const ax = local[o], ay = local[o + 1], az = local[o + 2], bx = local[o + 3], by = local[o + 4], bz = local[o + 5];
     const pax = pos[a3] + A[a9] * ax + A[a9 + 3] * ay + A[a9 + 6] * az + nx * ra;
     const pay = pos[a3 + 1] + A[a9 + 1] * ax + A[a9 + 4] * ay + A[a9 + 7] * az + ny * ra;
@@ -562,13 +588,8 @@ function reused(world, pairs, p, a, b, tolerance, margin) {
     } else {
       manifold.points[k3] = (pax + pbx) * 0.5; manifold.points[k3 + 1] = (pay + pby) * 0.5; manifold.points[k3 + 2] = (paz + pbz) * 0.5;
     }
-    manifold.ids[k] = pairs.cacheId[P * r + k];
+    manifold.ids[k] = ids[at + k];
   }
-  // Kept further apart than the margin: a fresh collide() might find nothing,
-  // and a contact must be one it could find (test/broadphase.test.js), so it decides.
-  if (least(manifold) > margin) return false;
-  shifted = false;
-  return true;
 }
 
 /**
@@ -578,16 +599,7 @@ function reused(world, pairs, p, a, b, tolerance, margin) {
  * (look()).
  */
 function keeps(world, pairs, p, a, b, tolerance) {
-  const r = pairs.cache[p] - 1, pose = pairs.cachePose, p7 = 7 * r;
-  const g = relative(world, a, b);
-  const ex = POSE[0] - pose[p7], ey = POSE[1] - pose[p7 + 1], ez = POSE[2] - pose[p7 + 2];
-  // The turn since, conj(then) ⊗ now: its vector part is sin(θ/2) along the axis, either way round.
-  const cx = -pose[p7 + 3], cy = -pose[p7 + 4], cz = -pose[p7 + 5], cw = pose[p7 + 6];
-  const rx = POSE[3], ry = POSE[4], rz = POSE[5], rw = POSE[6];
-  const ux = cw * rx + cx * rw + cy * rz - cz * ry;
-  const uy = cw * ry + cy * rw + cz * rx - cx * rz;
-  const uz = cw * rz + cz * rw + cx * ry - cy * rx;
-  const drift = Math.sqrt(ex * ex + ey * ey + ez * ez) + 2 * Math.sqrt(ux * ux + uy * uy + uz * uz) * world._reach[g];
+  const r = pairs.cache[p] - 1, drift = driftSince(world, a, b, pairs.cachePose, 7 * r);
   if (pairs.cacheLoss[r] + 2 * drift > tolerance) return false;
   // Not a jointed body's, as none freezes (see FREEZING in world.js): a
   // light limb rocks against its joints, and a kept manifold missed the
@@ -596,6 +608,19 @@ function keeps(world, pairs, p, a, b, tolerance) {
   if (world._jointHead[a] !== 0 || world._jointHead[b] !== 0) return false;
   // Touching after the last step, the first rule is enough (see REUSE).
   return pairs.touching[p] === 1 || drift + moving(world, a, b) <= tolerance;
+}
+
+/** How far a and b have drifted against each other since the pose at pose[p7..]: the most any point of the smaller has moved. */
+function driftSince(world, a, b, pose, p7) {
+  const g = relative(world, a, b);
+  const ex = POSE[0] - pose[p7], ey = POSE[1] - pose[p7 + 1], ez = POSE[2] - pose[p7 + 2];
+  // The turn since, conj(then) ⊗ now: its vector part is sin(θ/2) along the axis, either way round.
+  const cx = -pose[p7 + 3], cy = -pose[p7 + 4], cz = -pose[p7 + 5], cw = pose[p7 + 6];
+  const rx = POSE[3], ry = POSE[4], rz = POSE[5], rw = POSE[6];
+  const ux = cw * rx + cx * rw + cy * rz - cz * ry;
+  const uy = cw * ry + cy * rw + cz * rx - cx * rz;
+  const uz = cw * rz + cz * rw + cx * ry - cy * rx;
+  return Math.sqrt(ex * ex + ey * ey + ez * ez) + 2 * Math.sqrt(ux * ux + uy * uy + uz * uz) * world._reach[g];
 }
 
 /** Keeps the manifold just found for pair p, for reused(); not one found at the moment of impact. */
@@ -607,18 +632,35 @@ function remember(world, pairs, p, a, b) {
   const pose = pairs.cachePose, p7 = 7 * r;
   for (let k = 0; k < 7; k++) pose[p7 + k] = POSE[k];
   pairs.cacheLoss[r] = manifold.loss;
+  const n = manifold.normal;
+  holdEnds(world, a, b, manifold, n[0], n[1], n[2], a, pairs.cacheNormal, 3 * r, pairs.cacheLocal, pairs.cacheId, P * r);
+}
+
+/**
+ * Manifold mf, of normal (nx, ny, nz) from a to b, kept: that normal in slot
+ * f's frame at axis[i..], and each point's end on a and on b in their own
+ * frames, from point `at` of `local` and `ids`.
+ */
+function holdEnds(world, a, b, mf, nx, ny, nz, f, axis, i, local, ids, at) {
   // Into a body's frame: the transpose of its axes, each axis dotted in turn.
-  const pos = world._position, A = world._axes, a3 = 3 * a, b3 = 3 * b, a9 = 9 * a, b9 = 9 * b;
-  const n = manifold.normal, nx = n[0], ny = n[1], nz = n[2], ln = pairs.cacheNormal, p3 = 3 * r;
-  ln[p3] = A[a9] * nx + A[a9 + 1] * ny + A[a9 + 2] * nz;
-  ln[p3 + 1] = A[a9 + 3] * nx + A[a9 + 4] * ny + A[a9 + 5] * nz;
-  ln[p3 + 2] = A[a9 + 6] * nx + A[a9 + 7] * ny + A[a9 + 8] * nz;
-  const local = pairs.cacheLocal;
-  for (let k = 0; k < count; k++) {
-    const o = 6 * (P * r + k), k3 = 3 * k, half = 0.5 * manifold.separations[k];
-    const px = manifold.points[k3], py = manifold.points[k3 + 1], pz = manifold.points[k3 + 2];
-    const ax = px - nx * half - pos[a3], ay = py - ny * half - pos[a3 + 1], az = pz - nz * half - pos[a3 + 2];
-    const bx = px + nx * half - pos[b3], by = py + ny * half - pos[b3 + 1], bz = pz + nz * half - pos[b3 + 2];
+  const pos = world._position, A = world._axes, a3 = 3 * a, b3 = 3 * b, a9 = 9 * a, b9 = 9 * b, f9 = 9 * f;
+  axis[i] = A[f9] * nx + A[f9 + 1] * ny + A[f9 + 2] * nz;
+  axis[i + 1] = A[f9 + 3] * nx + A[f9 + 4] * ny + A[f9 + 5] * nz;
+  axis[i + 2] = A[f9 + 6] * nx + A[f9 + 7] * ny + A[f9 + 8] * nz;
+  // A round end goes down to its core along the normal, the way it came up
+  // from it (collide() and touch() put a capsule's point a radius along the
+  // normal from its segment), and only then onto the core (cored()). Put
+  // square onto the axis instead, a point whose normal leans along a capsule
+  // slid along it by r (n . axis), and rebuilt its depth was out by
+  // r (n . axis)²: a capsule lying across a peak of a mesh, leaning 11° to
+  // the slope beyond, read 3.5 mm into a triangle it was 10 mm clear of, and
+  // was kicked up every few steps for good.
+  const ra = rounded(world, a), rb = rounded(world, b);
+  for (let k = 0; k < mf.count; k++) {
+    const o = 6 * (at + k), k3 = 3 * k, half = 0.5 * mf.separations[k];
+    const px = mf.points[k3], py = mf.points[k3 + 1], pz = mf.points[k3 + 2], da = half + ra, db = half + rb;
+    const ax = px - nx * da - pos[a3], ay = py - ny * da - pos[a3 + 1], az = pz - nz * da - pos[a3 + 2];
+    const bx = px + nx * db - pos[b3], by = py + ny * db - pos[b3 + 1], bz = pz + nz * db - pos[b3 + 2];
     local[o] = A[a9] * ax + A[a9 + 1] * ay + A[a9 + 2] * az;
     local[o + 1] = A[a9 + 3] * ax + A[a9 + 4] * ay + A[a9 + 5] * az;
     local[o + 2] = A[a9 + 6] * ax + A[a9 + 7] * ay + A[a9 + 8] * az;
@@ -627,7 +669,7 @@ function remember(world, pairs, p, a, b) {
     local[o + 5] = A[b9 + 6] * bx + A[b9 + 7] * by + A[b9 + 8] * bz;
     cored(world, a, local, o);
     cored(world, b, local, o + 3);
-    pairs.cacheId[P * r + k] = manifold.ids[k];
+    ids[at + k] = mf.ids[k];
   }
 }
 
@@ -896,7 +938,8 @@ function level(world, pairs, p, a, b, next) {
   const parts = world._inner[o] instanceof Parts ? world._inner[o].list : null;
   // A mesh is a surface, with no thickness of its own: the tolerance is the other body's.
   const tolerance = world._size[o] * PIXEL, reach = world._motion;
-  const margin = reach[a] + reach[b] + tolerance;
+  const margin = reach[a] + reach[b] + tolerance, kept = pairs.memoryOf(p);
+  if (parts === null && levelKept(world, pairs, p, a, b, g, o, next, kept, tolerance, margin)) return;
   // The other body's box, already grown by its motion, into the mesh's
   // frame, and grown by the mesh's own motion: where its triangles can be met.
   const box = world._box, o6 = 6 * o, g3 = 3 * g, g9 = 9 * g, A = world._axes, pos = world._position;
@@ -909,7 +952,7 @@ function level(world, pairs, p, a, b, next) {
   const ex = Math.abs(A[g9]) * hx + Math.abs(A[g9 + 1]) * hy + Math.abs(A[g9 + 2]) * hz + reach[g];
   const ey = Math.abs(A[g9 + 3]) * hx + Math.abs(A[g9 + 4]) * hy + Math.abs(A[g9 + 5]) * hz + reach[g];
   const ez = Math.abs(A[g9 + 6]) * hx + Math.abs(A[g9 + 7]) * hy + Math.abs(A[g9 + 8]) * hz + reach[g];
-  const awake = world._awake, kept = pairs.memoryOf(p), rot = world._rotation;
+  const awake = world._awake, rot = world._rotation;
   kept.taken.fill(0, 0, kept.count);
   // Never carried back (impact() isn't asked of a mesh), so no shifts: left
   // as the last pair meet() saw had them, emit() gave this pair's points that
@@ -925,21 +968,69 @@ function level(world, pairs, p, a, b, next) {
     const part = parts === null ? -1 : i;
     for (let k = 0; k < n; k++) {
       // Normals come out from the other body; a pair's point from a to b.
-      const m = emit(world, next, p, a, b, touches.list[k], turned ? -1 : 1, tolerance, sub++,
+      const m = emit(world, next, p, a, b, touches.list[k], turned ? -1 : 1, tolerance, sub,
         turned ? -1 : part, turned ? part : -1, i);
-      let best = -1, most = 0;
-      for (let j = 0; j < kept.count; j++) {
-        if (kept.taken[j] || kept.key[j] !== i) continue;
-        const d = kept.normal[3 * j] * next.normal[3 * m] + kept.normal[3 * j + 1] * next.normal[3 * m + 1]
-          + kept.normal[3 * j + 2] * next.normal[3 * m + 2];
-        if (d > most) { most = d; best = j; }
+      if (parts === null) {
+        kept.holding(sub + 1);
+        kept.heldPoints[sub] = touches.list[k].count;
+        holdEnds(world, a, b, touches.list[k], next.normal[3 * m], next.normal[3 * m + 1], next.normal[3 * m + 2], g,
+          kept.axis, 3 * sub, kept.ends, kept.ids, P * sub);
       }
-      if (best < 0) continue;
-      kept.taken[best] = 1;
-      carry(kept, best, next, m);
+      sub++;
+      matched(kept, next, m, i);
     }
   }
   if (sub === 0) pairs.forget(p);
+  else if (parts === null) {
+    kept.held = sub;
+    relative(world, a, b);
+    for (let k = 0; k < 7; k++) kept.pose[k] = POSE[k];
+  }
+}
+
+/** Manifold m's impulses from the remembered manifold of its key nearest its direction. */
+function matched(kept, next, m, key) {
+  let best = -1, most = 0;
+  for (let j = 0; j < kept.count; j++) {
+    if (kept.taken[j] || kept.key[j] !== key) continue;
+    const d = kept.normal[3 * j] * next.normal[3 * m] + kept.normal[3 * j + 1] * next.normal[3 * m + 1]
+      + kept.normal[3 * j + 2] * next.normal[3 * m + 2];
+    if (d > most) { most = d; best = j; }
+  }
+  if (best < 0) return;
+  kept.taken[best] = 1;
+  carry(kept, best, next, m);
+}
+
+/**
+ * A mesh pair keeping its manifolds: REUSE, for each direction it is pushed
+ * along. Most of the time a pile settling on the ground spends on the ground
+ * goes to bodies that have barely moved: at 4 to 8 s, 87% of it on hills and
+ * 91% on a level's mesh, 24 to 27% of a step. The rule is REUSE's for a pair
+ * touching, 2 drift ≤ tolerance from the pose they were found at, a kept
+ * point off by no more than a fresh touch may be, and not for a jointed body
+ * for keeps()'s reason. Only a touching pair: one that isn't has its first
+ * touch to find. The normal is kept in the mesh's frame, since it is a
+ * triangle's. Not with parts, whose manifolds are each found for a part.
+ * Returns whether it did: if not, the pair is looked at afresh.
+ */
+function levelKept(world, pairs, p, a, b, g, o, next, kept, tolerance, margin) {
+  const held = kept.held;
+  if (held === 0 || pairs.touching[p] === 0 || world._jointHead[o] !== 0) return false;
+  if (2 * driftSince(world, a, b, kept.pose, 0) > tolerance) return false;
+  const before = next.count;
+  kept.taken.fill(0, 0, kept.count);
+  shifted = false;
+  for (let k = 0; k < held; k++) {
+    rebuild(world, a, b, g, kept.axis, 3 * k, kept.heldPoints[k], kept.ends, kept.ids, P * k);
+    if (least(manifold) > margin) {
+      next.count = before;
+      return false;
+    }
+    matched(kept, next, emit(world, next, p, a, b, manifold, 1, tolerance, k, -1, -1, 0), 0);
+  }
+  if (world._awake[a] !== world._awake[b]) world._wake(world._awake[a] ? b : a);
+  return true;
 }
 
 /**
@@ -1546,7 +1637,7 @@ export function turnedInertias(world) {
  * At the first substep the rotation is the one inertias() read, so this is
  * the same to the bit.
  */
-function turnedInverse(world, s, out, o) {
+export function turnedInverse(world, s, out, o) {
   axesOf(world._rotation, 4 * s, AXES, 0);
   inverseAt(world, s, AXES, 0, out, o);
 }

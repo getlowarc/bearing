@@ -43,6 +43,7 @@ import { Mesh, Heightfield } from './mesh.js';
 import { Hull } from './hull.js';
 import { Parts, Part } from './collide.js';
 import { COLOURS, DIGITS } from './graph.js';
+import { Softs, Soft } from './soft.js';
 
 /**
  * The layout of the data world.save() writes. 2 since milestone 16, when a
@@ -70,20 +71,25 @@ import { COLOURS, DIGITS } from './graph.js';
  * may be an ellipse (joints.js, the cone2, swing and facing columns): data of
  * format 12 has none. 14 since a character may push (World._pushForce):
  * data of format 13 has none. 15 since a body may be held on an axis
- * (World._lockMove): data of format 14 has none.
+ * (World._lockMove): data of format 14 has none. 16 since a mesh pair keeps
+ * its manifolds (pairs.js, Memory): data of format 15 has none. 17 since a
+ * body may be water (World._fluid, _flow, _fluidCount): data of format 16
+ * has none. 18 since a joint may be a wheel, with an axle (joints.js, the
+ * axle column): data of format 17 has none. 19 since a world holds soft
+ * bodies (World._softs, soft.js): data of format 18 has none.
  */
-export const FORMAT = 15;
+export const FORMAT = 19;
 
 /**
  * The version of Bearing this is, stamped into every save: package.json's,
  * which test/save.test.js holds it to, so a release can't change one alone.
  */
-export const VERSION = '1.3.4';
+export const VERSION = '1.4.0';
 
 /** The classes a world holds, by the name their objects are written under. */
-const CLASSES = { Slots, Broadphase, Tree, Pairs, Memory, Contacts, Joints, Forest, Events, Mesh, Heightfield, Hull, Parts, Part };
+const CLASSES = { Slots, Broadphase, Tree, Pairs, Memory, Contacts, Joints, Forest, Events, Mesh, Heightfield, Hull, Parts, Part, Softs, Soft };
 /** Those with more fields than V8 keeps fast when added by name, whose constructors take nothing they need (see load). */
-const NAMED = new Set(['Contacts', 'Pairs', 'Joints', 'Forest']);
+const NAMED = new Set(['Contacts', 'Pairs', 'Joints', 'Forest', 'Soft']);
 /** Typed arrays, by the short name their lists are written under. */
 const TYPED = {
   f64: Float64Array, f32: Float32Array, i32: Int32Array, u32: Uint32Array, i16: Int16Array, u16: Uint16Array,
@@ -109,6 +115,8 @@ const SCRATCH = {
   Pairs: new Set(['verdict']),
   Forest: new Set(['fresh', 'since', 'start', 'trees']),
   Joints: new Set(['kept', 'work', 'pose', 'union', 'label', 'of', 'starts', 'grouped', 'groups', 'drives']),
+  // A soft body's corners as each substep began, its volume's gradient, and how far each could reach: within a step only.
+  Soft: new Set(['prev', 'grad', 'near', 'anchors', 'pressed', 'pressedBy', 'blocked']),
 };
 
 /** The world as plain, JSON-safe data. */
@@ -219,6 +227,7 @@ export function load(data, World) {
       o.kept = new Float64Array(n); o.work = new Float64Array(n * KEEP);
       o.union = new Int32Array(2 * n); o.label = new Int32Array(2 * n); o.of = new Int32Array(n); o.starts = new Int32Array(2 * n); o.grouped = new Int32Array(n);
     }
+    for (const o of made) if (o instanceof Soft) { o.prev = new Float64Array(3 * o.n); o.grad = new Float64Array(3 * o.n); o.near = new Float64Array(o.n); o.anchors = new Float64Array(3 * o.attached); o.pressed = new Float64Array(6 * o.n); o.pressedBy = new Int32Array(2 * o.n); o.blocked = new Float64Array(2 * o.n); }
     for (const o of made) if (o instanceof Forest) { o.fresh = new Uint8Array(o.order.length); o.since = new Float64Array(o.body.length * 4); o.start = new Int32Array(o.order.length); }
     return made[0];
   } catch (e) {

@@ -85,7 +85,7 @@ test('the save holds every field of the world: a new one must change FORMAT and 
   assert.deepEqual(fields, [
     '_angular', '_angularDamping', '_awake', '_awakeCount', '_awakeList', '_axes', '_box', '_broadphase', '_calm',
     '_catchSteps', '_catches', '_caught', '_ceiling', '_characterCount', '_characterSteps', '_com', '_comGiven',
-    '_contacts', '_damping', '_density', '_destroyed', '_dims', '_drives', '_epoch', '_events', '_fast', '_force',
+    '_contacts', '_damping', '_density', '_destroyed', '_dims', '_drives', '_epoch', '_events', '_fast', '_floatSteps', '_flow', '_fluid', '_fluidCount', '_force',
     '_forced', '_forcedSlots', '_frame', '_framed', '_framedCount', '_friction', '_frozen', '_frozenCount',
     '_geometry', '_gravity', '_gravityScale', '_ground', '_groundAt', '_group', '_impacts', '_inAwake', '_inertia',
     '_inertiaGiven', '_inner', '_invI', '_invInertia', '_invMass', '_island', '_islandNext', '_islandSteps',
@@ -94,9 +94,9 @@ test('the save holds every field of the world: a new one must change FORMAT and 
     '_movedOut', '_movedStatics', '_node', '_offset', '_pairEpoch', '_pairs', '_parent', '_position', '_previous', '_pushForce',
     '_reach', '_rest', '_restitution', '_rotation', '_seen', '_seenMark', '_sensed', '_sensedCount',
     '_sensor', '_sensorCount', '_sensorPasses', '_shape', '_size', '_sleeping', '_slept', '_sleptCount', '_slopeCos',
-    '_slots', '_solverSteps', '_start', '_startQ', '_staticMoved', '_stepCount', '_stepDt', '_stepGiven', '_stepHeight',
+    '_slots', '_softSteps', '_softs', '_solverSteps', '_start', '_startQ', '_staticMoved', '_stepCount', '_stepDt', '_stepGiven', '_stepHeight',
     '_still', '_stillReady', '_strays', '_straysAt', '_straysEpoch', '_substeps', '_torque', '_transforms', '_tumbled',
-    '_type', '_velocity', '_wakePending', '_walk',
+    '_type', '_velocity', '_wakePending', '_walk', '_wetted',
   ]);
 });
 
@@ -106,7 +106,7 @@ test('load refuses what save() didn\'t write, data of another version or format,
   const data = new World().save();
   assert.equal(data.version, VERSION);
   assert.throws(() => World.load({ ...data, version: '9.9.9' }), /^Error: load: this data was saved by Bearing 9\.9\.9, and this is /);
-  assert.throws(() => World.load({ ...data, format: 0 }), /^Error: load: data is format 0; this Bearing reads format 15$/);
+  assert.throws(() => World.load({ ...data, format: 0 }), /^Error: load: data is format 0; this Bearing reads format 19$/);
   const damaged = JSON.parse(JSON.stringify(data));
   damaged.objects[0].f._slots = { r: 999 };
   assert.throws(() => World.load(damaged), /^Error: load: data is damaged: a link to object 999, of \d+$/);

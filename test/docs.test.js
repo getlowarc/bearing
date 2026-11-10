@@ -12,7 +12,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { World, Body, Joint, readGlb } from '../src/bearing.js';
+import { World, Body, Joint, SoftBody, readGlb, fracture } from '../src/bearing.js';
 import * as bearing from '../src/bearing.js';
 import { suite, test } from './test.js';
 
@@ -40,10 +40,10 @@ function statics(prefix, cls) {
     .map((name) => `${prefix}-${name.toLowerCase()}`);
 }
 
-const expected = ['world', 'readglb', ...surface('world', World), ...statics('world', World), ...surface('body', Body), ...surface('joint', Joint)];
+const expected = ['world', 'readglb', 'fracture', ...surface('world', World), ...statics('world', World), ...surface('body', Body), ...surface('joint', Joint), ...surface('softbody', SoftBody)];
 
-test('the package exports World, Body, Joint and readGlb, and nothing else', () => {
-  assert.deepEqual(Object.keys(bearing).sort(), ['Body', 'Joint', 'World', 'readGlb']);
+test('the package exports World, Body, Joint, SoftBody, readGlb and fracture, and nothing else', () => {
+  assert.deepEqual(Object.keys(bearing).sort(), ['Body', 'Joint', 'SoftBody', 'World', 'fracture', 'readGlb']);
 });
 
 test('every public method and getter has an entry', () => {
@@ -59,7 +59,7 @@ test('every type the package exports is named in the reference', () => {
 });
 
 test('every entry is for something that exists', () => {
-  const entries = [...API.matchAll(/<a id="((?:world|body|joint)-[^"]+|world|readglb)"><\/a>\s*\n###/g)].map((m) => m[1]);
+  const entries = [...API.matchAll(/<a id="((?:world|body|joint|softbody)-[^"]+|world|readglb|fracture)"><\/a>\s*\n###/g)].map((m) => m[1]);
   const stale = entries.filter((id) => !expected.includes(id));
   assert.deepEqual(stale, [], `entries for nothing: ${stale.join(', ')}`);
 });
@@ -131,7 +131,7 @@ test('every entry has its parts in order: heading, text, Throws if it throws, ex
  * Every ```js block runs, against the real package. Each gets the same
  * starting world, so an example can use `ball` or `crate` without making
  * them, and each runs in a fresh block, so one can't spoil the next. Import
- * lines are dropped: World and readGlb are passed in, and levelBytes is a
+ * lines are dropped: World, readGlb and fracture are passed in, and levelBytes is a
  * small .glb, a floor and a flight of stairs, for readGlb's examples.
  */
 const PREAMBLE = `
@@ -174,7 +174,7 @@ test('every example in the API reference and the README runs', () => {
   for (const code of all) {
     const body = code.split('\n').filter((line) => !line.startsWith('import ')).join('\n');
     try {
-      new Function('World', 'readGlb', 'makeLevel', 'console', `${PREAMBLE}\n{\n${body}\n}`)(World, readGlb, makeLevel, quiet);
+      new Function('World', 'readGlb', 'fracture', 'makeLevel', 'console', `${PREAMBLE}\n{\n${body}\n}`)(World, readGlb, fracture, makeLevel, quiet);
     } catch (e) {
       assert.fail(`this example throws ${e.message}:\n${code}`);
     }

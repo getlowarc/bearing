@@ -5,7 +5,9 @@
 // leaves one, turning about its axis; a slider one, moving along it; a ball
 // joint three, every turn about its point; a fixed joint none. A distance
 // joint takes away one, the gap between two points; a rotation joint three,
-// every turn, and leaves a's position entirely free.
+// every turn, and leaves a's position entirely free. A wheel joint leaves two:
+// sliding along its suspension, on a spring, and spinning about its axle
+// (WHEELS).
 //
 // ROWS. Each motion a joint forbids is a row: one number the solver drives to
 // zero, such as how fast two anchors part along x. A row has a Jacobian, the
@@ -64,14 +66,14 @@ import { Body } from './body.js';
 import { Forest, plant, factorForest, solveForest, inverseSPD, NODE } from './forest.js';
 import { PIXEL, WORK as CONTACT_WORK } from './contact.js';
 
-export const TYPES = ['fixed', 'ball', 'hinge', 'slider', 'distance', 'rotation'];
-const FIXED = 0, BALL = 1, HINGE = 2, SLIDER = 3, DISTANCE = 4;
+export const TYPES = ['fixed', 'ball', 'hinge', 'slider', 'distance', 'rotation', 'wheel'];
+const FIXED = 0, BALL = 1, HINGE = 2, SLIDER = 3, DISTANCE = 4, WHEEL = 6;
 /** A rotation joint's code: debug.js draws it, holding no point, its own way. */
 export const ROTATION = 5;
 const DYNAMIC = 0;   // World's type code
 const USED = 1;      // Slots' state for a slot in use
 
-const OPTIONS = ['type', 'a', 'b', 'anchor', 'anchorB', 'axis', 'min', 'max', 'length', 'cone', 'swing', 'target',
+const OPTIONS = ['type', 'a', 'b', 'anchor', 'anchorB', 'axis', 'axle', 'min', 'max', 'length', 'cone', 'swing', 'target',
   'motorSpeed', 'motorForce', 'frictionForce', 'frequency', 'dampingRatio', 'collide'];
 /** Options every joint has. */
 const SHARED = ['type', 'a', 'b', 'collide'];
@@ -84,6 +86,7 @@ const OWN = [
   ['anchor', 'anchorB', 'axis', 'min', 'max', 'motorSpeed', ...DRIVE],
   ['anchor', 'anchorB', 'length', 'min', 'max', 'frequency', 'dampingRatio'],
   ['axis', 'cone', 'swing', ...DRIVE],
+  ['anchor', 'anchorB', 'axis', 'axle', 'min', 'max', 'motorSpeed', 'motorForce', 'frictionForce', 'frequency', 'dampingRatio'],
 ];
 
 // What `given` records: whether min, max, anchorB, a target and swing were
@@ -107,6 +110,7 @@ const COLUMNS = [
   ['frameA', Float64Array, 4],    // the joint's axes in a's own frame, as a rotation of x to its axis
   ['frameB', Float64Array, 4],
   ['axis', Float64Array, 3],      // the axis as it was last given, world space, unit length: what jointOf reads back
+  ['axle', Float64Array, 3],      // a wheel's axle, the same way (WHEELS)
   ['min', Float64Array, 1],
   ['max', Float64Array, 1],
   ['given', Uint8Array, 1],
@@ -151,10 +155,12 @@ const COLUMNS = [
  * its pinned rows' share of its motor's push (5), that row's effective mass,
  * the hinge's angle and how many rows are pinned; or a ball or rotation
  * joint's error (3), its turning rows' coupling (9), whether that was
- * inverted, how many rows are pinned, their share (9) and the rows (27). The
+ * inverted, how many rows are pinned, their share (9), the rows (27), and each
+ * of its stops' axis and how far off it is (KEPT_TWIST, KEPT_CONE, 4 each). The
  * larger, 62, rounded up to a power of two.
  */
 export const KEEP = 64;
+const KEPT_TWIST = 50, KEPT_CONE = 54;
 
 /**
  * How much of a tree joint's error the solve pass asks back each substep:
@@ -181,7 +187,7 @@ export class Joints {
     // Every column named first, then made: an object given more than a dozen
     // fields by computed name becomes a dictionary (World's FAST PROPERTIES).
     this.type = null; this.a = null; this.b = null; this.localA = null; this.localB = null;
-    this.frameA = null; this.frameB = null; this.axis = null; this.min = null; this.max = null; this.given = null;
+    this.frameA = null; this.frameB = null; this.axis = null; this.axle = null; this.min = null; this.max = null; this.given = null;
     this.length = null; this.cone = null; this.cone2 = null; this.swing = null; this.facing = null; this.motorSpeed = null; this.motorForce = null;
     this.friction = null; this.frequency = null; this.dampingRatio = null; this.target = null;
     this.collide = null; this.next = null; this.impulse = null; this.force = null; this.torque = null; this.list = null;
@@ -331,6 +337,7 @@ export function addJoint(world, given) {
   const spec = settings(caller, type, o, DEFAULTS, between(anchor, anchorB));
   const collide = has('collide') ? flag(caller, 'collide', o.collide) : false;
   const swing = has('swing') && o.swing !== null ? across(caller, direction(caller, 'swing', o.swing), axis) : null;
+  const axle = type !== WHEEL ? null : has('axle') ? across(caller, direction(caller, 'axle', o.axle), axis, 'axle') : square(axis);
 
   const J = world._joints;
   const j = J.take(caller);
@@ -341,7 +348,8 @@ export function addJoint(world, given) {
   J.given[j] = spec.given | (has('anchorB') ? ANCHOR_B : 0);
   J.collide[j] = collide ? 1 : 0;
   place(world, j, anchor, anchorB, true, true);
-  orient(world, j, axis);
+  if (type === WHEEL) wheel(world, J, j, axis, axle);
+  else orient(world, j, axis);
   J.axis.set(axis, 3 * j);
   if (type === BALL || type === ROTATION) face(world, J, j, swing);
   link(world, j, a, 0);
@@ -373,10 +381,19 @@ export function setJoint(world, joint, changes) {
   let anchor = has('anchor') ? vec3(caller, 'anchor', o.anchor) : null;
   let anchorB = has('anchorB') ? vec3(caller, 'anchorB', o.anchorB) : null;
   let axis = has('axis') ? direction(caller, 'axis', o.axis) : null;
+  let axle = has('axle') ? direction(caller, 'axle', o.axle) : null;
   const named = anchorB !== null;
   if (anchor !== null && equal(anchor, worldAnchor(world, j, 0), 0)) anchor = null;
   if (anchorB !== null && equal(anchorB, worldAnchor(world, j, 1), 0)) anchorB = null;
   if (axis !== null && equal(axis, J.axis, 3 * j)) axis = null;
+  if (axle !== null && was === WHEEL && equal(axle, J.axle, 3 * j)) axle = null;
+  // A wheel's axis and axle as they will be, checked against each other: a
+  // new wheel's axle square to its axis unless given.
+  let wheelAxis = null, wheelAxle = null;
+  if (type === WHEEL && (type !== was || axis !== null || axle !== null)) {
+    wheelAxis = axis ?? [J.axis[3 * j], J.axis[3 * j + 1], J.axis[3 * j + 2]];
+    wheelAxle = across(caller, axle ?? (was === WHEEL ? [J.axle[3 * j], J.axle[3 * j + 1], J.axle[3 * j + 2]] : square(wheelAxis)), wheelAxis, 'axle');
+  }
   // A new type starts from its own defaults, as a new shape does; the anchors,
   // axis and collide carry over. A new distance joint is as long as its two
   // ends are apart now.
@@ -405,6 +422,8 @@ export function setJoint(world, joint, changes) {
   // Everything checked: now written. What a change of shape or stop makes of
   // the impulses the joint remembers is no longer known, so they start over.
   const limits = spec.min !== base.min || spec.max !== base.max || (spec.given & (MIN | MAX)) !== (base.given & (MIN | MAX)) || spec.cone !== base.cone || spec.cone2 !== base.cone2;
+  // A wheel steered keeps what it held: its axle turns every frame a car is
+  // steered, and started from nothing each time its suspension would sag.
   if (type !== was || anchor || anchorB || axis) J.impulse.fill(0, j * IMPULSES, j * IMPULSES + IMPULSES);
   else if (limits) { const i = j * IMPULSES; J.impulse[i + LOWER] = 0; J.impulse[i + UPPER] = 0; J.impulse[i + CONE] = 0; }
   J.type[j] = type;
@@ -422,9 +441,14 @@ export function setJoint(world, joint, changes) {
   }
   J.given[j] = spec.given | (J.given[j] & ANCHOR_B) | (named ? ANCHOR_B : 0);
   if (anchor || anchorB) place(world, j, ends[0], ends[1], anchor !== null || anchorB === null, true);
-  if (axis) {
-    orient(world, j, axis);
-    J.axis.set(axis, 3 * j);
+  if (wheelAxis !== null) {
+    wheel(world, J, j, wheelAxis, wheelAxle);
+    J.axis.set(wheelAxis, 3 * j);
+  } else if (axis || (type !== was && was === WHEEL)) {
+    // A wheel's frames carry its axle, not its axis: made anything else, it is turned to its axis again.
+    const v = axis ?? [J.axis[3 * j], J.axis[3 * j + 1], J.axis[3 * j + 2]];
+    orient(world, j, v);
+    J.axis.set(v, 3 * j);
   }
   if (refaced) face(world, J, j, swing);
   else if (swing !== null) J.given[j] |= SWING;
@@ -447,6 +471,7 @@ export function jointOf(world, j) {
   // The axis as given, not worked out again from how the bodies are turned,
   // which would read it back a rounding off and make it look changed.
   if (type !== FIXED && type !== DISTANCE) out.axis = [J.axis[3 * j], J.axis[3 * j + 1], J.axis[3 * j + 2]];
+  if (type === WHEEL) out.axle = [J.axle[3 * j], J.axle[3 * j + 1], J.axle[3 * j + 2]];
   if (type === DISTANCE) out.length = s.length;
   // Not given reads back as null, which addJoint and setJoint take as the default.
   if (type !== FIXED && type !== ROTATION) {
@@ -457,8 +482,8 @@ export function jointOf(world, j) {
     out.cone = s.cone === s.cone2 ? s.cone : [s.cone, s.cone2];
     out.swing = (J.given[j] & SWING) !== 0 ? [J.swing[3 * j], J.swing[3 * j + 1], J.swing[3 * j + 2]] : null;
   }
-  if (type !== FIXED && type !== DISTANCE) out.target = s.target;
-  if (type === HINGE || type === SLIDER) out.motorSpeed = s.motorSpeed;
+  if (type !== FIXED && type !== DISTANCE && type !== WHEEL) out.target = s.target;
+  if (type === HINGE || type === SLIDER || type === WHEEL) out.motorSpeed = s.motorSpeed;
   if (type !== FIXED && type !== DISTANCE) { out.motorForce = s.motorForce; out.frictionForce = s.frictionForce; }
   if (type !== FIXED) { out.frequency = s.frequency; out.dampingRatio = s.dampingRatio; }
   out.collide = J.collide[j] === 1;
@@ -602,7 +627,7 @@ function bound(caller, type, name, v) {
     if (typeof v !== 'number' || !(v === none || (v >= -Math.PI && v <= Math.PI))) {
       fail(caller, `${name} must be from -π to π, in radians, or ${none}, got ${show(v)}`);
     }
-  } else if (type === SLIDER) {
+  } else if (type === SLIDER || type === WHEEL) {
     if (typeof v !== 'number' || v !== v || v === -none) fail(caller, `${name} must be a number or ${none}, got ${show(v)}`);
   } else if (typeof v !== 'number' || !(v >= 0) || v === -none) {
     fail(caller, name === 'min' ? `min must be 0 or more, got ${show(v)}` : `max must be 0 or more, or Infinity, got ${show(v)}`);
@@ -630,12 +655,12 @@ function high(type, given, max, length, frequency) {
  * means, and along it, it names no way round. Lost as twistAxis() calls a
  * turn lost, within 2^-20 of its length squared.
  */
-function across(caller, swing, axis) {
+function across(caller, swing, axis, name = 'swing') {
   const l2 = axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2];
   const d = (swing[0] * axis[0] + swing[1] * axis[1] + swing[2] * axis[2]) / l2;
   const x = swing[0] - d * axis[0], y = swing[1] - d * axis[1], z = swing[2] - d * axis[2];
   if (!(x * x + y * y + z * z > TWIST_LOST * (swing[0] * swing[0] + swing[1] * swing[1] + swing[2] * swing[2]))) {
-    fail(caller, `swing must be at an angle to axis, got ${show(swing)}`);
+    fail(caller, `${name} must be at an angle to axis, got ${show(swing)}`);
   }
   return swing;
 }
@@ -667,6 +692,28 @@ function face(world, J, j, swing) {
     J.given[j] |= SWING;
   }
   const y = s[0] * Y2[0] + s[1] * Y2[1] + s[2] * Y2[2], z = s[0] * Z2[0] + s[1] * Z2[1] + s[2] * Z2[2];
+  const l = Math.sqrt(y * y + z * z);
+  J.facing[2 * j] = y / l;
+  J.facing[2 * j + 1] = z / l;
+}
+
+/** The world's x, y or z most at right angles to v (the first on a tie): face()'s default, and a wheel's axle's. */
+function square(v) {
+  const m0 = Math.abs(v[0]), m1 = Math.abs(v[1]), m2 = Math.abs(v[2]);
+  return m0 <= m1 && m0 <= m2 ? [1, 0, 0] : m1 <= m2 ? [0, 1, 0] : [0, 0, 1];
+}
+
+/**
+ * Sets wheel joint j's frames: its axle as each body's joint x, as a hinge's
+ * axis is, and its suspension `axis` made square to the axle and kept in b's
+ * frame of the joint, as a cone's swing is (face()), so it turns with the
+ * chassis and not with the spinning wheel.
+ */
+function wheel(world, J, j, axis, axle) {
+  orient(world, j, axle);
+  J.axle.set(axle, 3 * j);
+  worldAxis(world, j);
+  const y = axis[0] * Y2[0] + axis[1] * Y2[1] + axis[2] * Y2[2], z = axis[0] * Z2[0] + axis[1] * Z2[1] + axis[2] * Z2[2];
   const l = Math.sqrt(y * y + z * z);
   J.facing[2 * j] = y / l;
   J.facing[2 * j + 1] = z / l;
@@ -912,6 +959,23 @@ function warmJoints(world, J, from, to, h) {
       angles(acc, o + ANG);
       slide(0);
       apply(0, acc[o + MOTOR] + acc[o + LOWER] - acc[o + UPPER]);
+    } else if (type === WHEEL) {
+      frames(world, j);
+      wheelAxes(J, j);
+      // What holds the axle in line and the wheel on its track is kept square
+      // to what each leaves free, as the bodies turn: flatten()'s reason.
+      flatten(acc, o + ANG);
+      along1(acc, o + LIN, WS);
+      for (let k = 0; k < 3; k++) {
+        onLine(9 * k, UNIT[k]);
+        apply(9 * k, acc[o + LIN + k]);
+      }
+      angles(acc, o + ANG);
+      onLine(0, WS);
+      negate(0);
+      apply(0, acc[o + AXIAL] + acc[o + LOWER] - acc[o + UPPER]);
+      axle(0);
+      apply(0, acc[o + MOTOR]);
     } else if (type === DISTANCE) {
       if (stretch(0) > 0) apply(0, acc[o + AXIAL] + acc[o + LOWER] - acc[o + UPPER]);
     } else if (type === ROTATION) {
@@ -1059,7 +1123,8 @@ function solveRange(world, J, from, to, h, bias, keep) {
     const keeps = keeping(J, j, type, held);
     const recall = keeps && bias && kept[j] === pose;
     const store = keeps && keep;
-    if (held && (type === BALL || type === HINGE) && !gives(J, j)) {
+    const lazy = held && (type === BALL || type === HINGE) && !gives(J, j);
+    if (lazy) {
       speeds(world, j);
       waiting = world;
       waitingJoint = j;
@@ -1085,19 +1150,26 @@ function solveRange(world, J, from, to, h, bias, keep) {
           turnDrive(world, J, j, most * h, h, bias, acc, o, turned(world, J, j, true, recall, store));
         } else if (most > 0) ballFriction(most * h, acc, o, turned(world, J, j, false, recall, store));
         if (swings(J, j)) {
-          if (!aims) frames(world, j);
-          twistLimits(J, j, acc, o, h, bias);
-          if (coned(J, j)) coneLimit(J, j, acc, o, h, bias);
+          if (!aims && !recall) frames(world, j);
+          if (recall && !lazy) unpinned(world, j);
+          twistLimits(J, j, acc, o, h, bias, recall, store);
+          if (coned(J, j)) coneLimit(J, j, acc, o, h, bias, recall, store);
         }
         if (!held) holdPoint(acc, o, bias);
         break;
       }
       case HINGE:
         if (keeps) {
-          // In a tree, with a motor or friction and no stops: its kept work
-          // (hinged()) is all its pass needs.
-          hinged(world, J, j, recall, store);
-          driven(world, j, h, acc, o, bias, true);
+          // In a tree: its kept work is all its pass needs.
+          if (lazy) stopped(world, J, j, recall, store);
+          else {
+            hinged(world, J, j, recall, store);
+            driven(world, j, h, acc, o, bias, true);
+          }
+          if (limited(J, j)) {
+            if (recall && !lazy) unpinned(world, j);
+            hingeLimits(J, j, HINGED[1], acc, o, h, bias);
+          }
           break;
         }
         frames(world, j);
@@ -1105,7 +1177,10 @@ function solveRange(world, J, from, to, h, bias, keep) {
           axle(0);
           driven(world, j, h, acc, o, bias, false);
         }
-        hingeLimits(J, j, acc, o, h, bias);
+        if (limited(J, j)) {
+          axle(0);
+          hingeLimits(J, j, twist(), acc, o, h, bias);
+        }
         if (!held) {
           holdAxis(acc, o, bias);
           holdPoint(acc, o, bias);
@@ -1130,17 +1205,29 @@ function solveRange(world, J, from, to, h, bias, keep) {
           const most = J.motorForce[j] > 0 ? J.motorForce[j] : J.friction[j];
           if (aimed(J, j)) turnDrive(world, J, j, most * h, h, bias, acc, o, turned(world, J, j, true, recall, store));
           else ballFriction(most * h, acc, o, turned(world, J, j, false, recall, store));
-          if (coned(J, j)) coneLimit(J, j, acc, o, h, bias);
+          if (coned(J, j)) coneLimit(J, j, acc, o, h, bias, recall, store);
         } else {
           holdAngles(acc, o, bias);
         }
         break;
+      case WHEEL:
+        frames(world, j);
+        wheelAxes(J, j);
+        suspension(J, j, acc, o, h, bias);
+        if (J.motorForce[j] > 0 || J.friction[j] > 0) {
+          axle(0);
+          driven(world, j, h, acc, o, bias, false);
+        }
+        holdAxis(acc, o, bias);
+        holdTrack(acc, o, bias);
+        break;
       default:
         distance(J, j, acc, o, h, bias, held);
     }
+    if (store) kept[j] = pose;
     // No stop reached: nothing pushed, so nothing to write back or count.
-    if (waiting !== null) waiting = null;
-    else save(world, j);
+    if (waiting === null || !lazy) save(world, j);
+    waiting = null;
   }
 }
 
@@ -1151,6 +1238,8 @@ function solveRange(world, J, from, to, h, bias, keep) {
  */
 function holds(J, j) {
   if (J.type[j] === ROTATION) return !gives(J, j);
+  // Solved one at a time, as a loop is (WHEELS): never in a tree.
+  if (J.type[j] === WHEEL) return false;
   if (J.type[j] !== DISTANCE) return true;
   const f = J.frequency[j], length = J.length[j];
   return low(DISTANCE, J.given[j], J.min[j], length, f) === high(DISTANCE, J.given[j], J.max[j], length, f);
@@ -1162,8 +1251,13 @@ function holds(J, j) {
  */
 function idle(J, j, type) {
   if (type === BALL) return !gives(J, j) && !swings(J, j);
-  if (type === HINGE) return !gives(J, j) && (J.given[j] & (MIN | MAX)) === 0;
+  if (type === HINGE) return !gives(J, j) && !limited(J, j);
   return false;
+}
+
+/** Whether a hinge has a stop. */
+function limited(J, j) {
+  return (J.given[j] & (MIN | MAX)) !== 0;
 }
 
 // KEPT WORK. Only World._move moves the bodies within a step, and it runs
@@ -1177,18 +1271,48 @@ function idle(J, j, type) {
 // is done 9 times, not 16. J.pose numbers the poses (World.step moves it on
 // as the step begins and after each move), and J.kept is the pose a joint's
 // work was kept at, so nothing kept at another pose, or in another step, is
-// ever read. Kept for the joints whose pass is then all velocity work: a
-// ball joint in a tree with a drive or friction and no stops, a rotation
-// joint with a drive or friction and no cone, and a hinge in a tree with a
-// motor, drive or friction and no stops. The rest work it out every pass, as
-// before. The same operations either way, so the same bits.
+// ever read. Kept for the joints whose pass is then all velocity work: ball
+// joints and hinges in a tree, and rotation joints with a drive or friction.
+// A stop's row and how far off it is are pose alone too: a driven joint with
+// stops worked all this out 16 times a step, and 100 driven ragdolls with
+// stops spent 56% of a step here. The rest work it out every pass, as before.
+// The same operations either way, so the same bits.
 
 /** Whether joint slot j keeps its work (KEPT WORK). */
 function keeping(J, j, type, held) {
-  if (type === BALL) return held && gives(J, j) && !swings(J, j);
-  if (type === ROTATION) return gives(J, j) && !coned(J, j);
-  if (type === HINGE) return held && gives(J, j) && (J.given[j] & (MIN | MAX)) === 0;
-  return false;
+  if (type === ROTATION) return gives(J, j);
+  return held && (type === BALL || type === HINGE);
+}
+
+/**
+ * Called on a joint whose drive was read back from kept work, before its
+ * stops: most stops aren't reached, so the anchors and pinned rows a stop would
+ * want stay unread until one is (WAITING). The drive pushed whatever happens,
+ * so the pass still writes back. A rotation joint pins nothing.
+ */
+function unpinned(world, j) {
+  if (pinType === ROTATION) return;
+  waiting = world;
+  waitingJoint = j;
+  pins = -1;
+}
+
+/**
+ * A hinge with stops and no motor or friction: its axis and angle, read back
+ * if `recall`, kept if `store`; into A1 and HINGED[1], and row 0. The rest of
+ * its frames are put off (WAITING).
+ */
+function stopped(world, J, j, recall, store) {
+  const work = J.work, w = KEEP * j;
+  if (recall) {
+    A1[0] = work[w]; A1[1] = work[w + 1]; A1[2] = work[w + 2];
+    HINGED[1] = work[w + 3];
+  } else {
+    frames(world, j);
+    HINGED[1] = twist();
+    if (store) { work[w] = A1[0]; work[w + 1] = A1[1]; work[w + 2] = A1[2]; work[w + 3] = HINGED[1]; }
+  }
+  axle(0);
 }
 
 /**
@@ -1217,7 +1341,6 @@ function turned(world, J, j, aims, recall, store) {
     work[w + 13] = pins;
     for (let k = 0; k < 9; k++) work[w + 14 + k] = SHARE[k];
     for (let k = 0, n = 9 * pins; k < n; k++) work[w + 23 + k] = ROWS[9 + k];
-    J.kept[j] = J.pose;
   }
   return inverted;
 }
@@ -1225,8 +1348,8 @@ function turned(world, J, j, aims, recall, store) {
 /**
  * A hinge's motor row (axle()), its pinned rows (pin()), that row's effective
  * mass with them holding and their share of its push (free()), and its angle
- * if it has a target (twist()), into ROWS, MU and HINGED; read back if
- * `recall`, kept if `store`.
+ * if it has a target or stops (twist()), into ROWS, MU and HINGED; read back
+ * if `recall`, kept if `store`.
  */
 function hinged(world, J, j, recall, store) {
   const work = J.work, w = KEEP * j;
@@ -1243,14 +1366,13 @@ function hinged(world, J, j, recall, store) {
   axle(0);
   pin(HINGE);
   HINGED[0] = free(0);
-  HINGED[1] = (J.given[j] & TARGET) !== 0 && J.motorForce[j] > 0 ? twist() : 0;
+  HINGED[1] = limited(J, j) || ((J.given[j] & TARGET) !== 0 && J.motorForce[j] > 0) ? twist() : 0;
   if (store) {
     for (let k = 0; k < 54; k++) work[w + k] = ROWS[k];
     for (let k = 0; k < 5; k++) work[w + 54 + k] = MU[k];
     work[w + 59] = HINGED[0];
     work[w + 60] = HINGED[1];
     work[w + 61] = pins;
-    J.kept[j] = J.pose;
   }
 }
 /** hinged()'s effective mass of the motor row, and the hinge's angle. */
@@ -1539,6 +1661,8 @@ function ready() {
   waiting = null;
   masses(world, waitingJoint);
   geometry(world, waitingJoint);
+  // pin()'s rows want a hinge's whole frame; a kept pass has only its axis.
+  if (pinType === HINGE) frames(world, waitingJoint);
 }
 
 /**
@@ -2004,6 +2128,85 @@ function soft(bias) {
 }
 const RIGID = { biasRate: 0, massScale: 1, impulseScale: 0 };
 
+// WHEELS. A wheel joint holds a wheel to a chassis, Box2D's wheel joint in 3D:
+// the wheel's anchor stays on a line through the chassis's, along `axis`, its
+// suspension, and its axle stays in line with the chassis's, as a hinge's.
+// Left free are sliding along the line, held toward where it was built by a
+// spring (frequency and dampingRatio, the distance spring's) between min and
+// max, and spinning about the axle, driven by its motor. The line is the
+// chassis's, not the wheel's: a slider's line turns with a, but a wheel spins.
+// Steered, its axle turns with setJoint. Its rows are solved one joint at a
+// time, as a loop's are, so a car's four wheels are never a tree: a wheel's
+// axle and track then give as a loop's do, measured (test/joints.test.js).
+
+/** A wheel's suspension, on b, and the two ways across it, into WS, WT1 (the axle) and WT2. frames() first. */
+function wheelAxes(J, j) {
+  axes(QB, X2, Y2, Z2);
+  const fy = J.facing[2 * j], fz = J.facing[2 * j + 1];
+  WS[0] = fy * Y2[0] + fz * Z2[0]; WS[1] = fy * Y2[1] + fz * Z2[1]; WS[2] = fy * Y2[2] + fz * Z2[2];
+  WT1[0] = X2[0]; WT1[1] = X2[1]; WT1[2] = X2[2];
+  WT2[0] = WS[1] * X2[2] - WS[2] * X2[1]; WT2[1] = WS[2] * X2[0] - WS[0] * X2[2]; WT2[2] = WS[0] * X2[1] - WS[1] * X2[0];
+}
+const WS = new Float64Array(3), WT1 = new Float64Array(3), WT2 = new Float64Array(3);
+const UNIT = [new Float64Array([1, 0, 0]), new Float64Array([0, 1, 0]), new Float64Array([0, 0, 1])];
+
+/**
+ * Row o: how fast the gap between the anchors grows along unit u, u carried
+ * by b: d(D·u)/dt, b's lever reaching a's anchor (RB - D), as a slider's a
+ * reaches b's (lever()).
+ */
+function onLine(o, u) {
+  const ux = u[0], uy = u[1], uz = u[2];
+  ROWS[o] = ux; ROWS[o + 1] = uy; ROWS[o + 2] = uz;
+  ROWS[o + 3] = RA[1] * uz - RA[2] * uy; ROWS[o + 4] = RA[2] * ux - RA[0] * uz; ROWS[o + 5] = RA[0] * uy - RA[1] * ux;
+  const bx = RB[0] - D[0], by = RB[1] - D[1], bz = RB[2] - D[2];
+  ROWS[o + 6] = by * uz - bz * uy; ROWS[o + 7] = bz * ux - bx * uz; ROWS[o + 8] = bx * uy - by * ux;
+}
+
+/** Takes out of the world vector at acc[i..] its part along unit u: flatten()'s, for any u. */
+function along1(acc, i, u) {
+  const d = acc[i] * u[0] + acc[i + 1] * u[1] + acc[i + 2] * u[2];
+  acc[i] -= d * u[0]; acc[i + 1] -= d * u[1]; acc[i + 2] -= d * u[2];
+}
+
+/**
+ * A wheel's suspension at row 0: a's anchor along the line from b's, x, held
+ * to where it was built by its spring, or stiffly with none, and between its
+ * stops. Pinned to the rows that hold the wheel in line (free()), as a
+ * slider's motor is.
+ */
+function suspension(J, j, acc, o, h, bias) {
+  onLine(0, WS);
+  negate(0);
+  const x = -(D[0] * WS[0] + D[1] * WS[1] + D[2] * WS[2]), k = o + AXIAL, f = J.frequency[j];
+  let l;
+  if (f > 0) {
+    makeSpring(f, J.dampingRatio[j], h);
+    l = -free(0) * spring.massScale * (speed(0) + spring.biasRate * x) - spring.impulseScale * acc[k];
+  } else {
+    const s = soft(bias);
+    l = -free(0) * s.massScale * (speed(0) + s.biasRate * capped(x)) - s.impulseScale * acc[k];
+  }
+  acc[k] += l;
+  pinned(0, l, acc);
+  const lo = low(WHEEL, J.given[j], J.min[j], 0, 0), hi = high(WHEEL, J.given[j], J.max[j], 0, 0);
+  if (lo > -Infinity) stop(0, x - lo, 1, acc, o + LOWER, h, bias);
+  if (hi < Infinity) stop(0, hi - x, -1, acc, o + UPPER, h, bias);
+}
+
+/** A wheel's anchor held on b's line: no motion across it, along the axle or WT2. */
+function holdTrack(acc, o, bias) {
+  onLine(0, WT1);
+  onLine(9, WT2);
+  C[0] = (D[0] * WT1[0] + D[1] * WT1[1] + D[2] * WT1[2]) * tear;
+  C[1] = (D[0] * WT2[0] + D[1] * WT2[1] + D[2] * WT2[2]) * tear;
+  ACC[0] = acc[o + LIN] * WT1[0] + acc[o + LIN + 1] * WT1[1] + acc[o + LIN + 2] * WT1[2];
+  ACC[1] = acc[o + LIN] * WT2[0] + acc[o + LIN + 1] * WT2[1] + acc[o + LIN + 2] * WT2[2];
+  const s = soft(bias);
+  block(2, s.biasRate, s.massScale, s.impulseScale);
+  for (let k = 0; k < 3; k++) acc[o + LIN + k] += LAMBDA[0] * WT1[k] + LAMBDA[1] * WT2[k];
+}
+
 /** The anchors held together: a ball joint, and the point of a hinge or fixed joint. */
 function holdPoint(acc, o, bias) {
   for (let k = 0; k < 3; k++) {
@@ -2367,6 +2570,12 @@ function pin(type) {
     along(36, P1, LEVER); KIND[3] = LINE1;
     along(45, P2, LEVER); KIND[4] = LINE2;
     pins = 5;
+  } else if (type === WHEEL) {
+    turning(9, P1); KIND[0] = AXIS1;
+    turning(18, P2); KIND[1] = AXIS2;
+    onLine(27, WT1); KIND[2] = LINE1;
+    onLine(36, WT2); KIND[3] = LINE2;
+    pins = 4;
   } else {
     for (let k = 0; k < 3; k++) { point(9 + 9 * k, k); KIND[k] = PT + k; }
     pins = 3;
@@ -2417,27 +2626,50 @@ function twist() {
   return -2 * atan2(REL[0], REL[3]);
 }
 
-function hingeLimits(J, j, acc, o, h, bias) {
+/** A hinge's stops, against `angle` along row 0 (axle()). */
+function hingeLimits(J, j, angle, acc, o, h, bias) {
   const lo = low(HINGE, J.given[j], J.min[j], 0, 0), hi = high(HINGE, J.given[j], J.max[j], 0, 0);
-  if (lo === -Infinity && hi === Infinity) return;
-  const angle = twist();
-  axle(0);
   if (lo > -Infinity) stop(0, angle - lo, 1, acc, o + LOWER, h, bias);
   if (hi < Infinity) stop(0, hi - angle, -1, acc, o + UPPER, h, bias);
 }
 
-function twistLimits(J, j, acc, o, h, bias) {
+function twistLimits(J, j, acc, o, h, bias, recall, store) {
   const lo = low(BALL, J.given[j], J.min[j], 0, 0), hi = high(BALL, J.given[j], J.max[j], 0, 0);
   if (lo === -Infinity && hi === Infinity) return;
-  if (!twistAxis(0)) return;
-  const angle = twist();
+  const work = J.work, w = KEEP * j + KEPT_TWIST;
+  let angle;
+  if (recall) {
+    // NaN: no axis to measure it about at this pose, as twistAxis() found.
+    angle = work[w];
+    if (angle !== angle) return;
+    V3[0] = work[w + 1]; V3[1] = work[w + 2]; V3[2] = work[w + 3];
+    turning(0, V3);
+    negate(0);
+  } else {
+    const found = twistAxis(0);
+    angle = found ? twist() : NaN;
+    if (store) { work[w] = angle; work[w + 1] = V3[0]; work[w + 2] = V3[1]; work[w + 3] = V3[2]; }
+    if (!found) return;
+  }
   if (lo > -Infinity) stop(0, angle - lo, 1, acc, o + LOWER, h, bias);
   if (hi < Infinity) stop(0, hi - angle, -1, acc, o + UPPER, h, bias);
 }
 
-function coneLimit(J, j, acc, o, h, bias) {
-  const c = coneRow(J, j);
-  if (!Number.isNaN(c)) stop(0, c, -1, acc, o + CONE, h, bias);
+function coneLimit(J, j, acc, o, h, bias, recall, store) {
+  const work = J.work, w = KEEP * j + KEPT_CONE;
+  let c;
+  if (recall) {
+    c = work[w];
+    if (c !== c) return;
+    V3[0] = work[w + 1]; V3[1] = work[w + 2]; V3[2] = work[w + 3];
+    turning(0, V3);
+  } else {
+    c = coneRow(J, j);
+    // The row, not V3: exactly opposed, coneAxis() took P1.
+    if (store) { work[w] = c; work[w + 1] = ROWS[3]; work[w + 2] = ROWS[4]; work[w + 3] = ROWS[5]; }
+    if (c !== c) return;
+  }
+  stop(0, c, -1, acc, o + CONE, h, bias);
 }
 
 /**

@@ -52,6 +52,8 @@ import { cos, sin, atan2, quatMultiply, axesOf } from './core/math.js';
 import { Mesh, Heightfield } from './mesh.js';
 import { save, load } from './save.js';
 import { debugLines } from './debug.js';
+import { float } from './fluid.js';
+import { Softs, SoftBody, addSoftBody, setSoftBody, softBodyOf, softSlot, dropSoft, bodyRemoved, bodySet, findSoft, stepSoft, endSoft, wakeSofts } from './soft.js';
 
 const TYPES = ['dynamic', 'static', 'kinematic', 'character'];
 const DYNAMIC = 0, STATIC = 1, KINEMATIC = 2;   // and CHARACTER, 3, from character.js
@@ -150,7 +152,7 @@ const DAMPING_RATIO = 10;
 // slowly than 2 tolerance / SLEEP_TIME², 0.01 m/s² for a 1 m box, strays less
 // than a pixel in it and can fall asleep before it moves, such as a box on a
 // slope within 0.05° of its friction angle.
-const SLEEP_TIME = 1;
+export const SLEEP_TIME = 1;
 // _freeze's bits in _calm (see FREEZING): still for SLEEP_TIME; that, and
 // everything it touches too; that, and everything it touches quiet; and set
 // by hand since the step before, which keeps it from the first; and, at a
@@ -190,7 +192,7 @@ const BODY_OPTIONS = [
   'type', 'shape', 'size', 'radius', 'height', 'vertices', 'indices', 'heights', 'columns', 'spacing', 'parts',
   'density', 'mass', 'inertia', 'centerOfMass',
   'friction', 'restitution', 'damping', 'angularDamping', 'gravityScale', 'layers', 'mask', 'group', 'sensor',
-  'lockRotation', 'lockPosition', 'maxSlope', 'stepHeight', 'pushForce',
+  'fluid', 'flow', 'lockRotation', 'lockPosition', 'maxSlope', 'stepHeight', 'pushForce',
   'position', 'rotation', 'velocity', 'angularVelocity',
 ];
 
@@ -211,7 +213,7 @@ const DEFAULTS = Object.freeze({
   friction: 0.5, restitution: 0, damping: 0, angularDamping: 0, gravityScale: 1,
   // In the first layer, and colliding with all 32: everything collides with
   // everything until told otherwise (rule 110).
-  layers: 1, mask: 0xffffffff, group: 0, sensor: false, lockRotation: [false, false, false], lockPosition: [false, false, false],
+  layers: 1, mask: 0xffffffff, group: 0, sensor: false, fluid: false, flow: [0, 0, 0], lockRotation: [false, false, false], lockPosition: [false, false, false],
   // A character walks up ground as steep as friction 1 can hold, 45°: about
   // where walking turns into climbing, and Unity's, Godot's, Rapier's and
   // PhysX's default. Its step height follows its size (see _write).
@@ -292,6 +294,8 @@ const COLUMNS = [
   ['_calm', Uint8Array, 1],          // STILL, QUIET, CALM while _freeze runs; HANDLED from a setter until it does
   ['_staticMoved', Uint8Array, 1],   // 1 for a static body moved or changed since the last step
   ['_sensor', Uint8Array, 1],        // 1 for a sensor: it reports what it overlaps, and pushes nothing
+  ['_fluid', Uint8Array, 1],         // 1 for water: a sensor that holds up what is in it (fluid.js)
+  ['_flow', Float64Array, 3],        // water's current, m/s, world space
   ['_lock', Uint8Array, 1],          // bit k: it never turns about world axis k
   ['_lockMove', Uint8Array, 1],      // bit k: its centre of mass never moves along world axis k
   ['_colours', Int32Array, 1],       // while a step colours its manifolds: the colours this body's hold, as bits (graph.js)
@@ -338,7 +342,7 @@ export class World {
     this._still = null; this._rest = null; this._island = null; this._islandNext = null;
     this._parent = null; this._least = null; this._slept = null; this._frozen = null; this._calm = null;
     this._staticMoved = null;
-    this._sensor = null; this._lock = null; this._lockMove = null; this._colours = null; this._maxSlope = null;
+    this._sensor = null; this._fluid = null; this._flow = null; this._lock = null; this._lockMove = null; this._colours = null; this._maxSlope = null;
     this._slopeCos = null; this._pushForce = null; this._stepHeight = null; this._stepGiven = null; this._ground = null;
     this._groundAt = null; this._walk = null; this._jointHead = null; this._jointTally = null;
     this._node = null; this._movedAt = null; this._seen = null; this._movedOut = null;
@@ -372,6 +376,10 @@ export class World {
     this._contacts = new Contacts();
     /** Every joint, in columns of its own (joints.js). */
     this._joints = new Joints();
+    /** Every soft body (soft.js). */
+    this._softs = new Softs();
+    /** Steps that moved soft bodies: for the off-means-off test, which reads it. */
+    this._softSteps = 0;
     /** Steps that ran the joint solver: for the off-means-off test, which reads it. */
     this._jointSteps = 0;
     /** Drives toward a target solved, one a joint a pass: for the off-means-off test, which reads it. */
@@ -429,6 +437,12 @@ export class World {
     this._sensed = new Int32Array(0);
     this._sensedCount = 0;
     this._sensorCount = 0;
+    /** How many bodies are water (fluid.js): none, and no substep asks. */
+    this._fluidCount = 0;
+    /** Steps that pushed what water holds: for the off-means-off test, which reads it. */
+    this._floatSteps = 0;
+    /** Water added, changed or moved by hand since the last step: what it covers is woken (_soak). */
+    this._wetted = [];
     this._lockMoveCount = 0;
     this._characterCount = 0;
     /** Bodies whose centre of mass or principal axes are off their origin's: transforms convert only those. */
@@ -493,6 +507,7 @@ export class World {
     this._sleeping = flag(null, 'world.sleeping', value);
     if (!value) {
       this._wakeAll();
+      wakeSofts(this);
     } else {
       // Still times stopped counting while it was off; they start again from now.
       for (let i = 0; i < this._awakeCount; i++) this._settle(this._awakeList[i]);
@@ -598,7 +613,14 @@ export class World {
     const placed = o.position !== undefined || o.rotation !== undefined;
     const s3 = s * 3, s4 = s * 4, com = this._com, frame = this._frame;
     const center = [com[s3], com[s3 + 1], com[s3 + 2]], turn = [frame[s4], frame[s4 + 1], frame[s4 + 2], frame[s4 + 3]];
+    // Where soft bodies' points on it are measured from, as it was (soft.js, bodySet).
+    let before = null;
+    if (this._softs.count > 0) {
+      const p = this._position, q = this._rotation;
+      before = [p[s3], p[s3 + 1], p[s3 + 2], q[s4], q[s4 + 1], q[s4 + 2], q[s4 + 3], ...this._pose(s, [0, 0, 0, 0, 0, 0, 0])];
+    }
     this._write(s, spec, placed);
+    if (before !== null) bodySet(this, s, body.id, before, this._pose(s, [0, 0, 0, 0, 0, 0, 0]));
     if (this._jointHead[s] !== 0 && (center[0] !== com[s3] || center[1] !== com[s3 + 1] || center[2] !== com[s3 + 2]
       || turn[0] !== frame[s4] || turn[1] !== frame[s4 + 1] || turn[2] !== frame[s4 + 2] || turn[3] !== frame[s4 + 3])) {
       rehome(this, s, center, turn);
@@ -644,6 +666,7 @@ export class World {
       if (spec.type !== 'character') out.centerOfMass = spec.centerOfMass === null ? null : [...spec.centerOfMass];
     }
     for (const k of MATERIAL) out[k] = spec[k];
+    if (spec.fluid) { out.fluid = true; out.flow = [...spec.flow]; }
     out.lockRotation = [...spec.lockRotation];
     out.lockPosition = [...spec.lockPosition];
     if (spec.type === 'character') {
@@ -702,6 +725,20 @@ export class World {
 
   jointOf(joint) {
     return jointOf(this, jointSlot(this, 'jointOf', joint));
+  }
+
+  // ---- soft bodies (soft.js) ----
+
+  addSoftBody(options_) {
+    return addSoftBody(this, options_);
+  }
+
+  setSoftBody(softBody, changes) {
+    setSoftBody(this, softBody, changes);
+  }
+
+  softBodyOf(softBody) {
+    return softBodyOf(this, softBody);
   }
 
   /**
@@ -878,6 +915,11 @@ export class World {
     return new Joint(this, this._id('joint', id));
   }
 
+  /** A handle for a soft body's id, as body(id) is for a body's. Doesn't check it is alive. */
+  softBody(id) {
+    return new SoftBody(this, this._id('softBody', id));
+  }
+
   /** An id given to body() or joint(): any whole number an id can be. */
   _id(caller, id) {
     this._live(caller);
@@ -956,6 +998,11 @@ export class World {
     this._bounds(dt);
     broadphase.update(this, dt);
     broadphase.candidates(this, pairs);
+    if (this._wetted.length > 0) this._soak();
+    // Soft bodies find what their corners touch before the narrowphase, so a
+    // sleeping body one lands on wakes in time to have its contacts this step.
+    const softly = this._softs.count > 0;
+    if (softly) { this._softSteps++; findSoft(this, dt); }
     // A touch that wakes an island brings its pairs into the awake run, past
     // where the pass stopped, and they are narrowed in turn until nothing
     // more wakes: a woken stack is held in the step it wakes, rather than
@@ -1046,8 +1093,15 @@ export class World {
       // for the joints' kept work (joints.js, KEPT WORK).
       if (held > 0) { turnedInertias(this); joints.pose++; }
       const pins = this._lockMoveCount > 0;
+      // Water holds up what the narrowphase found in it (fluid.js, WATER).
+      const floating = this._fluidCount > 0 && this._sensedCount > 0;
+      if (floating) this._floatSteps++;
       for (let sub = 0; sub < substeps; sub++) {
         this._accelerate(h);
+        if (floating) float(this, h);
+        // Soft bodies move, and push what they touch, before the rigid solve
+        // answers: a cloth's weight on a crate is held by the floor in the same substep.
+        if (softly) stepSoft(this, h, sub === 0, dt);
         if (touching > 0) warmStart(this, next);
         if (lull) jobs.lull(0);
         if (held > 0) warmStartJoints(this);
@@ -1113,6 +1167,7 @@ export class World {
       while (c < this._sensedCount) c *= 2;
       this._sensed = resized(this._sensed, c);
     }
+    if (softly) endSoft(this, dt);
     if (this._sleeping) this._sleep(dt);
   }
 
@@ -1397,6 +1452,31 @@ export class World {
     this._staticMoved[s] = 1;
     this._movedStatics.push(s);
     this._wakePending = true;
+  }
+
+  /** Water slot s is new, changed or moved by hand: see _soak. */
+  _wet(s) {
+    if (!this._wetted.includes(s)) this._wetted.push(s);
+  }
+
+  /**
+   * Wakes every body asleep in water that was added, changed or moved by hand
+   * since the last step, as it is filed in the broadphase now. A sensor wakes
+   * nothing, but water pushes: a crate asleep on a floor that water is poured
+   * over would stay on the floor (rule 36: a change takes effect when made).
+   * Water that moves by its velocity wakes what it holds as it goes (contact.js).
+   */
+  _soak() {
+    const bp = this._broadphase, wetted = this._wetted;
+    SOAKING = this;
+    for (let i = 0; i < wetted.length; i++) {
+      const f = wetted[i], t = bp.which[f];
+      if (this._fluid[f] !== 1 || t < 0) continue;
+      const box = bp.trees[t].box, o = 6 * bp.leaf[f];
+      for (let k = 0; k < bp.trees.length; k++) bp.trees[k].query(box[o], box[o + 1], box[o + 2], box[o + 3], box[o + 4], box[o + 5], soaked);
+    }
+    SOAKING = null;
+    wetted.length = 0;
   }
 
   _clearStatics() {
@@ -1855,6 +1935,7 @@ export class World {
     this._pairs = new Pairs(this);
     this._contacts = new Contacts();
     this._joints = new Joints();
+    this._softs = new Softs();
     this._reset();
   }
 
@@ -2139,9 +2220,16 @@ export class World {
       if (j >= 0) dropJoint(this, j);
       return;
     }
-    if (!(body instanceof Body)) fail(caller, `handle must be a Body or a Joint, got ${show(body)}`);
+    if (body instanceof SoftBody) {
+      const j = handle(caller, 'handle', body, this, SoftBody, this._softs.slots, true);
+      if (j >= 0) dropSoft(this, j);
+      return;
+    }
+    if (!(body instanceof Body)) fail(caller, `handle must be a Body, a Joint or a SoftBody, got ${show(body)}`);
     const s = handle(caller, 'handle', body, this, Body, this._slots, true);
     if (s < 0) return;   // already gone: removing twice is harmless, as in Winding
+    // What hangs from it lets go, and what lay on it wakes (soft.js).
+    if (this._softs.count > 0) bodyRemoved(this, s, body.id);
     // Its joints go with it: a joint to nothing has no meaning.
     if (this._jointHead[s] !== 0) dropJointsOf(this, s);
     // A force waiting on this slot must not land on whichever body gets it next.
@@ -2154,6 +2242,7 @@ export class World {
     if (s < this._placed.length) this._placed[s] = null;
     if (this._framed[s] === 1) { this._framed[s] = 0; this._framedCount--; }
     if (this._sensor[s] === 1) { this._sensor[s] = 0; this._sensorCount--; }
+    if (this._fluid[s] === 1) { this._fluid[s] = 0; this._fluidCount--; }
     if (this._lockMove[s] !== 0) { this._lockMove[s] = 0; this._lockMoveCount--; }
     // The next body in the slot starts its count afresh, whatever its type.
     if (this._type[s] === CHARACTER) { this._type[s] = DYNAMIC; this._characterCount--; }
@@ -2238,6 +2327,8 @@ export class World {
       mask: this._mask[s],
       group: this._group[s],
       sensor: this._sensor[s] === 1,
+      fluid: this._fluid[s] === 1,
+      flow: [this._flow[s3], this._flow[s3 + 1], this._flow[s3 + 2]],
       lockRotation: [(this._lock[s] & 1) !== 0, (this._lock[s] & 2) !== 0, (this._lock[s] & 4) !== 0],
       lockPosition: [(this._lockMove[s] & 1) !== 0, (this._lockMove[s] & 2) !== 0, (this._lockMove[s] & 4) !== 0],
       maxSlope: this._maxSlope[s],
@@ -2357,6 +2448,11 @@ export class World {
     const sensor = spec.sensor ? 1 : 0;
     this._sensorCount += sensor - this._sensor[s];
     this._sensor[s] = sensor;
+    const fluid = spec.fluid ? 1 : 0;
+    this._fluidCount += fluid - this._fluid[s];
+    this._fluid[s] = fluid;
+    this._flow.set(spec.flow, s3);
+    if (fluid === 1) this._wet(s);
     this._place7(s, spec.position, spec.rotation);
     this._velocity.set(spec.velocity, s3);
     this._angular.set(spec.angularVelocity, s3);
@@ -2421,6 +2517,7 @@ export class World {
 
   /** Copies a slot's position and rotation out to `transforms`, and to `previous`, for a teleport. */
   _place(s) {
+    if (this._fluid[s] === 1) this._wet(s);
     const t7 = s * 7, s3 = s * 3;
     const tr = this._transforms;
     this._pose(s, POSE);
@@ -2554,9 +2651,12 @@ function resolve(caller, base, given) {
     }
     restitution = r;
   }
-  const damping = has('damping') ? atLeastZero(caller, 'damping', given.damping) : base.damping;
+  // Water left at no damping would hold a floating body up as an undamped
+  // spring, and it would bob for good: new water has its own (WATER_DAMPING).
+  const wet = base === DEFAULTS && given.fluid === true;
+  const damping = has('damping') ? atLeastZero(caller, 'damping', given.damping) : wet ? WATER_DAMPING : base.damping;
   const angularDamping = has('angularDamping')
-    ? atLeastZero(caller, 'angularDamping', given.angularDamping) : base.angularDamping;
+    ? atLeastZero(caller, 'angularDamping', given.angularDamping) : wet ? WATER_DAMPING : base.angularDamping;
   const gravityScale = has('gravityScale') ? finite(caller, 'gravityScale', given.gravityScale) : base.gravityScale;
   const layers = has('layers') ? bits(caller, 'layers', given.layers) : base.layers;
   const mask = has('mask') ? bits(caller, 'mask', given.mask) : base.mask;
@@ -2565,7 +2665,17 @@ function resolve(caller, base, given) {
     group = given.group;
     if (!Number.isSafeInteger(group) || group < 0) fail(caller, `group must be a whole number, 0 or more, got ${show(group)}`);
   }
-  const sensor = has('sensor') ? flag(caller, 'sensor', given.sensor) : base.sensor;
+  let sensor = has('sensor') ? flag(caller, 'sensor', given.sensor) : base.sensor;
+  // Water is a sensor that holds up what is in it (fluid.js): a box, never moved by
+  // what it holds, its top the surface.
+  const fluid = has('fluid') ? flag(caller, 'fluid', given.fluid) : base.fluid;
+  const flow = has('flow') ? vec3(caller, 'flow', given.flow) : base.flow;
+  if (fluid) {
+    if (shape !== 'box') fail(caller, `a fluid must be a box, got '${shape}'`);
+    if (type === 'dynamic' || type === 'character') fail(caller, `type must be 'static' or 'kinematic' for a fluid, got '${type}'`);
+    if (has('sensor') && given.sensor === false) fail(caller, 'a fluid is a sensor: sensor must be true or left out');
+    sensor = true;
+  }
   let lockRotation = base.lockRotation;
   if (has('lockRotation')) {
     const l = given.lockRotation;
@@ -2615,7 +2725,7 @@ function resolve(caller, base, given) {
   }
   return {
     type, shape, size, radius, height, geometry, density, mass, massGiven, inertia, inertiaGiven, centerOfMass,
-    friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor,
+    friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, fluid, flow,
     lockRotation, lockPosition, maxSlope, stepHeight, stepGiven, pushForce, position, rotation, velocity, angularVelocity,
   };
 }
@@ -2774,6 +2884,24 @@ function tallness(spec) {
 
 /** _turn's scratch: the body's axes, and its locked inverse inertia; it isn't re-entered. */
 const TURN = new Shape(), M6 = new Float64Array(6);
+
+/**
+ * How much new water slows what is in it, 1/s, for both damping and
+ * angularDamping, applied by how much of a body is under (fluid.js). Measured:
+ * a box, a ball, a capsule, a plank, a rock and a 10 cm cube dropped 2 m
+ * into water slept within 9 to 16 s at 3, 12 to 25 s at 2, and 25 to 38 s
+ * at 1, some never; at 0 nothing does. Water has no one damping of its own
+ * (a real body loses energy to the waves it makes, which a flat surface
+ * hasn't), so this is the least whole number that settles all six as a game
+ * expects. Given, it is the water's.
+ */
+const WATER_DAMPING = 3;
+
+// _soak's visitor, made once: the world it wakes in. A step isn't re-entered.
+let SOAKING = null;
+const soaked = (s) => {
+  if (SOAKING._type[s] === DYNAMIC && SOAKING._awake[s] === 0) SOAKING._wake(s);
+};
 
 /** The material options, in the order bodyOf lists them. */
 const MATERIAL = ['friction', 'restitution', 'damping', 'angularDamping', 'gravityScale', 'layers', 'mask', 'group', 'sensor'];

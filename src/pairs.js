@@ -221,7 +221,7 @@ export class Pairs {
     if (this.cache[p] !== 0) this.uncache(p);
     this._delete(this._find(this.a[p], this.b[p]));
     const kept = this.memory[p];
-    if (kept) { kept.count = 0; this.spare.push(kept); }
+    if (kept) { kept.count = 0; kept.held = 0; this.spare.push(kept); }
     if (p < this.active) {
       const last = --this.active;
       if (p !== last) this._move(last, p);
@@ -237,7 +237,7 @@ export class Pairs {
     this.points[p] = 0;
     if (this.cache[p] !== 0) this.uncache(p);
     const kept = this.memory[p];
-    if (kept) kept.count = 0;
+    if (kept) { kept.count = 0; kept.held = 0; }
     this.part(p);
   }
 
@@ -351,6 +351,7 @@ export class Pairs {
     // manifold goes too: a body's shape may have changed under it.
     if (this.checked[p] !== w._pairEpoch) {
       if (this.cache[p] !== 0) this.uncache(p);
+      if (this.memory[p]) this.memory[p].held = 0;
       if (w._slots.slotOf(this.idA[p]) !== a || w._slots.slotOf(this.idB[p]) !== b) return false;
       if (!pairable(w, a, b)) return false;
       this.checked[p] = w._pairEpoch;
@@ -397,7 +398,30 @@ export class Memory {
     this.friction = new Float64Array(0);
     this.slip = new Float64Array(0);
     this.twist = new Float64Array(0);
+    // Its manifolds as last found, for keeping them (contact.js, levelKept()):
+    // how many, the pose they were found at, each normal in the mesh's frame,
+    // how many points, and each point's ends and id. Not `count` and the rest
+    // above, which are the last step's impulses, and which a resting row leaves.
+    this.held = 0;
+    this.pose = new Float64Array(7);
+    this.holds = 0;
+    this.axis = new Float64Array(0);
+    this.heldPoints = new Uint8Array(0);
+    this.ends = new Float64Array(0);
+    this.ids = new Uint32Array(0);
     this.ensure(1);
+  }
+
+  /** Room for n manifolds as found. */
+  holding(n) {
+    if (n <= this.holds) return;
+    let c = Math.max(this.holds, 1);
+    while (c < n) c *= 2;
+    this.axis = resized(this.axis, 3 * c);
+    this.heldPoints = resized(this.heldPoints, c);
+    this.ends = resized(this.ends, 6 * P * c);
+    this.ids = resized(this.ids, P * c);
+    this.holds = c;
   }
 
   ensure(n) {

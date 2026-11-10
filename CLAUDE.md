@@ -157,6 +157,48 @@ These were made with Nolan and override the rules below where they differ.
   tolerance (`collide()` may snap a point a tolerance). 99.6% of full tests on a hull pile found
   nothing. `test/collide.test.js` holds it to never calling apart what `collide()` finds. Confirm
   speed leads with direct timers: V8's profiler misattributes under inlining.
+- **Water** (2026-11-10, milestone 22, API approved: "Approved as proposed, go ahead and start on
+  water"): body options `fluid` (static or kinematic box only; a sensor, `sensor: false` throws)
+  and `flow`; the water's `density`, `damping`, `angularDamping` (`WATER_DAMPING` 3 for new water,
+  measured). `src/fluid.js`: `submerged()` (boxes and hulls cut as faces fanned from a point on the
+  plane, so the cap adds nothing; balls by the cap formula; capsules by Gauss-Legendre over discs
+  between kinks, points bunched by x = (3u - u³)/2, 5e-7 of the volume) and `float()`, called each
+  substep after `_accelerate` over `World._sensed`, the narrowphase's sensor pairs. The push reads
+  the body's turn now (`Shape.place` from `_rotation`), not `load()`'s step-start `_axes`: from
+  those it lagged and fed every rock. Waking: `_wet`/`_soak` (added, changed, moved by hand),
+  `stirred()` in `contact.js` (moving water), `released()` lets water's ending wake. Only the box's
+  top is asked. Columns `_fluid`, `_flow`; `_fluidCount`, `_floatSteps` (off means off); FORMAT 17.
+- **Wheels** (2026-11-10, milestone 23, API approved, `axle` and its default chosen by Nolan): joint
+  type `'wheel'` (`WHEEL` 6), options `axis` (suspension), `axle`, `min`/`max` (travel, m),
+  `frequency`/`dampingRatio` (the suspension spring; 0 holds it stiff), `motorSpeed`/`motorForce`
+  (spin; speed 0 brakes), `frictionForce`. `wheel()` sets frames: the axle as each body's joint x
+  (`orient`), the suspension in b's joint frame (`facing`), so it turns with the chassis and not the
+  spinning wheel. Rows: `suspension()` (spring and stops, pinned), the motor (`axle()`, `driven()`),
+  `holdAxis()`, `holdTrack()` (`onLine()`: b carries the line, its lever reaching a's anchor,
+  RB - D); `pin(WHEEL)` the four that hold. `holds()` false: never in a tree, measured unneeded
+  (0.08 mm, 0.03°). Steering's `setJoint` keeps impulses (axle changes don't zero them). Column
+  `axle`; FORMAT 18.
+- **Pieces** (2026-11-10, milestone 24, API approved): `fracture(shape, { count, seed })`, exported
+  from `bearing.js` beside `readGlb`; `src/fracture.js`. Box or hull in, `[{ vertices, position }]`
+  out, corners about each piece's centre of mass. Voronoi cells: Park-Miller points (`APART` a
+  quarter of the even spacing, compared as sixth powers), `cut()` by bisecting planes nearest first
+  (a crossing corner from the kept end, so faces agree to the bit; the cap ordered by `atan2`),
+  `solid()` for volume and centre. `HASH_PIECES` in `test/determinism.test.js`. Not in the step,
+  so it allocates freely. Work grows as count².
+- **Soft bodies** (2026-11-10, milestone 25, API approved; Nolan chose `density` kg/m³, air drag with
+  `wind`, and bodies' options: `position`, `rotation`, `velocity`, `friction`, `damping`, `layers`,
+  `mask`): `world.addSoftBody`/`setSoftBody`/`softBodyOf`/`softBody(id)`, `SoftBody` handle
+  (`positions` Float32Array, `asleep`), `remove` takes one. `src/soft.js`, store `Softs`/`Soft`
+  (FORMAT 19). XPBD, one pass a substep after `_accelerate` (`stepSoft`), contacts found before the
+  narrowphase (`findSoft`, `nearestOf` in query.js, two planes a corner, `PLANES`), `endSoft`
+  writes positions and sleeps (PIXEL of `size`). Edges resist stretching only; `compliance()` from
+  the sheet's weight and size (STIFFNESS); tethers from non-dynamic attachments (TETHERS); volume
+  after contacts, never into what they pushed off (`pressed`, a moving body bears it); SPIN taken
+  back each substep; `unbounce()` (XPBD's velocity pass); `settle()` damps deformation at
+  `SETTLE` = 1/s, measured; air once a step (`AIR` 1.2, `DRAG` 1.17). Body impulses through a
+  step-start world inverse inertia (`INVERSE`, `turnedInverse` from contact.js). Tried and dropped:
+  making a corner on a taut tether heavy (pumped energy into a hung box), alternating sweep order
+  (worse), iterating twice (no steady gain). Heavy closed bodies may not sleep: documented.
 - **Joints that can't all be held** (2026-11-06, Nolan: "Go ahead with the joint anchors and NaN"):
   `rehome()` re-expresses a joint's anchors and frames when `setBody` moves a body's centre or
   principal axes. TORN: what a joint asks for is held to the reach of its moving bodies (`tear`,
@@ -252,6 +294,13 @@ These were made with Nolan and override the rules below where they differ.
   `spinMass()`/`spun()`, same bits. A holding rotation joint is in the forest; one to the world
   counts as held in `age()` but not held down (`plant()` takes a `point` callback). `_drives`
   counts for off-means-off. FORMAT 8. No-target joints keep their bits and time.
+  Stops keep their work (2026-11-06, Nolan: "Go ahead with the ragdoll kept work"; same bits): every
+  ball joint and hinge in a tree, and rotation joints with a drive or friction, cones included, keep
+  their stops' rows and how far off they are (`stopped()`, `KEPT_TWIST`, `KEPT_CONE`). A stop reached
+  on a kept pass needs what wasn't read: `unpinned()` and `ready()` fetch the anchors, a hinge's
+  frames and the pinned rows then, `PIN` being scratch of whichever joint went last. 100 driven
+  ragdolls with stops 14% faster, ragdolls with stops alone 1-5%. `HASH_STOPS` in
+  `test/determinism.test.js` was stored from 1.3.4.
   Many active ragdolls (2026-11-02, milestone 19, same bits): `fill()` in joint and forest scratch
   replaced by plain stores; `inverse3`/`inverse5` written out (forest.js, as `inverse6`); kept work:
   the relax pass stores each drive's pose-only results (`keeping()`, `turned()`, `hinged()`; `kept`/
@@ -433,8 +482,18 @@ These were made with Nolan and override the rules below where they differ.
   `_pairEpoch`). Kept while `loss + 2 drift <= tolerance` and `drift + moving() <= tolerance`, the
   drift measured from the pose it was found at; `Manifold.loss` is how far `collide()` let it fall
   short of exact (a face kept on a tie, a corner left out), so a kept manifold is never worse than
-  a fresh one. Not for impact manifolds, meshes, heightfields or parts; boxes measured no faster.
-  Hull pile 30% faster pinned; FORMAT 3.
+  a fresh one. Not for impact manifolds or parts; boxes measured no faster.
+  Hull pile 30% faster pinned; FORMAT 3. Mesh and heightfield pairs since 2026-11-09 (Nolan: "Go
+  ahead with finding contacts on hulls and terrain"): `levelKept()` in `contact.js`, every
+  manifold of a touching pair kept while 2 drift <= tolerance, normals in the mesh's frame; Memory
+  `held`, `pose`, `axis`, `heldPoints`, `ends`, `ids` (FORMAT 16), dropped where `count` is and on a
+  new `_pairEpoch`; not for jointed bodies or parts. Shares `rebuild()`, `holdEnds()`,
+  `driftSince()` with convex pairs. Terrain 6-9%, level mesh 14-15% faster; heaps, ridge drops and
+  sleep as before. A round end is kept at its core along the normal (`holdEnds()`, 2026-11-09,
+  Nolan: "Look into the capsules first"): put square onto a capsule's axis, a leaning contact
+  rebuilt r (n . axis)^2 too deep, and capsules across mesh peaks buzzed for good (the kept mesh
+  manifolds showed it; convex pairs had it since 2026-10-29). Hash changed. Capsules awake long after
+  a heap lands are rolling: they lose exactly the 1% rolling resistance takes, 30-40 m from 3 m/s.
   Inscribed spheres (2026-10-29, from the speed research; Catto's post and Box3D; same bits):
   `Hull.inner`, the least over faces of the lowest corner along its normal, is a ball about the
   centre inside the hull (`Placed.inner`/`reach`; a box its smallest half-size). In `hullHull` and

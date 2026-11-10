@@ -60,6 +60,10 @@ interface BodyCommon {
   group?: number;
   /** Reports what overlaps it and pushes nothing, default false. */
   sensor?: boolean;
+  /** Water: a static or kinematic box that holds up the dynamic bodies in it, its top the surface; a sensor. Default false. */
+  fluid?: boolean;
+  /** Water's current, m/s, world space, default [0, 0, 0]. Only for a fluid. */
+  flow?: readonly [number, number, number];
   /** The world axes it never turns about, x, y and z, default [false, false, false]. */
   lockRotation?: readonly [boolean, boolean, boolean];
   /** The world axes its centre of mass never moves along, x, y and z, default [false, false, false]. */
@@ -236,6 +240,10 @@ interface BodyInfoCommon {
   mask: number;
   group: number;
   sensor: boolean;
+  /** Only for water. */
+  fluid?: boolean;
+  /** Only for water. */
+  flow?: [number, number, number];
   lockRotation: [boolean, boolean, boolean];
   lockPosition: [boolean, boolean, boolean];
   /** A character's. */
@@ -376,6 +384,31 @@ export type QueryShape =
   | { shape: 'sphere'; radius?: number }
   | { shape: 'capsule'; radius?: number; height?: number };
 
+/** The shape fracture() cuts: a box, centred on its own origin, or a hull's corners. */
+export type FractureShape =
+  | { shape?: 'box'; size?: Vec3 }
+  | { shape: 'hull'; vertices?: ArrayLike<number> };
+
+export interface FractureOptions {
+  /** How many pieces, a whole number from 1. Default 8. */
+  count?: number;
+  /** Which pieces: the same seed gives the same pieces on every machine. A whole number, default 0. */
+  seed?: number;
+}
+
+/** One piece: its corners, m, about its own centre of mass, and where that centre is in the shape's frame. */
+export interface Piece {
+  vertices: number[];
+  position: [number, number, number];
+}
+
+/**
+ * The shape cut into `count` convex pieces that fill it exactly, face to face:
+ * Voronoi cells about points scattered through it from `seed`. Add each as a
+ * hull at the body's position plus its position turned by the body's rotation.
+ */
+export function fracture(shape?: FractureShape, options?: FractureOptions): Piece[];
+
 export interface GlbOptions {
   /** The name of one node: only it and the nodes under it are read, still placed as in the scene. */
   node?: string;
@@ -388,7 +421,7 @@ export interface GlbOptions {
  */
 export function readGlb(bytes: ArrayBuffer | ArrayBufferView, options?: GlbOptions): { vertices: Float64Array; indices: Uint32Array };
 
-export type JointType = 'fixed' | 'ball' | 'hinge' | 'slider' | 'distance' | 'rotation';
+export type JointType = 'fixed' | 'ball' | 'hinge' | 'slider' | 'distance' | 'rotation' | 'wheel';
 
 /** What every joint takes. */
 interface JointBase {
@@ -457,6 +490,20 @@ export interface BallJointOptions extends JointCommon, Turning, TurnDrive {
 export interface HingeJointOptions extends JointCommon, Driven { type: 'hinge' }
 /** Slides along axis; min and max limit its position, m. */
 export interface SliderJointOptions extends JointCommon, Driven { type: 'slider' }
+/** A wheel: a slides along axis, its suspension, on a spring, and spins about axle, driven by its motor. */
+export interface WheelJointOptions extends JointCommon, Drive {
+  type: 'wheel';
+  /** Its suspension, world space; needn't be unit length. Default [0, 1, 0]. */
+  axis?: Vec3;
+  /** What it spins about, world space, at an angle to axis. Default the world axis most square to axis. Steer by changing it. */
+  axle?: Vec3;
+  /** How far it may slide along axis from where it was joined, m; null goes back to none. */
+  min?: number | null;
+  /** The most; null goes back to none. */
+  max?: number | null;
+  /** rad/s about axle that the motor spins it at against b; 0 with a motorForce brakes. */
+  motorSpeed?: number;
+}
 /** Keeps its anchors length apart, or between min and max; a spring with a frequency. */
 export interface DistanceJointOptions extends JointCommon {
   type: 'distance';
@@ -483,7 +530,7 @@ export interface RotationJointOptions extends JointBase, TurnDrive {
   swing?: Vec3 | null;
 }
 
-export type JointOptions = FixedJointOptions | BallJointOptions | HingeJointOptions | SliderJointOptions | DistanceJointOptions | RotationJointOptions;
+export type JointOptions = FixedJointOptions | BallJointOptions | HingeJointOptions | SliderJointOptions | DistanceJointOptions | RotationJointOptions | WheelJointOptions;
 
 /** What world.setJoint takes: any of addJoint's options. a and b can't change, but may be given as they are. Which fit is checked against the joint's type when called. */
 export interface JointChanges {
@@ -495,6 +542,7 @@ export interface JointChanges {
   anchor?: Vec3;
   anchorB?: Vec3;
   axis?: Vec3;
+  axle?: Vec3;
   min?: number | null;
   max?: number | null;
   length?: number | null;
@@ -537,7 +585,73 @@ export type JointInfo =
   | (JointInfoCommon & DriveInfo & { type: 'ball'; anchorB?: [number, number, number]; axis: [number, number, number]; min: number | null; max: number | null; cone: number | [number, number]; swing: [number, number, number] | null; target: [number, number, number, number] | null })
   | (JointInfoCommon & DriveInfo & { type: 'hinge' | 'slider'; anchorB?: [number, number, number]; axis: [number, number, number]; min: number | null; max: number | null; target: number | null; motorSpeed: number })
   | (JointInfoCommon & { type: 'distance'; anchorB: [number, number, number]; length: number; min: number | null; max: number | null; frequency: number; dampingRatio: number })
-  | (JointInfoBase & DriveInfo & { type: 'rotation'; axis: [number, number, number]; cone: number | [number, number]; swing: [number, number, number] | null; target: [number, number, number, number] | null });
+  | (JointInfoBase & DriveInfo & { type: 'rotation'; axis: [number, number, number]; cone: number | [number, number]; swing: [number, number, number] | null; target: [number, number, number, number] | null })
+  | (JointInfoCommon & DriveInfo & { type: 'wheel'; anchorB?: [number, number, number]; axis: [number, number, number]; axle: [number, number, number]; min: number | null; max: number | null; motorSpeed: number });
+
+/** A corner of a soft body held to a body, or to where it is in the world. */
+export interface Attachment {
+  /** The corner: its place in `vertices`, counting from 0. */
+  vertex: number;
+  /** The body it is held to, where it is on it now; null or left out for the world. */
+  body?: Body | null;
+}
+
+export interface SoftBodyOptions {
+  /** Its corners, m, three numbers each, in its own frame. Given with indices; left out, a 1 m square sheet, flat in x and z. */
+  vertices?: Numbers;
+  /** Its triangles, three corners each. Open, it is cloth; closed, wound alike, it encloses a volume. */
+  indices?: Numbers;
+  /** kg/m³, default 1000. Cloth weighs density × area × thickness; a closed mesh density × its volume. */
+  density?: number;
+  /** How little it stretches, 0 to 1, default 1 (not at all): hung by an edge it stretches (1 - s) / s at the top. */
+  stretch?: number;
+  /** How little it folds, 0 to 1, default 0 (freely, as silk); 1 not at all. */
+  bend?: number;
+  /** m, default 0.001: its corners stay half this out of what they touch. */
+  thickness?: number;
+  /** A closed mesh's volume held at this times the one it was made with; 0 (default) none. */
+  pressure?: number;
+  /** Corners held to bodies or the world, where they are now. */
+  attach?: Attachment[];
+  /** As a body's, default 0.5. */
+  friction?: number;
+  /** As a body's: velocity lost per second, 1/s, default 0. */
+  damping?: number;
+  /** The air's velocity around it, m/s, default still. */
+  wind?: Vec3;
+  /** As a body's: 32 bits, default 1. */
+  layers?: number;
+  /** As a body's: 32 bits, default every layer. */
+  mask?: number;
+  /** m, where its frame is, default [0, 0, 0]. */
+  position?: Vec3;
+  /** Its frame's turn, [x, y, z, w], default none. */
+  rotation?: Quat;
+  /** m/s, every corner's, default [0, 0, 0]. */
+  velocity?: Vec3;
+}
+
+export type SoftBodyChanges = SoftBodyOptions;
+
+export interface SoftBodyInfo {
+  vertices: number[];
+  indices: number[];
+  density: number;
+  stretch: number;
+  bend: number;
+  thickness: number;
+  pressure: number;
+  attach: { vertex: number; body: Body | null }[];
+  friction: number;
+  damping: number;
+  wind: [number, number, number];
+  layers: number;
+  mask: number;
+  position: [number, number, number];
+  rotation: [number, number, number, number];
+  /** The mean of its corners' velocities, weighed by their mass. */
+  velocity: [number, number, number];
+}
 
 export interface WorldOptions {
   /** m/s², default [0, -9.81, 0]. */
@@ -583,11 +697,15 @@ export class World {
   setBody(body: Body, changes: BodyChanges): void;
   bodyOf(body: Body): BodyInfo;
   /** A body, with its joints, or a joint. Does nothing if it is already gone. */
-  remove(handle: Body | Joint): void;
+  remove(handle: Body | Joint | SoftBody): void;
   /** Holds a to b, or to a point in the world, as its type allows. */
   addJoint(options: JointOptions): Joint;
   setJoint(joint: Joint, changes: JointChanges): void;
   jointOf(joint: Joint): JointInfo;
+  /** A soft body: cloth, or a closed volume. */
+  addSoftBody(options?: SoftBodyOptions): SoftBody;
+  setSoftBody(softBody: SoftBody, changes: SoftBodyChanges): void;
+  softBodyOf(softBody: SoftBody): SoftBodyInfo;
   /** The nearest body a ray meets. direction is normalized, so distance is in metres. */
   raycast(origin: Vec3, direction: Vec3, options?: RayOptions): Hit | null;
   /** Every body a ray meets, nearest first. */
@@ -606,6 +724,8 @@ export class World {
   body(id: number): Body;
   /** A handle for a joint's id. Doesn't check the joint is alive. Joints count their ids apart from bodies'. */
   joint(id: number): Joint;
+  /** A handle for a soft body's id. */
+  softBody(id: number): SoftBody;
   /** Moves the world on by dt seconds, exactly. */
   step(dt: number): void;
   /** The whole world as plain, JSON-safe data, for World.load. */
@@ -680,5 +800,22 @@ export class Joint {
   /** The mean torque it turned a with over the last step, N·m, world space, about its anchor on a. A frozen copy. */
   readonly torque: readonly [number, number, number];
   /** Same as world.remove(joint). */
+  destroy(): void;
+}
+
+/** A handle to a soft body: a world and an id. Compare a.id === b.id, not a === b. */
+export class SoftBody {
+  private constructor();
+
+  readonly world: World;
+  /** Unique to this soft body for the life of its world. */
+  readonly id: number;
+  /** false once removed, or once its world is destroyed. */
+  readonly alive: boolean;
+  /** true while it is asleep. */
+  readonly asleep: boolean;
+  /** Its corners where the last step left them, x, y, z each, m: the world's own array, updated by every step. */
+  readonly positions: Float32Array;
+  /** Same as world.remove(softBody). */
   destroy(): void;
 }

@@ -7,6 +7,66 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-10
+
+The kit: water, wheels, pieces and soft bodies, the physics a game reaches for beyond rigid
+bodies, each inside the same substeps as the solver. Boxes of water float what is in them as
+Archimedes says; a wheel joint holds a car's wheels on their suspension; `fracture()` cuts a box or
+hull into pieces that fill it exactly; and soft bodies are cloth, flags and closed shapes that keep
+their volume, colliding with every rigid body both ways. Joints with stops and bodies resting on
+terrain step faster, and a capsule leaning on what it rests on no longer buzzes. Saves are now
+format 19, and results change where capsules or bodies on meshes rest.
+
+### Added
+
+- Water: a static or kinematic box given `fluid: true` holds up every dynamic body in it by the
+  weight of the water it displaces, at the centre of the part of it under the surface, so a body
+  of half water's density floats half under and a plank rights itself and floats flat. The
+  water's `density`, `damping` and `angularDamping` (3 each for new water unless given) and its
+  `flow`, a current, set how it holds and carries what is in it. Water is a sensor, so nothing
+  collides with it, and water added, moved or taken away wakes what it covers. See
+  [Water](docs/API.md#water).
+- Wheels: a joint of type `'wheel'` holds a wheel to a chassis as a car's suspension does. The
+  wheel slides along `axis` on a spring (`frequency`, `dampingRatio`, between `min` and `max`) and
+  spins about the new option `axle`, driven and braked by its motor; steering is turning `axle`
+  with `setJoint`, which keeps what the wheel holds. A car on four of them crosses a heightfield
+  or a mesh at 20 m/s with every wheel on the ground. See [Joints](docs/API.md#joints). Saves are
+  now format 18.
+- Pieces: `fracture(shape, { count, seed })`, exported beside `readGlb`, cuts a box or a hull
+  into `count` convex pieces that fill it exactly, face to face, each `{ vertices, position }`
+  ready for `addBody({ shape: 'hull', ... })`. A seed gives the same pieces on every machine. When
+  something breaks is the game's to say: remove the body and add the pieces. See
+  [Pieces](docs/API.md#pieces).
+- Soft bodies: `world.addSoftBody`, `setSoftBody`, `softBodyOf` and `softBody(id)`, and the
+  `SoftBody` handle, exported beside `Body` and `Joint`, with `positions`, its corners, written by
+  every step. An open mesh is cloth; a closed one given `pressure` keeps its volume. `stretch` and
+  `bend` say how stiff it is, the same at any size or mesh spacing; `attach` pins corners to bodies
+  or the world; `wind` is the air around it, which pushes each triangle as a flat plate. It
+  collides with every rigid body, both ways, with friction, and sleeps and wakes as bodies do. A
+  cloth hung by its edge hangs its own length however fine its mesh, a flag waves on its pole, a
+  cloth drapes over a crate and sleeps, and a ball keeps its volume to 1.5% as it lands. See
+  [Soft bodies](docs/API.md#soft-bodies). `world.remove` takes a soft body too. Saves are now
+  format 19.
+
+### Changed
+
+- Joints with stops are faster, to the same bits: ball joints and hinges in a tree, and rotation
+  joints with a cone, work out what depends only on where the bodies are 9 times a step, not 16.
+  100 driven ragdolls with stops step 14% faster on one thread, ragdolls with stops and no motors
+  1 to 5%.
+- Bodies resting on a mesh or a heightfield keep their contacts from step to step while they have
+  barely moved, as bodies resting on each other already did, instead of testing every triangle
+  under them again. A pile settling on terrain steps 6 to 9% faster over its first 12 s, and on a
+  level mesh 14 to 15%. Results change slightly where such a body rests, by no more than a fresh
+  look at the triangles may be off.
+
+### Fixed
+
+- A capsule leaning against what it rests on could have the contact it kept from the last step
+  rebuilt too deep, by its radius times the square of the lean, and be kicked up by it. On a mesh
+  or heightfield, a capsule lying across a peak buzzed in place for good (4 to 6 heaps in 80); against
+  a box, a hull or another capsule the same could happen where a contact wasn't at its rounded end.
+
 ## [1.3.4] - 2026-11-06
 
 Joints that stay where they are put. A jointed body given a new shape keeps its joints on the same
@@ -633,7 +693,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.4...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/getlowarc/bearing/compare/v1.3.4...v1.4.0
 [1.3.4]: https://github.com/getlowarc/bearing/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/getlowarc/bearing/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/getlowarc/bearing/compare/v1.3.1...v1.3.2

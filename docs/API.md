@@ -11,16 +11,16 @@ import { World } from 'bearing-physics';
 
 TypeScript types come with the package, so an editor shows these calls' options as you type. The
 option shapes have names you can import, such as `BodyOptions`:
-`import type { BodyOptions } from 'bearing-physics'`. Besides `World`, `Body`, `Joint` and
-`readGlb`, the package's types are: `Vec3`, `Quat` and `Numbers` (what vectors, rotations and lists
+`import type { BodyOptions } from 'bearing-physics'`. Besides `World`, `Body`, `Joint`, `SoftBody`,
+`readGlb` and `fracture`, the package's types are: `Vec3`, `Quat` and `Numbers` (what vectors, rotations and lists
 of numbers may be given as); `BodyType`, `ShapeType` and `JointType`; `WorldOptions`;
 `BodyOptions`, `BoxOptions`, `SphereOptions`, `CapsuleOptions`, `HullOptions`, `CompoundOptions`,
 `PartOptions`, `MeshOptions`, `HeightfieldOptions` and `BodyChanges`; `BodyInfo` and `PartInfo`
 (what [`bodyOf`](#world-bodyof) gives); `JointOptions`, `FixedJointOptions`, `BallJointOptions`,
-`HingeJointOptions`, `SliderJointOptions`, `DistanceJointOptions`, `RotationJointOptions` and
+`HingeJointOptions`, `SliderJointOptions`, `DistanceJointOptions`, `RotationJointOptions`, `WheelJointOptions` and
 `JointChanges`; `JointInfo` (what [`jointOf`](#world-jointof) gives); `RayOptions`,
 `CastOptions`, `OverlapOptions`, `QueryShape` and `Hit`; `ContactEvent`, `BeginEvent`, `ImpactEvent`
-and `EndEvent`; `Ground`; `DebugLineOptions`; `GlbOptions`; and `SavedWorld`.
+and `EndEvent`; `Ground`; `DebugLineOptions`; `GlbOptions`; `FractureShape`, `FractureOptions` and `Piece` (what [`fracture`](#fracture) takes and gives); `SoftBodyOptions`, `Attachment`, `SoftBodyChanges` and `SoftBodyInfo` (what [`softBodyOf`](#world-softbodyof) gives); and `SavedWorld`.
 
 <a id="conventions"></a>
 ## Conventions
@@ -106,28 +106,28 @@ Before 1.0, a renamed option or property throws instead, saying what it is calle
 <a id="contents"></a>
 ## Contents
 
-[What 1.x promises](#promises) · [World](#world-class) · [Body](#body) · [Joint](#joint) · [Hulls and compounds](#hulls) · [Meshes and heightfields](#meshes) · [Character bodies](#characters) · [Joints](#joints) · [Contacts](#contacts) · [Contact events and sensors](#events) · [Layers, masks and groups](#layers) · [Sleeping](#sleeping) · [Queries](#queries) · [Determinism](#determinism) · [Limits](#limits) · [Renamed](#renamed)
+[What 1.x promises](#promises) · [World](#world-class) · [Body](#body) · [Joint](#joint) · [SoftBody](#softbody) · [Hulls and compounds](#hulls) · [Pieces](#pieces) · [Meshes and heightfields](#meshes) · [Character bodies](#characters) · [Joints](#joints) · [Contacts](#contacts) · [Contact events and sensors](#events) · [Water](#water) · [Soft bodies](#soft-bodies) · [Layers, masks and groups](#layers) · [Sleeping](#sleeping) · [Queries](#queries) · [Determinism](#determinism) · [Limits](#limits) · [Renamed](#renamed)
 
 <a id="index"></a>
 ## Index
 
 Every call, setting and entry, A to Z by its name.
 
-**A** &nbsp; [`world.addBody()`](#world-addbody) · [`world.addJoint()`](#world-addjoint) · [`body.alive`](#body-alive) · [`joint.alive`](#joint-alive) · [`body.angularVelocity`](#body-angularvelocity) · [`body.applyAngularImpulse()`](#body-applyangularimpulse) · [`body.applyForce()`](#body-applyforce) · [`body.applyImpulse()`](#body-applyimpulse) · [`body.applyTorque()`](#body-applytorque) · [`body.asleep`](#body-asleep)
+**A** &nbsp; [`world.addBody()`](#world-addbody) · [`world.addJoint()`](#world-addjoint) · [`world.addSoftBody()`](#world-addsoftbody) · [`body.alive`](#body-alive) · [`joint.alive`](#joint-alive) · [`softBody.alive`](#softbody-alive) · [`body.angularVelocity`](#body-angularvelocity) · [`body.applyAngularImpulse()`](#body-applyangularimpulse) · [`body.applyForce()`](#body-applyforce) · [`body.applyImpulse()`](#body-applyimpulse) · [`body.applyTorque()`](#body-applytorque) · [`body.asleep`](#body-asleep) · [`softBody.asleep`](#softbody-asleep)
 
 **B** &nbsp; [`world.body()`](#world-body) · [`world.bodyCount`](#world-bodycount) · [`world.bodyOf()`](#world-bodyof)
 
 **C** &nbsp; [`body.centerOfMass` (renamed)](#body-centerofmass) · [Character bodies](#characters) · [Contact events and sensors](#events) · [Contacts](#contacts) · [`world.contacts()`](#world-contacts)
 
-**D** &nbsp; [`world.debugLines()`](#world-debuglines) · [`body.destroy()`](#body-destroy) · [`joint.destroy()`](#joint-destroy) · [`world.destroy()`](#world-destroy) · [Determinism](#determinism)
+**D** &nbsp; [`world.debugLines()`](#world-debuglines) · [`body.destroy()`](#body-destroy) · [`joint.destroy()`](#joint-destroy) · [`softBody.destroy()`](#softbody-destroy) · [`world.destroy()`](#world-destroy) · [Determinism](#determinism)
 
-**F** &nbsp; [`joint.force`](#joint-force)
+**F** &nbsp; [`joint.force`](#joint-force) · [`fracture()`](#fracture)
 
 **G** &nbsp; [`world.gravity`](#world-gravity) · [`world.groundOf()`](#world-groundof) · [Groups](#layers)
 
 **H** &nbsp; [Hulls and compounds](#hulls)
 
-**I** &nbsp; [`body.id`](#body-id) · [`joint.id`](#joint-id) · [`body.inertia`](#body-inertia)
+**I** &nbsp; [`body.id`](#body-id) · [`joint.id`](#joint-id) · [`softBody.id`](#softbody-id) · [`body.inertia`](#body-inertia)
 
 **J** &nbsp; [Joint](#joint) · [`world.joint()`](#world-joint) · [`world.jointCount`](#world-jointcount) · [`world.jointOf()`](#world-jointof) · [Joints](#joints)
 
@@ -137,19 +137,19 @@ Every call, setting and entry, A to Z by its name.
 
 **O** &nbsp; [`world.overlap()`](#world-overlap)
 
-**P** &nbsp; [`body.position`](#body-position) · [`world.previous`](#world-previous)
+**P** &nbsp; [Pieces](#pieces) · [`body.position`](#body-position) · [`softBody.positions`](#softbody-positions) · [`world.previous`](#world-previous)
 
 **Q** &nbsp; [Queries](#queries)
 
 **R** &nbsp; [`world.raycast()`](#world-raycast) · [`world.raycastAll()`](#world-raycastall) · [`readGlb()`](#readglb) · [`world.remove()`](#world-remove) · [Renamed](#renamed) · [`body.rotation`](#body-rotation)
 
-**S** &nbsp; [`world.save()`](#world-save) · [`body.setAngularVelocity()`](#body-setangularvelocity) · [`body.setAxisAngle()`](#body-setaxisangle) · [`world.setBody()`](#world-setbody) · [`body.setEuler()`](#body-seteuler) · [`world.setJoint()`](#world-setjoint) · [`body.setPosition()`](#body-setposition) · [`body.setRotation()`](#body-setrotation) · [`body.setVelocity()`](#body-setvelocity) · [`world.shapeCast()`](#world-shapecast) · [`world.sleeping`](#world-sleeping) · [Sleeping](#sleeping) · [`body.slot`](#body-slot) · [`world.step()`](#world-step) · [`world.stepCount`](#world-stepcount) · [`world.substeps`](#world-substeps)
+**S** &nbsp; [`world.save()`](#world-save) · [`body.setAngularVelocity()`](#body-setangularvelocity) · [`body.setAxisAngle()`](#body-setaxisangle) · [`world.setBody()`](#world-setbody) · [`body.setEuler()`](#body-seteuler) · [`world.setJoint()`](#world-setjoint) · [`body.setPosition()`](#body-setposition) · [`body.setRotation()`](#body-setrotation) · [`body.setVelocity()`](#body-setvelocity) · [`world.shapeCast()`](#world-shapecast) · [`world.sleeping`](#world-sleeping) · [Sleeping](#sleeping) · [`body.slot`](#body-slot) · [Soft bodies](#soft-bodies) · [SoftBody](#softbody) · [`world.softBody()`](#world-softbody) · [`world.softBodyOf()`](#world-softbodyof) · [`world.setSoftBody()`](#world-setsoftbody) · [`world.step()`](#world-step) · [`world.stepCount`](#world-stepcount) · [`world.substeps`](#world-substeps)
 
 **T** &nbsp; [`joint.torque`](#joint-torque) · [`world.touching()`](#world-touching) · [`world.transforms`](#world-transforms)
 
 **V** &nbsp; [`body.velocity`](#body-velocity)
 
-**W** &nbsp; [What 1.x promises](#promises) · [`new World()`](#world) · [`world.workers`](#world-workers) · [`body.world`](#body-world) · [`joint.world`](#joint-world) · [`body.worldCenterOfMass`](#body-worldcenterofmass)
+**W** &nbsp; [Water](#water) · [What 1.x promises](#promises) · [`new World()`](#world) · [`world.workers`](#world-workers) · [`body.world`](#body-world) · [`joint.world`](#joint-world) · [`softBody.world`](#softbody-world) · [`body.worldCenterOfMass`](#body-worldcenterofmass)
 
 <a id="world-class"></a>
 ## World
@@ -440,6 +440,8 @@ Adds a body and returns its [handle](#body). With no options it is a dynamic 1 m
 | `mask` | `0xffffffff` | Which layers it collides with, one bit each: all of them. |
 | `group` | `0` (none) | Bodies of the same group never collide with each other, as a ragdoll's own parts: any whole number, so a body's `id` will do. `0` is no group. See [Layers, masks and groups](#layers). |
 | `sensor` | `false` | A sensor reports what overlaps it and pushes nothing. See [Contact events and sensors](#events). |
+| `fluid` | `false` | Water: a static or kinematic box that holds up and slows the dynamic bodies in it, its top the surface. A fluid is a sensor. Its `density` is the water's, and its `damping` and `angularDamping` slow what is in it, `3` each for new water unless given. See [Water](#water). |
+| `flow` | `[0, 0, 0]` | Water's current, m/s, world space: what it drags bodies toward. Only for a fluid. |
 | `lockRotation` | `[false, false, false]` | The world axes it never turns about, x, y and z: `[true, false, true]` keeps it upright. See [Character bodies](#characters). The name is Rapier's `lockRotations`, the one physics engines use. |
 | `lockPosition` | `[false, false, false]` | The world axes its centre of mass never moves along, x, y and z: `[false, false, true]` keeps it in a plane, however it is hit. `[true, true, true]` holds it in place and lets it turn. See [Character bodies](#characters). The name pairs with `lockRotation`. |
 | `maxSlope` | `π / 4` (45°) | A character's steepest walkable ground, in radians, from 0 to π/2: about where walking turns into climbing, the slope friction 1 can hold. Characters only. |
@@ -452,7 +454,7 @@ Adds a body and returns its [handle](#body). With no options it is a dynamic 1 m
 
 Returns: a [`Body`](#body).
 
-Throws: `addBody: this world was destroyed`; `addBody: options must be an object, got …`; `addBody: unknown option '…' (did you mean '…'?)`; `addBody: unknown option '…' (the options are type, shape, size, radius, height, vertices, indices, heights, columns, spacing, parts, density, mass, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity)`; `addBody: type must be 'dynamic', 'static', 'kinematic' or 'character', got …`; `addBody: shape must be 'box', 'sphere', 'capsule', 'hull', 'compound', 'mesh' or 'heightfield', got …`; `addBody: a <shape> has no <option>`; `addBody: type must be 'static' or 'kinematic' for a <shape>, got …`; `addBody: size must be 3 positive numbers, got …`; `addBody: radius must be a positive number, got …`; `addBody: height must be a positive number, got …`; `addBody: height must be at least twice radius (…), got …`; `addBody: vertices must be finite numbers, three to a vertex, got …`; `addBody: indices must be whole numbers below the vertex count (…), three to a triangle, got …`; `addBody: columns must be a whole number, 2 or more, got …`; `addBody: spacing must be a positive number, got …`; `addBody: heights must be finite numbers, rows of columns (…), 2 rows or more, got …`; `addBody: vertices must span a solid (4 points not in one plane), got …`; `addBody: type must be 'dynamic', 'static' or 'kinematic' for a <shape>, got …`; `addBody: parts must be a list of one or more parts, got …`; `addBody: parts[…] must be an object, got …`; `addBody: parts[…]: unknown option '…' (did you mean '…'?)`; `addBody: parts[…]: unknown option '…' (the options are shape, size, radius, height, vertices, position, rotation, density)`; `addBody: parts[…].shape must be 'box', 'sphere', 'capsule' or 'hull', got …`; `addBody: parts[…]: a <shape> has no <option>`; `addBody: parts[…].size must be 3 positive numbers, got …`; `addBody: parts[…].radius must be a positive number, got …`; `addBody: parts[…].height must be a positive number, got …`; `addBody: parts[…].height must be at least twice radius (…), got …`; `addBody: parts[…].vertices must be finite numbers, three to a vertex, got …`; `addBody: parts[…].vertices must span a solid (4 points not in one plane), got …`; `addBody: parts[…].position must be 3 finite numbers, got …`; `addBody: parts[…].rotation must be 4 finite numbers, not all zero, got …`; `addBody: parts[…].density must be a positive number, got …`; `addBody: give mass or density, not both`; `addBody: mass must be a positive number, got …`; `addBody: density must be a positive number, got …`; `addBody: inertia must be 3 positive numbers, or null to follow the shape, got …`; `addBody: centerOfMass must be 3 finite numbers, got …`; `addBody: a character body has no centerOfMass`; `addBody: friction must be 0 or more, got …`; `addBody: restitution must be from 0 to 1, got …`; `addBody: damping must be 0 or more, got …`; `addBody: angularDamping must be 0 or more, got …`; `addBody: gravityScale must be a finite number, got …`; `addBody: layers must be a whole number that fits in 32 bits, got …`; `addBody: mask must be a whole number that fits in 32 bits, got …`; `addBody: group must be a whole number, 0 or more, got …`; `addBody: sensor must be true or false, got …`; `addBody: lockRotation must be 3 true or false values, got …`; `addBody: lockPosition must be 3 true or false values, got …`; `addBody: maxSlope must be an angle from 0 to π/2, in radians, got …`; `addBody: stepHeight must be 0 or more, or null to follow the size, got …`; `addBody: pushForce must be 0 or more, got …`; `addBody: position must be 3 finite numbers, got …`; `addBody: rotation must be 4 finite numbers, not all zero, got …`; `addBody: a <type> body has no <option>`; `addBody: velocity must be 3 finite numbers, got …`; `addBody: angularVelocity must be 3 finite numbers, got …`; `addBody: a world holds at most 16777216 bodies (the slot field of an id is 24 bits)`.
+Throws: `addBody: this world was destroyed`; `addBody: options must be an object, got …`; `addBody: unknown option '…' (did you mean '…'?)`; `addBody: unknown option '…' (the options are type, shape, size, radius, height, vertices, indices, heights, columns, spacing, parts, density, mass, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, fluid, flow, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity)`; `addBody: type must be 'dynamic', 'static', 'kinematic' or 'character', got …`; `addBody: shape must be 'box', 'sphere', 'capsule', 'hull', 'compound', 'mesh' or 'heightfield', got …`; `addBody: a <shape> has no <option>`; `addBody: type must be 'static' or 'kinematic' for a <shape>, got …`; `addBody: size must be 3 positive numbers, got …`; `addBody: radius must be a positive number, got …`; `addBody: height must be a positive number, got …`; `addBody: height must be at least twice radius (…), got …`; `addBody: vertices must be finite numbers, three to a vertex, got …`; `addBody: indices must be whole numbers below the vertex count (…), three to a triangle, got …`; `addBody: columns must be a whole number, 2 or more, got …`; `addBody: spacing must be a positive number, got …`; `addBody: heights must be finite numbers, rows of columns (…), 2 rows or more, got …`; `addBody: vertices must span a solid (4 points not in one plane), got …`; `addBody: type must be 'dynamic', 'static' or 'kinematic' for a <shape>, got …`; `addBody: parts must be a list of one or more parts, got …`; `addBody: parts[…] must be an object, got …`; `addBody: parts[…]: unknown option '…' (did you mean '…'?)`; `addBody: parts[…]: unknown option '…' (the options are shape, size, radius, height, vertices, position, rotation, density)`; `addBody: parts[…].shape must be 'box', 'sphere', 'capsule' or 'hull', got …`; `addBody: parts[…]: a <shape> has no <option>`; `addBody: parts[…].size must be 3 positive numbers, got …`; `addBody: parts[…].radius must be a positive number, got …`; `addBody: parts[…].height must be a positive number, got …`; `addBody: parts[…].height must be at least twice radius (…), got …`; `addBody: parts[…].vertices must be finite numbers, three to a vertex, got …`; `addBody: parts[…].vertices must span a solid (4 points not in one plane), got …`; `addBody: parts[…].position must be 3 finite numbers, got …`; `addBody: parts[…].rotation must be 4 finite numbers, not all zero, got …`; `addBody: parts[…].density must be a positive number, got …`; `addBody: give mass or density, not both`; `addBody: mass must be a positive number, got …`; `addBody: density must be a positive number, got …`; `addBody: inertia must be 3 positive numbers, or null to follow the shape, got …`; `addBody: centerOfMass must be 3 finite numbers, got …`; `addBody: a character body has no centerOfMass`; `addBody: friction must be 0 or more, got …`; `addBody: restitution must be from 0 to 1, got …`; `addBody: damping must be 0 or more, got …`; `addBody: angularDamping must be 0 or more, got …`; `addBody: gravityScale must be a finite number, got …`; `addBody: layers must be a whole number that fits in 32 bits, got …`; `addBody: mask must be a whole number that fits in 32 bits, got …`; `addBody: group must be a whole number, 0 or more, got …`; `addBody: sensor must be true or false, got …`; `addBody: fluid must be true or false, got …`; `addBody: flow must be 3 finite numbers, got …`; `addBody: a fluid must be a box, got …`; `addBody: type must be 'static' or 'kinematic' for a fluid, got …`; `addBody: a fluid is a sensor: sensor must be true or left out`; `addBody: lockRotation must be 3 true or false values, got …`; `addBody: lockPosition must be 3 true or false values, got …`; `addBody: maxSlope must be an angle from 0 to π/2, in radians, got …`; `addBody: stepHeight must be 0 or more, or null to follow the size, got …`; `addBody: pushForce must be 0 or more, got …`; `addBody: position must be 3 finite numbers, got …`; `addBody: rotation must be 4 finite numbers, not all zero, got …`; `addBody: a <type> body has no <option>`; `addBody: velocity must be 3 finite numbers, got …`; `addBody: angularVelocity must be 3 finite numbers, got …`; `addBody: a world holds at most 16777216 bodies (the slot field of an id is 24 bits)`.
 
 ```js
 const ground = world.addBody({ type: 'static', size: [20, 1, 20], position: [0, -0.5, 0] });
@@ -474,7 +476,7 @@ has (`got 10 numbers`), rather than every number in it.
 Changes any of the options [`addBody`](#world-addbody) took, with the same names, defaults and
 checks, and leaves the rest as they are.
 
-Throws: `setBody: this world was destroyed`; `setBody: body must be a Body, got …`; `setBody: body belongs to another world`; `setBody: body was removed`; `setBody: changes must be an object, got …`; `setBody: unknown option '…' (did you mean '…'?)`; `setBody: unknown option '…' (the options are type, shape, size, radius, height, vertices, indices, heights, columns, spacing, parts, density, mass, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity)`; `setBody: type must be 'dynamic', 'static', 'kinematic' or 'character', got …`; `setBody: shape must be 'box', 'sphere', 'capsule', 'hull', 'compound', 'mesh' or 'heightfield', got …`; `setBody: a <shape> has no <option>`; `setBody: type must be 'static' or 'kinematic' for a <shape>, got …`; `setBody: size must be 3 positive numbers, got …`; `setBody: radius must be a positive number, got …`; `setBody: height must be a positive number, got …`; `setBody: height must be at least twice radius (…), got …`; `setBody: vertices must be finite numbers, three to a vertex, got …`; `setBody: indices must be whole numbers below the vertex count (…), three to a triangle, got …`; `setBody: columns must be a whole number, 2 or more, got …`; `setBody: spacing must be a positive number, got …`; `setBody: heights must be finite numbers, rows of columns (…), 2 rows or more, got …`; `setBody: vertices must span a solid (4 points not in one plane), got …`; `setBody: type must be 'dynamic', 'static' or 'kinematic' for a <shape>, got …`; `setBody: parts must be a list of one or more parts, got …`; `setBody: parts[…] must be an object, got …`; `setBody: parts[…]: unknown option '…' (did you mean '…'?)`; `setBody: parts[…]: unknown option '…' (the options are shape, size, radius, height, vertices, position, rotation, density)`; `setBody: parts[…].shape must be 'box', 'sphere', 'capsule' or 'hull', got …`; `setBody: parts[…]: a <shape> has no <option>`; `setBody: parts[…].size must be 3 positive numbers, got …`; `setBody: parts[…].radius must be a positive number, got …`; `setBody: parts[…].height must be a positive number, got …`; `setBody: parts[…].height must be at least twice radius (…), got …`; `setBody: parts[…].vertices must be finite numbers, three to a vertex, got …`; `setBody: parts[…].vertices must span a solid (4 points not in one plane), got …`; `setBody: parts[…].position must be 3 finite numbers, got …`; `setBody: parts[…].rotation must be 4 finite numbers, not all zero, got …`; `setBody: parts[…].density must be a positive number, got …`; `setBody: give mass or density, not both`; `setBody: mass must be a positive number, got …`; `setBody: density must be a positive number, got …`; `setBody: inertia must be 3 positive numbers, or null to follow the shape, got …`; `setBody: centerOfMass must be 3 finite numbers, got …`; `setBody: a character body has no centerOfMass`; `setBody: friction must be 0 or more, got …`; `setBody: restitution must be from 0 to 1, got …`; `setBody: damping must be 0 or more, got …`; `setBody: angularDamping must be 0 or more, got …`; `setBody: gravityScale must be a finite number, got …`; `setBody: layers must be a whole number that fits in 32 bits, got …`; `setBody: mask must be a whole number that fits in 32 bits, got …`; `setBody: group must be a whole number, 0 or more, got …`; `setBody: sensor must be true or false, got …`; `setBody: lockRotation must be 3 true or false values, got …`; `setBody: lockPosition must be 3 true or false values, got …`; `setBody: maxSlope must be an angle from 0 to π/2, in radians, got …`; `setBody: stepHeight must be 0 or more, or null to follow the size, got …`; `setBody: pushForce must be 0 or more, got …`; `setBody: position must be 3 finite numbers, got …`; `setBody: rotation must be 4 finite numbers, not all zero, got …`; `setBody: a <type> body has no <option>`; `setBody: velocity must be 3 finite numbers, got …`; `setBody: angularVelocity must be 3 finite numbers, got …`.
+Throws: `setBody: this world was destroyed`; `setBody: body must be a Body, got …`; `setBody: body belongs to another world`; `setBody: body was removed`; `setBody: changes must be an object, got …`; `setBody: unknown option '…' (did you mean '…'?)`; `setBody: unknown option '…' (the options are type, shape, size, radius, height, vertices, indices, heights, columns, spacing, parts, density, mass, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, fluid, flow, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity)`; `setBody: type must be 'dynamic', 'static', 'kinematic' or 'character', got …`; `setBody: shape must be 'box', 'sphere', 'capsule', 'hull', 'compound', 'mesh' or 'heightfield', got …`; `setBody: a <shape> has no <option>`; `setBody: type must be 'static' or 'kinematic' for a <shape>, got …`; `setBody: size must be 3 positive numbers, got …`; `setBody: radius must be a positive number, got …`; `setBody: height must be a positive number, got …`; `setBody: height must be at least twice radius (…), got …`; `setBody: vertices must be finite numbers, three to a vertex, got …`; `setBody: indices must be whole numbers below the vertex count (…), three to a triangle, got …`; `setBody: columns must be a whole number, 2 or more, got …`; `setBody: spacing must be a positive number, got …`; `setBody: heights must be finite numbers, rows of columns (…), 2 rows or more, got …`; `setBody: vertices must span a solid (4 points not in one plane), got …`; `setBody: type must be 'dynamic', 'static' or 'kinematic' for a <shape>, got …`; `setBody: parts must be a list of one or more parts, got …`; `setBody: parts[…] must be an object, got …`; `setBody: parts[…]: unknown option '…' (did you mean '…'?)`; `setBody: parts[…]: unknown option '…' (the options are shape, size, radius, height, vertices, position, rotation, density)`; `setBody: parts[…].shape must be 'box', 'sphere', 'capsule' or 'hull', got …`; `setBody: parts[…]: a <shape> has no <option>`; `setBody: parts[…].size must be 3 positive numbers, got …`; `setBody: parts[…].radius must be a positive number, got …`; `setBody: parts[…].height must be a positive number, got …`; `setBody: parts[…].height must be at least twice radius (…), got …`; `setBody: parts[…].vertices must be finite numbers, three to a vertex, got …`; `setBody: parts[…].vertices must span a solid (4 points not in one plane), got …`; `setBody: parts[…].position must be 3 finite numbers, got …`; `setBody: parts[…].rotation must be 4 finite numbers, not all zero, got …`; `setBody: parts[…].density must be a positive number, got …`; `setBody: give mass or density, not both`; `setBody: mass must be a positive number, got …`; `setBody: density must be a positive number, got …`; `setBody: inertia must be 3 positive numbers, or null to follow the shape, got …`; `setBody: centerOfMass must be 3 finite numbers, got …`; `setBody: a character body has no centerOfMass`; `setBody: friction must be 0 or more, got …`; `setBody: restitution must be from 0 to 1, got …`; `setBody: damping must be 0 or more, got …`; `setBody: angularDamping must be 0 or more, got …`; `setBody: gravityScale must be a finite number, got …`; `setBody: layers must be a whole number that fits in 32 bits, got …`; `setBody: mask must be a whole number that fits in 32 bits, got …`; `setBody: group must be a whole number, 0 or more, got …`; `setBody: sensor must be true or false, got …`; `setBody: fluid must be true or false, got …`; `setBody: flow must be 3 finite numbers, got …`; `setBody: a fluid must be a box, got …`; `setBody: type must be 'static' or 'kinematic' for a fluid, got …`; `setBody: a fluid is a sensor: sensor must be true or left out`; `setBody: lockRotation must be 3 true or false values, got …`; `setBody: lockPosition must be 3 true or false values, got …`; `setBody: maxSlope must be an angle from 0 to π/2, in radians, got …`; `setBody: stepHeight must be 0 or more, or null to follow the size, got …`; `setBody: pushForce must be 0 or more, got …`; `setBody: position must be 3 finite numbers, got …`; `setBody: rotation must be 4 finite numbers, not all zero, got …`; `setBody: a <type> body has no <option>`; `setBody: velocity must be 3 finite numbers, got …`; `setBody: angularVelocity must be 3 finite numbers, got …`.
 
 ```js
 world.setBody(crate, { size: [2, 1, 1] });           // twice as long, and twice as heavy
@@ -499,7 +501,7 @@ A copy of the body's options as they are now, in the form [`addBody`](#world-add
 `world.addBody(world.bodyOf(body))` makes a copy of it. Changing the result changes nothing; pass
 it to [`setBody`](#world-setbody) for that.
 
-Returns: `{ type, shape, …sizes, mass or density, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity }`,
+Returns: `{ type, shape, …sizes, mass or density, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, fluid, flow, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity }`,
 each only for the bodies that have it. The sizes are the shape's own: `size` for a box, `radius`
 for a sphere, `radius` and `height` for a capsule, `vertices` for a hull (the corners it kept),
 `parts` for a compound (each `{ shape, …its sizes, position, rotation }`, a hull part's `vertices`
@@ -511,7 +513,7 @@ if not. `inertia` as given, or `null` while it is worked out from the shape and 
 heightfield has none of those four, and a character no `centerOfMass`. A character's `maxSlope`,
 and its `stepHeight`, `null` while it follows its size. `layers` and `mask` come back unsigned,
 from 0 to 4294967295, whichever way they were given. A static body has no `velocity` or
-`angularVelocity`.
+`angularVelocity`. `fluid` and `flow` only for water.
 
 Throws: `bodyOf: this world was destroyed`; `bodyOf: body must be a Body, got …`; `bodyOf: body belongs to another world`; `bodyOf: body was removed`.
 
@@ -524,11 +526,12 @@ world.setBody(crate, world.bodyOf(crate));   // changes nothing
 <a id="world-remove"></a>
 ### `world.remove(handle)`
 
-Removes a body, with every joint holding it, or a joint. Its handle stops working:
-[`body.alive`](#body-alive) or [`joint.alive`](#joint-alive) becomes `false`, and its methods throw.
+Removes a body, with every joint holding it, a joint, or a soft body. Its handle stops working:
+[`body.alive`](#body-alive), [`joint.alive`](#joint-alive) or [`softBody.alive`](#softbody-alive)
+becomes `false`, and its methods throw.
 Removing what is already gone does nothing.
 
-Throws: `remove: this world was destroyed`; `remove: handle must be a Body or a Joint, got …`; `remove: handle belongs to another world`.
+Throws: `remove: this world was destroyed`; `remove: handle must be a Body, a Joint or a SoftBody, got …`; `remove: handle belongs to another world`.
 
 ```js
 world.remove(crate);
@@ -537,8 +540,9 @@ world.remove(crate);
 Notes: the body's slot is given to a later body, under a new id, so an old handle can never reach
 the new body. When the bodies left use a quarter of the world's storage or less, the storage
 shrinks to half, which replaces [`world.transforms`](#world-transforms). Same as
-[`body.destroy()`](#body-destroy) and [`joint.destroy()`](#joint-destroy). What a removed joint
-held wakes.
+[`body.destroy()`](#body-destroy), [`joint.destroy()`](#joint-destroy) and
+[`softBody.destroy()`](#softbody-destroy). What a removed joint held wakes, and so does a soft body
+a removed body held up or held: its attachments to it let go.
 
 <a id="world-body"></a>
 ### `world.body(id)` → `Body`
@@ -572,6 +576,21 @@ const again = world.joint(lid.id);
 console.log(again.id === lid.id);   // true
 ```
 
+<a id="world-softbody"></a>
+### `world.softBody(id)` → `SoftBody`
+
+A handle for a soft body's id, as [`world.body`](#world-body) is for a body's: for an id you
+stored, sent over a network, or saved. It does not check that the soft body is alive; check
+[`softBody.alive`](#softbody-alive).
+
+Throws: `softBody: this world was destroyed`; `softBody: id must be a whole number from 0 to 9007199254740991, got …`.
+
+```js
+const cloth = world.addSoftBody({});
+const again = world.softBody(cloth.id);
+console.log(again.positions === cloth.positions);   // true
+```
+
 <a id="world-addjoint"></a>
 ### `world.addJoint(options)` → `Joint`
 
@@ -580,28 +599,29 @@ the joint's type allows, and returns its [handle](#joint). See [Joints](#joints)
 
 | Option | Default | Meaning |
 |---|---|---|
-| `type` | `'ball'` | `'fixed'`: welded, nothing free. `'ball'`: turns any way about its anchor. `'hinge'`: turns about `axis`. `'slider'`: slides along `axis`, turning not at all. `'distance'`: keeps two points `length` apart, or between `min` and `max`. `'rotation'`: holds or drives how `a` is turned against `b`, and leaves where it is free. |
+| `type` | `'ball'` | `'fixed'`: welded, nothing free. `'ball'`: turns any way about its anchor. `'hinge'`: turns about `axis`. `'slider'`: slides along `axis`, turning not at all. `'distance'`: keeps two points `length` apart, or between `min` and `max`. `'rotation'`: holds or drives how `a` is turned against `b`, and leaves where it is free. `'wheel'`: `a`, the wheel, slides along `axis` on a spring and spins about `axle`, as a car's wheel on its suspension (see [Joints](#joints)). |
 | `a` | none; it must be given | The body. Its angle, position and motor are measured against `b`. |
 | `b` | `null` | What `a` is held to: another body, or `null` for a point in the world that never moves. |
 | `anchor` | midway between their centres of mass; with no `b`, `a`'s centre of mass; a distance joint's, `a`'s centre of mass | Where the joint is, in world space, in metres, where the bodies are now. Bearing works out where that is on each. Not for a rotation joint, which holds no point. |
 | `anchorB` | `anchor`; a distance joint's, `b`'s centre of mass | Where it is on `b`, or in the world with no `b`, if not the same point: a distance joint's other end. For any other joint, a point it pulls to `anchor`. Not for a rotation joint. |
-| `axis` | `[0, 1, 0]` | A hinge's axis, a slider's direction, a ball or rotation joint's axis for `cone`, and a ball joint's for its twist, in world space where the bodies are now. Needn't be unit length. Not for a fixed or distance joint. |
-| `min` | none (-Infinity); a distance joint's, its `length`, or 0 with a spring | The least a's free coordinate may be: a hinge's angle or a ball joint's twist about `axis`, in radians, from -π to π, or -Infinity for none; a slider's position along `axis`, in metres; a distance joint's length, in metres, 0 or more. A hinge's angle, a slider's position and a ball joint's twist are measured from where the joint is made. `null` goes back to the default. Not for a fixed or rotation joint. |
+| `axis` | `[0, 1, 0]` | A hinge's axis, a slider's direction, a wheel's suspension, a ball or rotation joint's axis for `cone`, and a ball joint's for its twist, in world space where the bodies are now. Needn't be unit length. Not for a fixed or distance joint. |
+| `axle` | the world's x, y or z most at right angles to `axis` | What a wheel spins about, in world space where the bodies are now: at an angle to `axis`, and made square to it. Steering is turning it with [`setJoint`](#world-setjoint), which keeps what the wheel holds. Only a wheel. |
+| `min` | none (-Infinity); a distance joint's, its `length`, or 0 with a spring | The least a's free coordinate may be: a hinge's angle or a ball joint's twist about `axis`, in radians, from -π to π, or -Infinity for none; a slider's or wheel's position along `axis`, in metres; a distance joint's length, in metres, 0 or more. A hinge's angle, a slider's position and a ball joint's twist are measured from where the joint is made. `null` goes back to the default. Not for a fixed or rotation joint. |
 | `max` | none (Infinity); a distance joint's, its `length`, or none with a spring | The most, the same way: up to π, or Infinity for none. `null` goes back to the default. |
 | `length` | how far apart the anchors are | A distance joint's length, in metres, 0 or more: what it holds, or springs back to. `null` goes back to the default: how far apart the anchors are when it is set. |
 | `cone` | `π` (none) | How far a ball or rotation joint's `axis` on `a` may swing from its `axis` on `b` (the world's, with no `b`), in radians, from 0 to π. A hard stop, as `min` and `max` are. One angle is the same every way round; two, `[toward, across]`, are an ellipse: how far it may swing toward `swing`, and at right angles to it, each above 0, as a shoulder swings further forward than up. |
 | `swing` | `null`: the world's x, y or z most at right angles to `axis` | Which way an elliptical `cone`'s first angle faces, in world space where the bodies are now; it turns with `b` from there. At an angle to `axis`, not along it; needn't be square to it or unit length. `null` goes back to the default. Only a ball or rotation joint. |
 | `target` | `null` (none: the motor drives a speed) | Where the motor drives `a` against `b`, as a spring (see `frequency`): a hinge's angle about `axis`, in radians, from -π to π; a slider's position along `axis`, in metres; a ball or rotation joint's turn, `[x, y, z, w]`, any length but not all zero, about `b`'s own axes (the world's with no `b`). Measured as `min` and `max` are, from where the joint was made: `0`, or `[0, 0, 0, 1]`, is as they were. It drives only while `motorForce` is more than 0. `null` goes back to none. Not for a fixed or distance joint. |
-| `motorSpeed` | `0` | The speed a hinge's or slider's motor drives `a` at against `b`: rad/s about `axis`, or m/s along it. With a `target`, how fast the target moves: Bearing carries it on as it steps, and the drive follows it without lagging. Not for a ball or rotation joint. |
-| `motorForce` | `0` (motor off) | The most the motor may push, 0 or more: N·m for a hinge, ball or rotation joint, N for a slider. `0` is a motor off, so a `target` with no `motorForce` does nothing. A ball or rotation joint's is one limit for every way it turns. A ball or rotation joint's motor with no `target` holds it from turning, up to this, as `frictionForce` does. Not for a fixed or distance joint. |
-| `frictionForce` | `0` (none) | The most a ball, hinge, slider or rotation joint resists `a` turning or sliding against `b` with, 0 or more, as a stiff hinge does: N·m for a ball, hinge or rotation joint, N for a slider. It acts while the motor is off. Not for a fixed or distance joint. |
-| `frequency` | `0` | How springy a distance joint or a motor's drive to its `target` is: how many times a second it would bounce, in Hz. A distance joint with one is a spring, pulling it to `length`; with none, a rod. A drive with none is as stiff as the solver goes, reaching its target as fast as `motorForce` lets it. Not for a fixed joint. |
+| `motorSpeed` | `0` | The speed a hinge's, slider's or wheel's motor drives `a` at against `b`: rad/s about `axis` (a wheel's `axle`), or m/s along it. With a `target`, how fast the target moves: Bearing carries it on as it steps, and the drive follows it without lagging. Not for a ball or rotation joint. |
+| `motorForce` | `0` (motor off) | The most the motor may push, 0 or more: N·m for a hinge, wheel, ball or rotation joint, N for a slider. A wheel's motor at `motorSpeed: 0` is its brake. `0` is a motor off, so a `target` with no `motorForce` does nothing. A ball or rotation joint's is one limit for every way it turns. A ball or rotation joint's motor with no `target` holds it from turning, up to this, as `frictionForce` does. Not for a fixed or distance joint. |
+| `frictionForce` | `0` (none) | The most a ball, hinge, slider, wheel or rotation joint resists `a` turning or sliding against `b` with, 0 or more, as a stiff hinge does: N·m for a ball, hinge or rotation joint, N for a slider. It acts while the motor is off. Not for a fixed or distance joint. |
+| `frequency` | `0` | How springy a distance joint, a wheel's suspension or a motor's drive to its `target` is: how many times a second it would bounce, in Hz. A distance joint with one is a spring, pulling it to `length`; with none, a rod. A wheel's pulls it back to where it was joined along `axis`; with none, the wheel doesn't slide at all. A drive with none is as stiff as the solver goes, reaching its target as fast as `motorForce` lets it. Not for a fixed joint. |
 | `dampingRatio` | `1` | How quickly the spring stops bouncing: 1 settles without overshooting, as Bearing's contacts do; 0 is no damping of its own (see [Joints](#joints), Notes). Not for a fixed joint. |
 | `collide` | `false` | Whether `a` and `b` still collide with each other. The name is Box2D's `collideConnected`, shortened, the one physics engines use. |
 
 Returns: a [`Joint`](#joint).
 
-Throws: `addJoint: this world was destroyed`; `addJoint: options must be an object, got …`; `addJoint: friction is now frictionForce, the same N·m or N`; `addJoint: unknown option '…' (did you mean '…'?)`; `addJoint: unknown option '…' (the options are type, a, b, anchor, anchorB, axis, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide)`; `addJoint: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance' or 'rotation', got …`; `addJoint: a <type> joint has no <option>`; `addJoint: <a or b> must be a Body, got …`; `addJoint: <a or b> belongs to another world`; `addJoint: <a or b> was removed`; `addJoint: a and b must be different bodies`; `addJoint: anchor must be 3 finite numbers, got …`; `addJoint: anchorB must be 3 finite numbers, got …`; `addJoint: axis must be 3 finite numbers, not all zero, got …`; `addJoint: length must be 0 or more, got …`; `addJoint: cone must be an angle from 0 to π, or two above 0, in radians, got …`; `addJoint: swing must be 3 finite numbers, not all zero, got …`; `addJoint: swing must be at an angle to axis, got …`; `addJoint: target must be from -π to π, in radians, got …`; `addJoint: target must be a finite number, got …`; `addJoint: target must be 4 finite numbers, not all zero, got …`; `addJoint: motorSpeed must be a finite number, got …`; `addJoint: motorForce must be 0 or more, got …`; `addJoint: frictionForce must be 0 or more, got …`; `addJoint: frequency must be 0 or more, got …`; `addJoint: dampingRatio must be 0 or more, got …`; `addJoint: min must be from -π to π, in radians, or -Infinity, got …`; `addJoint: max must be from -π to π, in radians, or Infinity, got …`; `addJoint: min must be a number or -Infinity, got …`; `addJoint: max must be a number or Infinity, got …`; `addJoint: min must be 0 or more, got …`; `addJoint: max must be 0 or more, or Infinity, got …`; `addJoint: min must be at most max (…), got …`; `addJoint: collide must be true or false, got …`; `addJoint: a world holds at most 16777216 joints (the slot field of an id is 24 bits)`.
+Throws: `addJoint: this world was destroyed`; `addJoint: options must be an object, got …`; `addJoint: friction is now frictionForce, the same N·m or N`; `addJoint: unknown option '…' (did you mean '…'?)`; `addJoint: unknown option '…' (the options are type, a, b, anchor, anchorB, axis, axle, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide)`; `addJoint: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance', 'rotation' or 'wheel', got …`; `addJoint: a <type> joint has no <option>`; `addJoint: <a or b> must be a Body, got …`; `addJoint: <a or b> belongs to another world`; `addJoint: <a or b> was removed`; `addJoint: a and b must be different bodies`; `addJoint: anchor must be 3 finite numbers, got …`; `addJoint: anchorB must be 3 finite numbers, got …`; `addJoint: axis must be 3 finite numbers, not all zero, got …`; `addJoint: length must be 0 or more, got …`; `addJoint: cone must be an angle from 0 to π, or two above 0, in radians, got …`; `addJoint: swing must be 3 finite numbers, not all zero, got …`; `addJoint: swing must be at an angle to axis, got …`; `addJoint: axle must be 3 finite numbers, not all zero, got …`; `addJoint: axle must be at an angle to axis, got …`; `addJoint: target must be from -π to π, in radians, got …`; `addJoint: target must be a finite number, got …`; `addJoint: target must be 4 finite numbers, not all zero, got …`; `addJoint: motorSpeed must be a finite number, got …`; `addJoint: motorForce must be 0 or more, got …`; `addJoint: frictionForce must be 0 or more, got …`; `addJoint: frequency must be 0 or more, got …`; `addJoint: dampingRatio must be 0 or more, got …`; `addJoint: min must be from -π to π, in radians, or -Infinity, got …`; `addJoint: max must be from -π to π, in radians, or Infinity, got …`; `addJoint: min must be a number or -Infinity, got …`; `addJoint: max must be a number or Infinity, got …`; `addJoint: min must be 0 or more, got …`; `addJoint: max must be 0 or more, or Infinity, got …`; `addJoint: min must be at most max (…), got …`; `addJoint: collide must be true or false, got …`; `addJoint: a world holds at most 16777216 joints (the slot field of an id is 24 bits)`.
 
 ```js
 const frame = world.addBody({ type: 'static', size: [0.1, 2, 0.1], position: [-0.05, 1, 0] });
@@ -629,7 +649,7 @@ Changes any of the options [`addJoint`](#world-addjoint) took, with the same nam
 checks, and leaves the rest as they are. `a` and `b` can't change: given as they are, as
 [`jointOf`](#world-jointof) gives them, they are taken, and naming another body throws.
 
-Throws: `setJoint: this world was destroyed`; `setJoint: joint must be a Joint, got …`; `setJoint: joint belongs to another world`; `setJoint: joint was removed`; `setJoint: changes must be an object, got …`; `setJoint: friction is now frictionForce, the same N·m or N`; `setJoint: unknown option '…' (did you mean '…'?)`; `setJoint: unknown option '…' (the options are type, a, b, anchor, anchorB, axis, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide)`; `setJoint: a and b can't change; remove the joint and add another`; `setJoint: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance' or 'rotation', got …`; `setJoint: a <type> joint has no <option>`; `setJoint: anchor must be 3 finite numbers, got …`; `setJoint: anchorB must be 3 finite numbers, got …`; `setJoint: axis must be 3 finite numbers, not all zero, got …`; `setJoint: length must be 0 or more, got …`; `setJoint: cone must be an angle from 0 to π, or two above 0, in radians, got …`; `setJoint: swing must be 3 finite numbers, not all zero, got …`; `setJoint: swing must be at an angle to axis, got …`; `setJoint: target must be from -π to π, in radians, got …`; `setJoint: target must be a finite number, got …`; `setJoint: target must be 4 finite numbers, not all zero, got …`; `setJoint: motorSpeed must be a finite number, got …`; `setJoint: motorForce must be 0 or more, got …`; `setJoint: frictionForce must be 0 or more, got …`; `setJoint: frequency must be 0 or more, got …`; `setJoint: dampingRatio must be 0 or more, got …`; `setJoint: min must be from -π to π, in radians, or -Infinity, got …`; `setJoint: max must be from -π to π, in radians, or Infinity, got …`; `setJoint: min must be a number or -Infinity, got …`; `setJoint: max must be a number or Infinity, got …`; `setJoint: min must be 0 or more, got …`; `setJoint: max must be 0 or more, or Infinity, got …`; `setJoint: min must be at most max (…), got …`; `setJoint: collide must be true or false, got …`.
+Throws: `setJoint: this world was destroyed`; `setJoint: joint must be a Joint, got …`; `setJoint: joint belongs to another world`; `setJoint: joint was removed`; `setJoint: changes must be an object, got …`; `setJoint: friction is now frictionForce, the same N·m or N`; `setJoint: unknown option '…' (did you mean '…'?)`; `setJoint: unknown option '…' (the options are type, a, b, anchor, anchorB, axis, axle, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide)`; `setJoint: a and b can't change; remove the joint and add another`; `setJoint: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance', 'rotation' or 'wheel', got …`; `setJoint: a <type> joint has no <option>`; `setJoint: anchor must be 3 finite numbers, got …`; `setJoint: anchorB must be 3 finite numbers, got …`; `setJoint: axis must be 3 finite numbers, not all zero, got …`; `setJoint: length must be 0 or more, got …`; `setJoint: cone must be an angle from 0 to π, or two above 0, in radians, got …`; `setJoint: swing must be 3 finite numbers, not all zero, got …`; `setJoint: swing must be at an angle to axis, got …`; `setJoint: axle must be 3 finite numbers, not all zero, got …`; `setJoint: axle must be at an angle to axis, got …`; `setJoint: target must be from -π to π, in radians, got …`; `setJoint: target must be a finite number, got …`; `setJoint: target must be 4 finite numbers, not all zero, got …`; `setJoint: motorSpeed must be a finite number, got …`; `setJoint: motorForce must be 0 or more, got …`; `setJoint: frictionForce must be 0 or more, got …`; `setJoint: frequency must be 0 or more, got …`; `setJoint: dampingRatio must be 0 or more, got …`; `setJoint: min must be from -π to π, in radians, or -Infinity, got …`; `setJoint: max must be from -π to π, in radians, or Infinity, got …`; `setJoint: min must be a number or -Infinity, got …`; `setJoint: max must be a number or Infinity, got …`; `setJoint: min must be 0 or more, got …`; `setJoint: max must be 0 or more, or Infinity, got …`; `setJoint: min must be at most max (…), got …`; `setJoint: collide must be true or false, got …`.
 
 ```js
 const hinge = world.addJoint({ type: 'hinge', a: crate, anchor: [2, 1, 0], axis: [0, 0, 1] });
@@ -658,10 +678,10 @@ A copy of the joint's options as they are now, in the form [`addJoint`](#world-a
 so `world.addJoint(world.jointOf(joint))` makes another like it. Changing the result changes
 nothing.
 
-Returns: `{ type, a, b, anchor, anchorB, axis, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide }`,
+Returns: `{ type, a, b, anchor, anchorB, axis, axle, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide }`,
 each only for the types that have it: `anchor` where `a`'s end is now, in world space, and
 `anchorB` for a distance joint, or one given it, where `b`'s is; a rotation joint has neither.
-`axis` as it was last given, made unit length, in world space as it was then. `min` and `max` as
+`axis`, and a wheel's `axle`, as last given, made unit length, in world space as it was then. `min` and `max` as
 given, or `null` for the default. `target` is `null` for none, a number for a hinge or slider, and
 `[x, y, z, w]`, of unit length, for a ball or rotation joint; one given a `motorSpeed` is where
 Bearing has carried it to. `a` and `b` are [`Body`](#body) handles, `b` `null` for a point in the
@@ -680,6 +700,89 @@ are now counts from there. `axis` isn't read back from how the bodies have turne
 would come back a rounding off what was given and look like a change: it is what was given, so a
 copy made after the bodies have turned has that axis in the world, not the one the bodies have
 carried it to.
+
+<a id="world-addsoftbody"></a>
+### `world.addSoftBody(options)` → `SoftBody`
+
+Makes a soft body, a triangle mesh whose corners move on their own, held together by its edges,
+and returns its [handle](#softbody). An open mesh is cloth; a closed one, given `pressure`, keeps
+its volume. See [Soft bodies](#soft-bodies).
+
+| Option | Default | Meaning |
+|---|---|---|
+| `vertices` | a 1 m square, flat in x and z | Its corners, in metres, three numbers each, in its own frame. Given with `indices`. |
+| `indices` | the square's two triangles | Its triangles, three corners each, counting from 0. An edge between two triangles is a fold; a mesh whose every edge is between two, wound the same way round, is closed. |
+| `density` | `1000` | kg/m³; water's, as a body's. Cloth weighs its density times its area times its `thickness`; a closed mesh its density times its volume. Each corner carries a third of each triangle it is in. |
+| `stretch` | `1` | How little it stretches, from 0 to 1. 1: not at all. Hung by an edge under its own weight, in Earth's gravity, it would stretch by (1 − s) / s at the top, for small stretches: 0.99 by 1%, 0.9 by 11%. 0: nothing holds it together. It never resists being squashed, as cloth doesn't. |
+| `bend` | `0` | How little it folds, from 0 to 1, measured as `stretch` is, across each fold: 0 folds freely, as silk; 1 not at all, as card. |
+| `thickness` | `0.001` | Metres: its corners stay half this out of what they touch. 1 mm, about everyday cloth's, so a square metre of cloth weighs 1 kg. |
+| `pressure` | `0` (none) | A closed mesh's volume is held at this times the one it was made with: 1 keeps it, more swells it as far as its `stretch` gives, less lets it slump. 0 holds none. Only a closed mesh. |
+| `attach` | `[]` | Corners held where they are now: `{ vertex, body }`, to that point on `body`, or with no `body` (or `null`) to that point in the world. A body holds it both ways: the cloth hangs from it and pulls on it. |
+| `friction` | `0.5` | As a body's: how much sideways push its corners resist for each newton pressing them on what they touch. |
+| `damping` | `0` | As a body's: velocity lost per second, in 1/s. |
+| `wind` | `[0, 0, 0]` | The air's velocity around it, m/s. The air pushes each triangle along its normal by how fast it moves through the air that way, as on a flat plate; still air slows it as it falls. |
+| `layers` | `1` | As a body's: which of the 32 [layers](#layers) it is in, as bits. |
+| `mask` | `0xffffffff` | As a body's: which layers it collides with. |
+| `position` | `[0, 0, 0]` | Where its frame is, in metres: `vertices` are placed from here. |
+| `rotation` | `[0, 0, 0, 1]` | How its frame is turned, a quaternion. |
+| `velocity` | `[0, 0, 0]` | Every corner's velocity, m/s. |
+
+Returns: a [`SoftBody`](#softbody), whose [`positions`](#softbody-positions) are its corners.
+
+Throws: `addSoftBody: this world was destroyed`; `addSoftBody: options must be an object, got …`; `addSoftBody: unknown option '…' (did you mean '…'?)`; `addSoftBody: unknown option '…' (the options are vertices, indices, density, stretch, bend, thickness, pressure, attach, friction, damping, wind, layers, mask, position, rotation, velocity)`; `addSoftBody: vertices and indices must be given together`; `addSoftBody: density must be a positive number, got …`; `addSoftBody: thickness must be a positive number, got …`; `addSoftBody: stretch must be from 0 to 1, got …`; `addSoftBody: bend must be from 0 to 1, got …`; `addSoftBody: pressure must be 0 or more, got …`; `addSoftBody: friction must be 0 or more, got …`; `addSoftBody: damping must be 0 or more, got …`; `addSoftBody: wind must be 3 finite numbers, got …`; `addSoftBody: layers must be a whole number that fits in 32 bits, got …`; `addSoftBody: mask must be a whole number that fits in 32 bits, got …`; `addSoftBody: position must be 3 finite numbers, got …`; `addSoftBody: rotation must be 4 finite numbers, not all zero, got …`; `addSoftBody: vertices must be finite numbers, three to a vertex, got …`; `addSoftBody: indices must be whole numbers below the vertex count (…), three to a triangle, one triangle or more, got …`; `addSoftBody: triangle … names a vertex twice: …`; `addSoftBody: vertex … is in no triangle`; `addSoftBody: triangle … has no area: its corners are in a line`; `addSoftBody: pressure needs a closed mesh: every edge between two triangles, wound the same way round`; `addSoftBody: velocity must be 3 finite numbers, got …`; `addSoftBody: attach must be a list of { vertex, body }, got …`; `addSoftBody: attach[…] must be an object, got …`; `addSoftBody: attach[…]: unknown option '…' (did you mean '…'?)`; `addSoftBody: attach[…]: unknown option '…' (the options are vertex, body)`; `addSoftBody: attach[…].vertex must be a whole number below the vertex count (…), got …`; `addSoftBody: attach[…].body must be a Body, got …`; `addSoftBody: attach[…].body belongs to another world`; `addSoftBody: attach[…].body was removed`; `addSoftBody: a world holds at most 16777216 soft bodies (the slot field of an id is 24 bits)`.
+
+```js
+const sheet = { vertices: [-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1], indices: [0, 2, 1, 0, 3, 2] };
+const tarp = world.addSoftBody({ ...sheet, position: [2, 1.5, 0], density: 400, thickness: 0.0005 });
+const banner = world.addSoftBody({ position: [0, 3, 0], wind: [4, 0, 1], attach: [{ vertex: 0, body: crate }, { vertex: 1 }] });
+```
+
+Notes: a soft body collides with every body its layers and mask allow, both ways, but not with
+itself or other soft bodies (see [Soft bodies](#soft-bodies)). An attached corner doesn't collide
+with the body it is attached to. A triangle's corners must not lie in a line.
+
+<a id="world-setsoftbody"></a>
+### `world.setSoftBody(softBody, changes)`
+
+Changes any of the options [`addSoftBody`](#world-addsoftbody) took, with the same names,
+defaults and checks, and leaves the rest as they are; the soft body wakes.
+
+Throws: `setSoftBody: this world was destroyed`; `setSoftBody: softBody must be a SoftBody, got …`; `setSoftBody: softBody belongs to another world`; `setSoftBody: softBody was removed`; `setSoftBody: changes must be an object, got …`; `setSoftBody: unknown option '…' (did you mean '…'?)`; `setSoftBody: unknown option '…' (the options are vertices, indices, density, stretch, bend, thickness, pressure, attach, friction, damping, wind, layers, mask, position, rotation, velocity)`; `setSoftBody: density must be a positive number, got …`; `setSoftBody: thickness must be a positive number, got …`; `setSoftBody: stretch must be from 0 to 1, got …`; `setSoftBody: bend must be from 0 to 1, got …`; `setSoftBody: pressure must be 0 or more, got …`; `setSoftBody: friction must be 0 or more, got …`; `setSoftBody: damping must be 0 or more, got …`; `setSoftBody: wind must be 3 finite numbers, got …`; `setSoftBody: layers must be a whole number that fits in 32 bits, got …`; `setSoftBody: mask must be a whole number that fits in 32 bits, got …`; `setSoftBody: position must be 3 finite numbers, got …`; `setSoftBody: rotation must be 4 finite numbers, not all zero, got …`; `setSoftBody: vertices must be finite numbers, three to a vertex, got …`; `setSoftBody: indices must be whole numbers below the vertex count (…), three to a triangle, one triangle or more, got …`; `setSoftBody: triangle … names a vertex twice: …`; `setSoftBody: vertex … is in no triangle`; `setSoftBody: triangle … has no area: its corners are in a line`; `setSoftBody: pressure needs a closed mesh: every edge between two triangles, wound the same way round`; `setSoftBody: velocity must be 3 finite numbers, got …`; `setSoftBody: attach must be a list of { vertex, body }, got …`; `setSoftBody: attach[…] must be an object, got …`; `setSoftBody: attach[…]: unknown option '…' (did you mean '…'?)`; `setSoftBody: attach[…]: unknown option '…' (the options are vertex, body)`; `setSoftBody: attach[…].vertex must be a whole number below the vertex count (…), got …`; `setSoftBody: attach[…].body must be a Body, got …`; `setSoftBody: attach[…].body belongs to another world`; `setSoftBody: attach[…].body was removed`.
+
+```js
+const cloth = world.addSoftBody({ position: [0, 2, 0] });
+world.setSoftBody(cloth, { wind: [6, 0, 2] });                     // a gust
+world.setSoftBody(cloth, { position: [0, 3, 0] });                 // moved by hand, as it is
+world.setSoftBody(cloth, { attach: [{ vertex: 0 }, { vertex: 1 }] });   // pinned where they are now
+world.setSoftBody(cloth, world.softBodyOf(cloth));                 // changes nothing but its velocities
+```
+
+Notes: a new `position` or `rotation` moves every corner as one, keeping its shape, with its
+pins to the world; pins to bodies stay on their bodies. New `vertices` or `indices` start it again
+from them, at its pose, at rest unless `velocity` is given, with a fresh
+[`positions`](#softbody-positions) array, and drop its attachments unless `attach` is given too.
+New `attach` replaces them all, each holding its corner where it is now. `velocity` sets every
+corner's. A setting changes nothing else: changing `stretch` leaves where the corners are.
+
+<a id="world-softbodyof"></a>
+### `world.softBodyOf(softBody)` → `object`
+
+A copy of the soft body's options as they are now, in the form
+[`addSoftBody`](#world-addsoftbody) takes, so `world.addSoftBody(world.softBodyOf(softBody))`
+makes another like it. Changing the result changes nothing.
+
+Returns: `{ vertices, indices, density, stretch, bend, thickness, pressure, attach, friction, damping, wind, layers, mask, position, rotation, velocity }`:
+`vertices` as given, in its own frame, not where its corners are now (read
+[`positions`](#softbody-positions) for that); `attach` as `{ vertex, body }`, `body` a
+[`Body`](#body) handle or `null`; `position` and `rotation` as last given; `velocity` the mean of
+its corners' velocities, weighed by their mass.
+
+Throws: `softBodyOf: this world was destroyed`; `softBodyOf: softBody must be a SoftBody, got …`; `softBodyOf: softBody belongs to another world`; `softBodyOf: softBody was removed`.
+
+```js
+const cloth = world.addSoftBody({ stretch: 0.98 });
+console.log(world.softBodyOf(cloth).stretch);   // 0.98
+```
 
 <a id="world-raycast"></a>
 ### `world.raycast(origin, direction, options)` → `{ body, point, normal, distance } | null`
@@ -942,7 +1045,7 @@ stepping exactly as the saved world would have.
 Returns: a new [`World`](#world), its own: changing it changes nothing in the world it was saved
 from, or the data.
 
-Throws: `load: data must be what world.save() returned, got …`; `load: this data was saved by …, and this is …; a save loads only into the version that made it`; `load: data is format …; this Bearing reads format 15`; `load: data is damaged: …`.
+Throws: `load: data must be what world.save() returned, got …`; `load: this data was saved by …, and this is …; a save loads only into the version that made it`; `load: data is format …; this Bearing reads format 19`; `load: data is damaged: …`.
 
 ```js
 const checkpoint = world.save();
@@ -1494,6 +1597,101 @@ const tie = world.addJoint({ a: ball, b: crate });
 tie.destroy();
 ```
 
+<a id="softbody"></a>
+## SoftBody
+
+A SoftBody is a handle to one soft body in a world, as a [`Body`](#body) is to a body:
+`softBody.world` is its world and `softBody.id` its id. Compare `a.id === b.id`, not `a === b`.
+[`world.addSoftBody`](#world-addsoftbody) and [`world.softBody`](#world-softbody) make one.
+Change it with [`world.setSoftBody`](#world-setsoftbody), read it with
+[`world.softBodyOf`](#world-softbodyof), and where its corners are with
+[`softBody.positions`](#softbody-positions). See [Soft bodies](#soft-bodies).
+
+<a id="softbody-id"></a>
+### `softBody.id` → `number`
+
+The soft body's id: a whole number, unique to it for the life of its world. Soft bodies count their
+own ids, apart from bodies' and joints'. Read only.
+
+Throws: `softBody.id is read only`.
+
+```js
+const cloth = world.addSoftBody({});
+const names = new Map([[cloth.id, 'sail']]);
+```
+
+<a id="softbody-world"></a>
+### `softBody.world` → `World`
+
+The world the soft body is in. Read only.
+
+Throws: `softBody.world is read only`.
+
+```js
+const cloth = world.addSoftBody({});
+cloth.world.remove(cloth);
+```
+
+<a id="softbody-alive"></a>
+### `softBody.alive` → `boolean`
+
+`false` once the soft body has been removed, or its world destroyed. Never throws. Read only.
+
+Throws: `softBody.alive is read only`.
+
+```js
+const cloth = world.addSoftBody({});
+world.remove(cloth);
+console.log(cloth.alive);   // false
+```
+
+<a id="softbody-asleep"></a>
+### `softBody.asleep` → `boolean`
+
+`true` while the soft body is asleep: at rest, and left out of steps until something disturbs it,
+by the rule bodies sleep by (see [Sleeping](#sleeping)). Read only.
+
+Throws: `softBody.asleep: this world was destroyed`; `softBody.asleep: this soft body was removed`; `softBody.asleep is read only`.
+
+```js
+const cloth = world.addSoftBody({ position: [0, 0.3, 0] });
+for (let i = 0; i < 300; i++) world.step(1 / 60);
+console.log(cloth.asleep);
+```
+
+<a id="softbody-positions"></a>
+### `softBody.positions` → `Float32Array`
+
+Where the soft body's corners are, three numbers each (x, y, z), in metres, in world space, in
+the order of its `vertices`: the world's own array, which every step writes into. Draw the mesh
+from it, with its `indices`, as [`world.transforms`](#world-transforms) draws bodies. Read only.
+
+Throws: `softBody.positions: this world was destroyed`; `softBody.positions: this soft body was removed`; `softBody.positions is read only`.
+
+```js
+const cloth = world.addSoftBody({ position: [0, 2, 0] });
+world.step(1 / 60);
+const p = cloth.positions;
+console.log(p.length / 3, 'corners; the first at', p[0], p[1], p[2]);
+```
+
+Notes: the same array from step to step, so keep it; a new one only when
+[`setSoftBody`](#world-setsoftbody) gives new `vertices` or `indices`. Not a copy: what the
+engine draws from it it must copy before the next step, as with `transforms`.
+
+<a id="softbody-destroy"></a>
+### `softBody.destroy()`
+
+Removes the soft body from its world. Same as [`world.remove(softBody)`](#world-remove); does
+nothing if it is already gone.
+
+Throws: `destroy: this world was destroyed`.
+
+```js
+const cloth = world.addSoftBody({});
+cloth.destroy();
+```
+
 <a id="hulls"></a>
 ## Hulls and compounds
 
@@ -1563,6 +1761,55 @@ const hammer = world.addBody({
   feet are worked out for a box, ball or capsule. A query's shape is a box, ball or capsule too:
   a hull is built from its points by quickhull, too dear to do for each query. Queries see hulls
   and compounds as bodies like any other.
+
+<a id="pieces"></a>
+## Pieces
+
+[`fracture`](#fracture) cuts a box or a hull into pieces that fill it exactly, for something that
+breaks: a crate smashed, a wall knocked through. When it breaks, and what then becomes of the
+pieces, is the game's to say: remove the body and add the pieces where it was.
+
+<a id="fracture"></a>
+### `fracture(shape, options)` → `Array`
+
+Cuts `shape` into `count` convex pieces that fill it, face to face, with nothing between them and
+nothing overlapping: Voronoi cells, each the part of the shape nearer one of `count` points
+scattered through it than to any other. A seed gives the same pieces on every machine.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `count` | `8` | How many pieces, a whole number from 1. |
+| `seed` | `0` | Which pieces: a whole number. The same seed always gives the same pieces; another, other ones. |
+
+`shape` is a box, `{ shape: 'box', size }` (the default, a 1 m cube), or a hull,
+`{ shape: 'hull', vertices }`, as [`addBody`](#world-addbody) takes them; a box's pieces are about its
+centre, a hull's in the frame its `vertices` are given in.
+
+Returns: an array of `{ vertices, position }`, one for each piece: `vertices` its corners, three
+numbers each, in metres, about its own centre of mass, and `position` where that centre is in the
+shape's frame. Fresh arrays, yours to keep.
+
+Throws: `fracture: shape must be an object, got …`; `fracture: shape: unknown option '…' (did you mean '…'?)`; `fracture: shape: unknown option '…' (the options are shape, size, vertices)`; `fracture: shape.shape must be 'box' or 'hull', got …`; `fracture: a box has no vertices`; `fracture: a hull has no size`; `fracture: shape.size must be 3 positive numbers, got …`; `fracture: shape.vertices must be finite numbers, three to a vertex, got …`; `fracture: shape.vertices must span a solid (4 points not in one plane), got …`; `fracture: options must be an object, got …`; `fracture: unknown option '…' (did you mean '…'?)`; `fracture: unknown option '…' (the options are count, seed)`; `fracture: count must be a whole number, 1 or more, got …`; `fracture: seed must be a whole number, got …`.
+
+```js
+// A crate that breaks where it is, the pieces moving as it was.
+const pieces = fracture({ shape: 'box', size: [1, 1, 1] }, { count: 10, seed: 3 });
+const at = crate.position, q = crate.rotation, v = crate.velocity;
+world.remove(crate);
+for (const piece of pieces) {
+  const [px, py, pz] = piece.position, [x, y, z, w] = q;
+  // The piece's centre turned by the crate's rotation: q · p · q*.
+  const tx = 2 * (y * pz - z * py), ty = 2 * (z * px - x * pz), tz = 2 * (x * py - y * px);
+  const position = [at[0] + px + w * tx + (y * tz - z * ty), at[1] + py + w * ty + (z * tx - x * tz), at[2] + pz + w * tz + (x * ty - y * tx)];
+  world.addBody({ shape: 'hull', vertices: piece.vertices, position, rotation: q, velocity: v });
+}
+```
+
+Notes: the points are kept at least a quarter of their even spacing apart, so no piece is a sliver.
+A piece of a whole at rest rests where it was, held by those around it, unless it lies on a cut
+steeper than its friction holds where nothing else holds it, as at a block's edge, and then it
+slides off, as a real one would. The work grows as the square of `count`: 30 pieces take a few
+milliseconds, so cut ahead of time what must break at once.
 
 <a id="meshes"></a>
 ## Meshes and heightfields
@@ -1845,6 +2092,37 @@ const sign = world.addBody({ size: [1, 0.5, 0.05], position: [0.6, 2.5, 0] });
 world.addJoint({ type: 'hinge', a: sign, b: post, anchor: [0.1, 2.75, 0], axis: [1, 0, 0] });
 ```
 
+A wheel joint holds a wheel to a chassis as a car's suspension does: the wheel slides along `axis`
+on a spring, and spins about `axle`, driven by its motor.
+
+```js
+const body = world.addBody({ size: [1.6, 0.4, 3.6], density: 300, position: [0, 0.75, 0] });
+const wheels = [[-0.85, 1.3], [0.85, 1.3], [-0.85, -1.3], [0.85, -1.3]].map(([x, z]) => {
+  const tyre = world.addBody({ shape: 'sphere', radius: 0.35, density: 300, friction: 1, position: [x, 0.35, z] });
+  return world.addJoint({ type: 'wheel', a: tyre, b: body, anchor: [x, 0.35, z], axis: [0, 1, 0], axle: [1, 0, 0],
+    frequency: 3, dampingRatio: 0.7, min: -0.2, max: 0.2 });
+});
+for (const w of wheels) world.setJoint(w, { motorSpeed: 20, motorForce: 400 });   // drive: 20 rad/s, 7 m/s on 0.35 m wheels
+world.setJoint(wheels[0], { axle: [Math.cos(0.3), 0, -Math.sin(0.3)] });        // steer the front left
+for (const w of wheels) world.setJoint(w, { motorSpeed: 0, motorForce: 3000 });   // brake
+```
+
+- **The suspension** is a spring along `axis`, toward where the wheel was joined: `frequency` and
+  `dampingRatio` as a distance spring's, between `min` and `max` along it, in metres. Its frequency is
+  how the wheel and chassis alone would bounce on it, so a heavier chassis sinks further on the
+  same frequency; with none, the wheel doesn't slide. The line it slides on is the chassis's, and
+  turns with it.
+- **Driving and braking.** The motor drives the wheel's spin about `axle`, in rad/s, up to
+  `motorForce` N·m: on the ground that rolls it at `motorSpeed` times its radius. `motorSpeed: 0` with
+  a force is a brake, and `frictionForce` a drag with the motor off. Grip is the wheel's own
+  `friction` against the ground, as any contact's.
+- **Steering** is turning `axle` with [`setJoint`](#world-setjoint), in world space where the bodies
+  are now: work it out from the chassis's rotation each step. It keeps what the wheel holds, so a
+  car steered every step doesn't sag.
+- **What it isn't.** An engine, gears, a differential, steering that eases back: those are how a
+  game wants its car to feel, built from the motor, so they stay outside Bearing. Wheels are balls
+  until Bearing has a cylinder shape.
+
 A free body can move in six ways, three along and three about the axes: its degrees of freedom.
 A joint takes some away, and leaves the rest:
 
@@ -2032,6 +2310,109 @@ zone; a kinematic one follows something, as a trigger around a character does.
   body that passes all the way through a sensor within one step isn't seen: continuous collision
   stops bodies at what they collide with, and a sensor collides with nothing. A mesh or heightfield sensor sees what touches its triangles, not what
   is inside it, since triangles are a surface; two meshes never meet.
+
+<a id="water"></a>
+## Water
+
+A static or kinematic box given `fluid: true` is water. Nothing collides with it: it is a sensor,
+and reports what goes in and out of it as one does. Every dynamic body in it is pushed up by the
+weight of the water it displaces, at the centre of the part of it under the surface, and slowed by
+how much of it is under.
+
+```js
+const pool = world.addBody({ type: 'static', fluid: true, size: [20, 3, 20], position: [0, -1.5, 0] });
+const raft = world.addBody({ size: [2, 0.3, 1], density: 500, position: [0, 1, 0] });
+world.step(1 / 60);
+```
+
+- **How high it floats.** A body floats where the water it displaces weighs what it does, so a
+  body of half the water's `density` floats half under, and one denser than the water sinks. The
+  water's `density` is in kg/m³: 1000 by default, fresh water's; sea water is about 1025.
+- **Which way up.** The push acts at the centre of what is under, so a plank or a raft rights
+  itself and floats flat, and a body lopsided in weight floats tilted.
+- **The surface** is the box's top face, flat. For waves or a rising tide, move the water: a
+  kinematic box given a velocity moves its surface, and wakes what it carries as it goes.
+- **Slowing.** The water's `damping` and `angularDamping`, in 1/s as on any body, slow a body by
+  how much of it is under: a body half under is slowed half as much. New water has 3 of each
+  unless given: with none, nothing takes the energy of a body's bob, and it would bob for good.
+  Real water takes it in the waves a body makes, which a flat surface hasn't.
+- **Current.** `flow` is the water's velocity, m/s: the slowing drags a body toward it, not to a
+  stop, so a river carries what floats in it.
+- **What it reaches.** Only the top face is asked: a body poking out of the box's side counts as
+  under the surface there too. Make the box as wide as the water is.
+- **Shapes.** Boxes and hulls are cut by the surface exactly, a ball's cap is worked out in closed
+  form, and a capsule is summed in slices across its axis, to within 5 parts in 10 million of its
+  volume. A compound's parts are each asked.
+- **What it pushes.** Dynamic bodies only: a character moves itself, and static and kinematic
+  bodies don't move. Water pushes on every substep, as gravity does, and two waters that overlap
+  both push.
+- **Waking.** Water added, changed or moved by hand wakes what is asleep in it, as does water that
+  moves, and water taken away wakes what it held, so it falls.
+
+<a id="soft-bodies"></a>
+## Soft bodies
+
+A soft body is a triangle mesh whose corners move on their own, held together by its edges:
+cloth, a flag, a sail, a cape, or, closed and given `pressure`, a ball or a balloon that keeps
+its volume. Make one with [`world.addSoftBody`](#world-addsoftbody); draw it from
+[`softBody.positions`](#softbody-positions) with its own `indices`. Nothing in Bearing draws it.
+
+**How it moves.** Each corner is a particle with its share of the mass. Each substep, as gravity
+and the air push them and they move, every edge is put back to no longer than it was made
+(`stretch`), the two corners across each fold kept apart (`bend`), a closed mesh's volume put back
+(`pressure`), attached corners held to their points, and corners kept out of rigid bodies. This
+is XPBD, the method Jolt's soft bodies use. An edge's give is worked out from the sheet's own
+weight and size, so `stretch` and `bend` mean the same for a cloth of any size, weight or number
+of triangles, and in a world with any gravity. A corner hanging from an attachment is also held to
+no further from it than the mesh's length between, so a cloth hung by its edge hangs its own
+length however fine its mesh.
+
+**Touching rigid bodies.** Each corner is a ball of half the `thickness`, kept out of the two
+bodies nearest it, of every shape, meshes and heightfields too, with friction. Both ways: a
+cloth's weight presses on what it lies on, a ball thrown at a box moves it and bounces off it, a
+hammock holds a ball five times its weight, and what is attached to a body pulls on it. A soft
+body's own wobble and sway die away by themselves (a material's own damping, 1 per second), but
+how it falls, slides or spins as a whole is left as it is.
+
+**The air.** Each triangle is pushed along its normal by the air it moves through, as a flat plate
+is (air of 1.2 kg/m³, a drag coefficient of 1.17), relative to `wind`. Still air slows cloth as it
+falls, more the lighter it is; a flag in a wind with some crosswise part waves. A flag edge-on to a
+wind feels none of it, as the push is only along the triangles' normals: give the wind a little
+crosswise part. Gusts are the game's: set `wind` with [`setSoftBody`](#world-setsoftbody).
+
+**Sleeping.** As bodies do: a soft body none of whose corners strays a pixel (1/200) of its size
+from where it rested, for a second, sleeps, and wakes when a body it touches or hangs from moves,
+is set by hand or removed, or anything not still comes within its reach.
+
+```js
+// A flag on a pole, in the wind.
+const pole = world.addBody({ type: 'static', shape: 'capsule', radius: 0.03, height: 3, position: [6, 1.5, 0] });
+const columns = 12, rows = 8, vertices = [], indices = [], attach = [];
+for (let j = 0; j <= rows; j++) for (let i = 0; i <= columns; i++) vertices.push(1.2 * i / columns, -0.8 * j / rows, 0);
+for (let j = 0; j < rows; j++) for (let i = 0; i < columns; i++) {
+  const a = j * (columns + 1) + i, b = a + 1, c = a + columns + 1, d = c + 1;
+  indices.push(a, c, b, b, c, d);
+}
+for (let j = 0; j <= rows; j++) attach.push({ vertex: j * (columns + 1), body: pole });
+const flag = world.addSoftBody({ vertices, indices, position: [6.03, 2.9, 0], wind: [7, 0, 1.5], attach });
+world.step(1 / 60);
+```
+
+Notes and limits, each with what to do when it is reached:
+- Its corners collide, not its triangles, so a rigid edge thinner than the mesh's spacing can pass
+  between them: use a finer mesh where that matters.
+- A corner is kept out of the two bodies nearest it as a step begins, as planes: one pressed into
+  where three meet is held out of the nearer two only.
+- A soft body doesn't collide with itself or with other soft bodies, isn't seen by
+  [queries](#queries) or [contact events](#events), and doesn't float in [water](#water).
+- A closed body heavy enough to sag under its own weight, as a 60 kg ball of water does, may go on
+  wobbling by a few tenths of a millimetre a step and not sleep. A lighter one, or one whose skin gives
+  (`stretch` a little under 1) or holds its shape (`bend` above 0), settles sooner.
+- A body much heavier than the cloth holding it sinks into it further than the cloth's own
+  stiffness would let it: a hammock of 8 kg sags 6 cm more under a 40 kg ball than under 1 kg.
+- 3D only.
+
+The same on every machine, as a step is, and saved by [`world.save()`](#world-save).
 
 <a id="layers"></a>
 ## Layers, masks and groups

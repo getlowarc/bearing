@@ -1047,6 +1047,58 @@ test('a mesh of 100,000 triangles builds once, and a body on it looks only at th
   world.remove(big);
 });
 
+test('bodies at rest on a mesh or a heightfield keep their contacts from step to step', () => {
+  // As a hull keeps its manifold on a box (hulls.test.js): a pair barely moved
+  // since its manifolds were found has them rebuilt where its bodies are, not
+  // found again over every triangle under it. Found afresh, the pose they were
+  // found at would be written each step, the resting bodies still moving by
+  // rounding; kept, it stays as it was.
+  const rock = [0, 0.4, 0, 0.4, -0.2, 0.1, -0.3, -0.2, 0.3, -0.1, -0.2, -0.4, 0.2, 0.1, -0.2];
+  for (const floor of [
+    { shape: 'mesh', vertices: [-5, 0, -5, 5, 0, -5, 5, 0, 5, -5, 0, 5], indices: [0, 2, 1, 0, 3, 2] },
+    { shape: 'heightfield', heights: [0, 0, 0, 0, 0, 0, 0, 0, 0], columns: 3, spacing: 5 },
+  ]) {
+    const world = new World({ sleeping: false });
+    world.addBody(floor);
+    const bodies = [world.addBody({ position: [-2, 1, 0] }), world.addBody({ shape: 'hull', vertices: rock, position: [0, 1, 1] }),
+      world.addBody({ shape: 'capsule', radius: 0.2, height: 1, position: [2, 1, -1], rotation: [0, 0, 0.7071067811865476, 0.7071067811865476] })];
+    steps(world, 3);
+    // Each body's pair with the floor, in the bodies' order.
+    const pairs = world._pairs, slots = bodies.map((b) => b.id % 16777216), kept = slots.map(() => null);
+    for (let p = 0; p < pairs.count; p++) {
+      const k = Math.max(slots.indexOf(pairs.a[p]), slots.indexOf(pairs.b[p]));
+      if (pairs.memory[p]?.held > 0) kept[k] = pairs.memory[p];
+    }
+    assert.ok(kept.every((m) => m !== null), `${floor.shape}: each body keeps its manifolds`);
+    const poses = kept.map((m) => Array.from(m.pose));
+    steps(world, 0.5);
+    assert.deepEqual(kept.map((m) => Array.from(m.pose)), poses, `${floor.shape}: kept, not found again`);
+    // Moved by hand past what may be kept: found again where it is.
+    bodies[0].setPosition(-2.01, bodies[0].position[1], 0);
+    world.step(1 / 60);
+    assert.notDeepEqual(Array.from(kept[0].pose), poses[0], `${floor.shape}: found again once moved`);
+  }
+});
+
+test('a capsule lying across a peak, leaning to the slope beyond, sleeps', () => {
+  // Taken from a heap at 30 s: a capsule over a mesh's highest corner, its
+  // contact with the triangle sloping away beyond kept from step to step
+  // (levelKept). Its end was put onto the capsule's axis square to it, not
+  // along the normal it came up by, so the rebuilt contact read 3.5 mm into
+  // a triangle the capsule was 10 mm clear of, and kicked it up for good.
+  const H = (x, z) => 0.35 * (((Math.floor(x / 3) * 7 + Math.floor(z / 3) * 13) % 5 + 5) % 5) / 4 - 0.1
+    + 0.05 * (((Math.floor(x / 3) * 3 + Math.floor(z / 3) * 5) % 3 + 3) % 3);
+  const vertices = [], indices = [];
+  for (let j = 0; j <= 4; j++) for (let i = 0; i <= 4; i++) vertices.push(i * 3 - 9, H(i * 3 - 8.9, j * 3 - 5.9), j * 3 - 6);
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { const a = j * 5 + i; indices.push(a, a + 5, a + 6, a, a + 6, a + 1); }
+  const world = new World();
+  world.addBody({ shape: 'mesh', vertices, indices });
+  const capsule = world.addBody({ shape: 'capsule', radius: 0.2, height: 0.9, position: [-3.098857003659179, 0.3557271170034077, 0.058235251868195004],
+    rotation: [-0.03966163632456596, -0.32534958667655234, -0.7279761417669821, -0.6021838075467602] });
+  steps(world, 3);
+  assert.ok(capsule.asleep, `still moving at ${Math.hypot(...capsule.velocity).toFixed(4)} m/s`);
+});
+
 test('errors name the mesh option at fault, and where in a long list', () => {
   const world = new World();
   assert.equal(thrown(() => world.addBody({ shape: 'mesh', vertices: [0, 0, NaN] })),

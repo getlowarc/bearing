@@ -748,6 +748,108 @@ with the version and loaded only by it; `docs/API.md`'s "What 1.x promises" and 
 messages for a bad handle, and properties named `world.gravity`, `body.position`, `joint.force` in
 theirs; `ShapeType` for the type `Shape`.
 
+### Part five: the kit
+
+Planned 2026-11-10, at Nolan's word ("Approved as proposed, go ahead and start on water"): what a
+game reaches for beyond rigid bodies and joints, where it needs the solver or shape maths only
+Bearing has. Each is a minor version. The rule that kept a vehicle controller and a ragdoll builder
+out still holds: choices and feel stay in the game.
+
+**22. Water ✅** *(done 2026-11-10)*
+*Concepts:* Archimedes' principle; the submerged volume of a shape below a plane, and its centre
+(the centre of buoyancy); drag in a fluid; why the push acts on every substep.
+A static or kinematic box marked `fluid: true` is water: a sensor, so nothing collides with it, and
+every dynamic body in it is pushed up by the weight of the water it displaces, at the centre of its
+submerged part, and slowed by the water's `damping` and `angularDamping` by how much of it is under.
+`density` is the water's, `flow` its current. The surface is the box's top, flat.
+*Belongs in Bearing because* the submerged part of a box, ball, capsule, hull or compound is shape
+maths only Bearing has, and a buoyant body is a spring that must be pushed every substep, or it bobs.
+*Done when:* a body of half water's density floats half under, still; a cube and a ball float
+where Archimedes puts them to a tenth of a millimetre; a long box floats flat, its centre of
+buoyancy righting it; the submerged volume of every shape matches a brute-force sum; a body
+dropped in bobs, settles and sleeps; a current carries it; bodies on a floor under water added
+later rise; off means off; the bits are the same on every machine.
+*Done (2026-11-10):* `src/fluid.js`; options `fluid` and `flow`; a fluid is a sensor, its
+`density` the water's, its dampings 3 when new and not given. Boxes and hulls cut exactly, balls
+in closed form, capsules in slices to within 5e-7 of their volume; every shape held to a count of
+points. A body of half density floats with its centre at the surface; a flat plank floats flat and
+a square timber of 0.6 corner down, its centre 30.2 mm under as worked out by hand; seven shapes
+dropped in sleep within 20 s; a current carries a raft at its speed; water added, raised, lowered by
+a tide or removed wakes what it covers. Two bugs found on the way: the push read a body's turn
+from the step's start, which fed every rock (an undamped plank 0.89 to 5.5 rad/s in 30 s); and
+sensors never woke what they let go of, which water must. 1,000 floating bodies, all awake, 3.1 ms a
+step on one thread. 3D only for now.
+
+**23. Wheels ✅** *(done 2026-11-10)*
+*Concepts:* suspension as a soft constraint; a wheel joint, slider and hinge in one; tyre grip as
+contact friction.
+A joint type `'wheel'` between a wheel body and a chassis: the wheel slides along `axis` on a spring
+(`frequency`, `dampingRatio`, `min`, `max`) and spins about its axle, driven by its motor; steering
+turns the axle with `setJoint`. Box2D's wheel joint, in 3D. A vehicle controller (engine, gears,
+steering feel) stays outside Bearing.
+*Belongs in Bearing because* a stiff suspension spring is only steady inside the substeps.
+*Done when:* a four-wheeled car stands level, drives, brakes, steers and crosses a heightfield at
+speed without hopping on its seams. A cylinder shape is proposed separately, if wheels want one.
+*Done (2026-11-10):* joint type `'wheel'` and option `axle` (Nolan chose its default: the world
+axis most square to `axis`, as `swing`'s). The suspension line is the chassis's, kept in b's frame
+of the joint as a cone's swing is (`facing`); a's frame carries the axle, as a hinge's. Solved one
+joint at a time, never in a tree: a car's wheels held within 0.08 mm of their tracks and 0.03° of
+their axles driving, steering and braking, so the tree solver wasn't needed. Steering through
+`setJoint` keeps the impulses. A car stands level and sleeps, drives at its spin times its radius,
+brakes to a stop, turns steered every step, and crosses a flat heightfield and a mesh at 20 m/s
+with no wheel lifting, its chassis moving exactly as on one flat box. A wheel under a fixed frame
+sags g / (2π f)² and stops at `min`. FORMAT 18.
+
+**26. Cylinders ⬜**
+*Concepts:* a cylinder's contacts against every shape: its flat ends, its rim, its round side.
+`shape: 'cylinder'` (`radius`, `height`), for bodies and compound parts: what wheels are, round
+one way and flat the other, so a car's wheel doesn't roll over its own edge in a hard turn. Asked
+for by Nolan (2026-11-10: "Definitely add a cylinder at some point"); after the kit's four, or
+when wheels need it.
+
+**24. Pieces ✅** *(done 2026-11-10)*
+*Concepts:* Voronoi cells; cutting a convex shape into convex pieces that fill it.
+`fracture(shape, { count, seed })`, exported beside `readGlb`: hulls that fill a box or hull
+exactly, the same on every machine for a seed. When to break stays in the game, which removes the
+body and adds the pieces.
+*Done when:* the pieces' volumes sum to the shape's, none overlap, and they rest as the whole did.
+*Done (2026-11-10):* `src/fracture.js`: points by Park and Miller's generator, kept a quarter of
+their even spacing apart (compared as sixth powers, no cube root), each cell the shape cut by the
+bisecting planes, nearest first, a crossing corner worked out from the kept end so neighbouring
+faces agree to the bit, the cap ordered by Bearing's atan2. Volumes sum to the shape's within
+1e-12, every one of 16,000 points is in exactly one piece, and a seed's pieces are a stored hash,
+on Bun too. Slabs broken into 6 and 12 rest within 2 mm and sleep; of 30, one at the slab's edge on
+a cut of 44° slides off, friction 0.5 holding 27°, as a real one would. 20 pieces of a rock in about
+5 ms. Found on the way: the default box was 2 m, not 1.
+
+**25. Soft bodies ✅** *(done 2026-11-10)*
+*Concepts:* XPBD; distance, bending and volume constraints; particles against rigid shapes, both
+ways.
+`world.addSoftBody` / `setSoftBody` / `softBodyOf` / `remove`: an open mesh is cloth, a closed one
+with `pressure` a volume; `attach` pins vertices to bodies; `positions` is read after each step,
+as `transforms` is. Nothing in Bearing draws it.
+*Done when:* a flag waves on a pole and drapes over a box, a ball keeps its volume as it lands, a
+soft body pushes a rigid one and is pushed back, and off means off.
+*Done (2026-11-10):* `src/soft.js`. Approved options plus, at Nolan's word, the body options rule 13
+asks for and four with bodies' meanings: `position`, `rotation`, `velocity`, `friction`,
+`damping`, `layers`, `mask`; `wind` for the air (Nolan chose air drag over none); `density` kg/m³
+as bodies' (Nolan chose it over kg/m² for cloth). `world.softBody(id)` as `body(id)`, for a loaded
+world. XPBD, one pass a substep, after `_accelerate`, before the rigid solve: edges that resist
+stretching only (a ball's bottom couldn't flatten on a floor without buckling, and buzzed), folds,
+the volume, tethers, attachments, contacts, then XPBD's velocity pass. Stiffness from the sheet's own
+weight and size: hung by an edge, 1% at the top at 0.99, 10.7% at 0.9 (11.1 asked). Tethers keep a
+cloth hung by its edge its own length at 40 edges as at 10 (it hung 4% long). Contacts found once a
+step, two planes a corner (one buzzed where a crate meets the floor), both ways. Found on the way:
+constraints solved one at a time spun a ball at rest on a frictionless floor about the vertical,
+0.3 rad/s more each second, now taken back each substep (SPIN); a volume put back into the floor it
+had just been pushed off kept a ball wobbling; and a corner pushed out further than it came in bounced.
+A material's own damping, 1/s, measured, puts six drapes to sleep in 4.5 to 8.8 s (two never did) and
+leaves a flag waving. Two-way: momentum kept through a ball hitting a box to the air's drag; a hammock
+of 8 kg holds 40 kg. Known limits, documented: corners collide, not triangles; no self-collision; a
+heavy closed body may wobble a few tenths of a millimetre a step and not sleep; a body much heavier
+than the cloth sinks further than its stiffness says. 961 corners draped on a crate 1.1 ms a step,
+a 176-corner flag 0.11 ms. FORMAT 19.
+
 ### After 1.0
 
 - **2D**, under way (2026-11-04, see the log): `bearing-physics/2d`, `src/2d/`, `World2D`, `Body2D`,
@@ -767,8 +869,6 @@ theirs; `ShapeType` for the type `Shape`.
 - Not in Bearing: a vehicle controller and a ragdoll builder. Arcade handling and a humanoid from
   a config file are game feel, built from raycasts, forces, joints and pose motors Bearing already
   gives, so they stay outside it.
-- Not planned: soft bodies, cloth and fluids. They are different solvers, and would be a different
-  package.
 
 ---
 
@@ -844,6 +944,8 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.3.2 | — | Released 2026-11-05: bodies pressed into a mesh or heightfield stay on their side. |
 | 1.3.3 | — | Released 2026-11-06: an audit's fixes, and 3 to 8% on most heaps. |
 | 1.3.4 | — | Released 2026-11-06: joints stay on their bodies, and can't run away. |
+| 1.4.0 | 22, 23, 24, 25 | Released 2026-11-10: the kit, water, wheels, pieces and soft bodies, together (Nolan chose one release over four). |
+| 1.5.0 | 26 | Cylinders. |
 
 ### How a release is made
 
@@ -1141,3 +1243,52 @@ Winding's way, copied before the first one:
   of stop passes fire, so a lazy pass gave 2.5%; what is left there is pose-only work (`pin`,
   `frames`, `coneRow`) done 16 times a step for 9 poses, the kept work of milestone 19 not yet
   given to stops, perhaps 10 to 15% of a ragdoll with limits, not done for this release.
+- **2026-11-06.** Stops given kept work, at Nolan's word ("Go ahead with the ragdoll kept work"). The
+  gain was not where the audit looked: a ragdoll with stops and no motors gains 1 to 5%, since a stop
+  is cheap until reached, but a driven joint with a stop lost all its kept work, so 100 driven
+  ragdolls with stops took 33 ms a step, 56% of it in the one-at-a-time pass, against 19 ms for the
+  same with no stops. That pass 18.5 -> 11.9 ms; pinned, both load orders, 13.5 to 14.7% faster. Same bits,
+  against 1.3.4 on 120 runs of drives pressed into stops; a stored hash now holds it.
+- **2026-11-09.** Mesh and heightfield pairs keep their manifolds, at Nolan's word ("Go ahead with
+  finding contacts on hulls and terrain"). Measured first: finding contacts was 36 to 47% of a
+  step on hulls, terrain and meshes, spread thin (no function over 6%). Remembering each pair's
+  separating axis was dropped before writing it: 86% of the hull tests that find nothing stop at
+  the first face they try. While a pile settles on terrain, 87% of the time spent on the ground
+  went to pairs that had barely moved. Kept by REUSE's touching rule, 2 drift <= tolerance, not
+  for jointed bodies or compounds. Pinned, both orders, 12 s: terrain 5.6 to 8.7%, mesh 14 to 15%;
+  box and hull piles even. 640 heaps: 1 body through the ground before and after (a rock landing
+  fast, as known); 576 ridge drops 575 on the solid hull's side before and after; bodies awake at
+  30 s the same (91 to 104 of 4,800, nearly all capsules, before and after). FORMAT 16.
+- **2026-11-09.** The capsules still awake, at Nolan's word ("Look into the capsules first"). Most
+  roll: their energy falls by exactly what 1% rolling resistance takes (10.9 J/kg against 10.3 over
+  105 m), and from a heap they roll 30 to 40 m on flat ground. A few buzzed in place, gaining
+  energy (2 heaps in 40 on a mesh, 4 on a heightfield): a capsule across a peak, its kept contact
+  with the slope beyond rebuilt 3.5 mm deep where it was 10 mm clear. `holdEnds()` put a round end
+  square onto the axis rather than along the normal; fixed, both sleep within 1.5 s, no body in 80
+  heaps gains energy, heaps and ridge drops as before. Convex pairs had it since 2026-10-29.
+- **2026-11-10.** Part five, the kit, at Nolan's word ("Approved as proposed, go ahead and start on
+  water"): water, wheels, pieces and soft bodies, milestones 22 to 25, each a minor version, their
+  API approved as proposed. Nolan: "If it truly belongs in Bearing and not in a game's code, I am
+  for it." Each was weighed by that: wheels belong (a stiff suspension is only steady inside the
+  substeps), a vehicle controller still doesn't; the pieces' geometry belongs, when to break
+  doesn't. This replaces "Not planned: soft bodies, cloth and fluids", which judged them a
+  different package: they collide with rigid bodies both ways inside the same substeps, which
+  nothing outside can do.
+- **2026-11-10.** Water, milestone 22. A light cube floats on a corner and a square timber on an
+  edge, as real ones do: the tests use slabs where they need a body flat. Water's damping
+  defaults to 3 for new water, measured as the least whole number that put six shapes dropped 2 m
+  to sleep within 9 to 16 s (at 0 a body bobs for good: a flat surface has no waves to take the
+  energy). That default wasn't in the approved proposal; it is Nolan's to change.
+- **2026-11-10.** Wheels, milestone 23, at Nolan's word ("Go ahead with wheels"). The approved API
+  had no way to say what a wheel spins about, which a 3D wheel needs: `axle` added, Nolan choosing
+  its default. Cylinders added as milestone 26, at his word, wheels being balls until then.
+- **2026-11-10.** Pieces, milestone 24, at Nolan's word ("Go ahead with pieces"), as approved:
+  `fracture(shape, { count, seed })`, defaults 8 pieces of a 1 m cube from seed 0.
+- **2026-11-10.** Soft bodies, milestone 25, at Nolan's word ("Go ahead with soft bodies"). Asked
+  before starting: `density` in kg/m³ as bodies' (not kg/m² for cloth); air drag on each triangle
+  with a `wind` option (not none); and the body options with their own meanings (`position`,
+  `rotation`, `velocity`, `friction`, `damping`, `layers`, `mask`). He chose all three as
+  recommended. `world.softBody(id)` added as `world.body(id)` is, or a loaded world's soft bodies
+  had no handle.
+- **2026-11-10.** The kit released as one version, 1.4.0, at Nolan's word ("Release them all
+  together as 1.4.0"), not the four minors planned (1.4.0 to 1.7.0); cylinders become 1.5.0.

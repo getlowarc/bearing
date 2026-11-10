@@ -11,12 +11,15 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { suite, test } from './test.js';
 import { mixed } from './scenes.js';
+import { World, fracture } from '../src/bearing.js';
 import { World2D } from '../src/2d/bearing2d.js';
 
 suite('determinism');
 
-const HASH = 'fe58e0d8bff0ff2bca9917d328c430fe1517ae2b42389ae7569d40c5c6bc832e';
+const HASH = '5856c1a303a77010a05dce7a9d4f419f288754f3595593057f7ff45676e9d6f7';
 const HASH_2D = 'b41b4c94c33da216b500e4d47af29ef3941a436503784e07d10494bf976105a8';
+const HASH_STOPS = '3c890bc7d753531340e4416e84fdf6f0dbf1a85c61d630ae38a7f76627bed7af';
+const HASH_PIECES = '19993e3c075df87bee0a1e0d29395ae1d953b95fb38bbd9d1677eff09350407c';
 
 test('a world of everything steps to the stored bits', () => {
   const { world } = mixed({ workers: 0 });
@@ -31,10 +34,57 @@ test('a world of everything steps to the stored bits', () => {
     bytes(world.transforms);
     // The full state, not only the float32 transforms, every second and at the end.
     if (n % 60 === 0) for (const column of [world._position, world._rotation, world._velocity, world._angular]) bytes(column);
+    // And every soft body's corners and their velocities.
+    if (n % 60 === 0) for (const soft of world._softs.list) if (soft) { bytes(soft.x); bytes(soft.v); }
   }
   world.destroy();
   const got = hash.digest('hex');
   assert.equal(got, HASH, `the bits changed: if that is meant, store ${got} as HASH`);
+});
+
+test('joints pressed into their stops step to their stored bits', () => {
+  // Kept work (joints.js) reads a joint's pose work back on half its passes,
+  // and a stop reached on such a pass needs what was left unread. Stored from
+  // 1.3.4, before stops had kept work, so a stop that reads one thing stale
+  // on a kept pass changes this: chains of four links with stops alone, with
+  // drives aimed past them, with friction, and with none.
+  const world = new World({ workers: 0, sleeping: false }), bodies = [], joints = [];
+  world.addBody({ type: 'static', size: [40, 1, 40], position: [0, -0.5, 0] });
+  for (let i = 0; i < 12; i++) {
+    const x = (i % 4) * 1.2 - 2, y = 1 + (i >> 2) * 1.5, mode = i % 4;
+    const links = [0, 1, 2, 3].map((k) => world.addBody({
+      size: [0.3, 0.12, 0.12], position: [x + 0.32 * k, y, 0.1 * k], angularVelocity: [i - 6, 3 - k, 2],
+    }));
+    bodies.push(...links);
+    if (i === 3) world.addJoint({ type: 'rotation', a: links[0], target: [0, 0, 0, 1], motorForce: 40, cone: 0.3 });
+    for (let k = 0; k < 3; k++) {
+      const type = k === 1 ? 'hinge' : 'ball', o = { type, a: links[k + 1], b: links[k], anchor: [x + 0.16 + 0.32 * k, y, 0.05 + 0.1 * k], axis: [0, 0, 1] };
+      if (mode !== 3) Object.assign(o, type === 'hinge' ? { min: -0.8, max: 0.05 } : { cone: i % 3 ? 0.4 : [0.3, 0.6], min: -0.3, max: 0.3 });
+      if (mode === 1) Object.assign(o, { target: type === 'hinge' ? -2 : [0, 0.5, 0, 0.8660254037844386], motorForce: 60 });
+      if (mode === 2) o.frictionForce = 0.5;
+      joints.push(world.addJoint(o));
+    }
+  }
+  const hash = createHash('sha256');
+  for (let n = 1; n <= 240; n++) {
+    if (n % 40 === 0) bodies[n % bodies.length].setVelocity(3, 8, -2);
+    world.step(1 / 60);
+    for (const column of [world._position, world._rotation, world._velocity, world._angular]) hash.update(new Uint8Array(column.buffer, column.byteOffset, column.byteLength));
+    for (const joint of joints) hash.update(new Float64Array([...joint.force, ...joint.torque]));
+  }
+  world.destroy();
+  const got = hash.digest('hex');
+  assert.equal(got, HASH_STOPS, `the bits changed: if that is meant, store ${got} as HASH_STOPS`);
+});
+
+test('a hull broken into pieces gives its stored bits', () => {
+  // Every cut is exact operations and Bearing's own atan2, and the points come
+  // from a generator of whole-number steps: the same pieces on every engine.
+  const hash = createHash('sha256');
+  const rock = [0, 1, 0, 1, -0.5, 0.3, -0.8, -0.5, 0.6, -0.2, -0.4, -1, 0.6, 0.2, -0.5];
+  for (const p of fracture({ shape: 'hull', vertices: rock }, { count: 20, seed: 3 })) hash.update(new Float64Array([...p.position, ...p.vertices]));
+  const got = hash.digest('hex');
+  assert.equal(got, HASH_PIECES, `the pieces changed: if that is meant, store ${got} as HASH_PIECES`);
 });
 
 test('a 2D world steps to its stored bits', () => {

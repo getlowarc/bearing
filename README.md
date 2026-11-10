@@ -72,8 +72,8 @@ mine as the game runs, and characters that walk on them.
 - **Character bodies**: a body the game gives a velocity to, that walks rather than flies: it
   slides along walls, walks up slopes and stairs to a limit, stays on the ground going down, and
   rides moving platforms. See [Character bodies](docs/API.md#characters).
-- **Joints**: fixed, ball, hinge, slider, distance and rotation joints, with stops, motors,
-  springs and friction. A motor can drive to a target angle, position or orientation, as a spring
+- **Joints**: fixed, ball, hinge, slider, distance, rotation and wheel joints, with stops, motors,
+  springs and friction. A wheel joint is a car's wheel on its suspension, driven, braked and steered. A motor can drive to a target angle, position or orientation, as a spring
   solved inside the step, so a ragdoll with its joints driven to a pose stands on its own feet.
   Chains, ragdolls and bridges are solved exactly, so a 100-link chain hangs at its built length.
   Each joint's force and torque over the last step can be read, to break it. See
@@ -81,6 +81,14 @@ mine as the game runs, and characters that walk on them.
 - **Contact events and sensors**: which bodies began and stopped touching in each step, where and
   how hard, read after the step; what touches a body now; and sensors, zones that report what
   enters them and push nothing. See [Contact events and sensors](docs/API.md#events).
+- **Pieces**: `fracture()` cuts a box or a hull into pieces that fill it exactly, the same for a
+  seed on every machine, for things that break. See [Pieces](docs/API.md#pieces).
+- **Soft bodies**: cloth, flags and sails, and closed shapes that keep their volume, colliding
+  with every rigid body both ways, pushed by the wind, pinned to bodies or the world, and drawn
+  from one array of their corners. See [Soft bodies](docs/API.md#soft-bodies).
+- **Water**: boxes of water that hold up what is in them as Archimedes says, at the centre of
+  the part under the surface, so planks float flat and rafts drift on a current. See
+  [Water](docs/API.md#water).
 - **Save and load**: [`world.save()`](docs/API.md#world-save) gives the whole world as plain data,
   and [`World.load`](docs/API.md#world-load) steps on from it exactly, for replays, checkpoints
   and bug reports that reproduce. [`world.debugLines()`](docs/API.md#world-debuglines) gives the
@@ -174,7 +182,7 @@ import are the files in this repository.
 
 ```html
 <script type="module">
-  import { World } from 'https://cdn.jsdelivr.net/npm/bearing-physics@1.3.4/src/bearing.js';
+  import { World } from 'https://cdn.jsdelivr.net/npm/bearing-physics@1.4.0/src/bearing.js';
 </script>
 ```
 
@@ -194,9 +202,9 @@ import { World } from 'bearing-physics';
 <script type="importmap">
 {
   "imports": {
-    "bearing-physics": "https://cdn.jsdelivr.net/npm/bearing-physics@1.3.4/src/bearing.js",
-    "bearing-physics/2d": "https://cdn.jsdelivr.net/npm/bearing-physics@1.3.4/src/2d/bearing2d.js",
-    "bearing-physics/": "https://cdn.jsdelivr.net/npm/bearing-physics@1.3.4/src/"
+    "bearing-physics": "https://cdn.jsdelivr.net/npm/bearing-physics@1.4.0/src/bearing.js",
+    "bearing-physics/2d": "https://cdn.jsdelivr.net/npm/bearing-physics@1.4.0/src/2d/bearing2d.js",
+    "bearing-physics/": "https://cdn.jsdelivr.net/npm/bearing-physics@1.4.0/src/"
   }
 }
 </script>
