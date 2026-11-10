@@ -22,7 +22,7 @@
 // triangles are. A compound is asked about each of its parts, and the
 // nearest, or any, answers for the body.
 
-import { Shape, Manifold, collide, Parts, placePart, reachAlong, SPHERE, CAPSULE, BOX, HULL as HULL_KIND, TRIANGLE } from './collide.js';
+import { Shape, Manifold, collide, Parts, placePart, reachAlong, SPHERE, CAPSULE, BOX, HULL as HULL_KIND, TRIANGLE, CYLINDER } from './collide.js';
 import { load, PIXEL } from './contact.js';
 import { raycast as walk } from './tree.js';
 import { closest, Closest, radius } from './gjk.js';
@@ -32,7 +32,7 @@ import { rotate } from './core/math.js';
 import { apart } from './joints.js';
 
 const STATIC = 1, MOVING_TREE = 1;   // World's static type code; Broadphase's moving tree
-const MESH = 5;                      // World's shape code; shapes from it on are triangles
+const MESH = 6;                      // World's shape code; shapes from it on are triangles
 /** Every edge and corner a corner from both sides (mesh.js): pure geometry, with no seams. */
 const BARE = 63;
 
@@ -210,6 +210,30 @@ export function rayShape(s, ox, oy, oz, dx, dy, dz, maxT) {
       if (b >= 0 || disc < 0) continue;
       const at = -b - Math.sqrt(disc);
       if (at < best) { best = at; nx = (px + at * ux) / r; ny = (qy + at * uy) / r; nz = (pz + at * uz) / r; }
+    }
+    if (best === Infinity) return -1;
+    t = best;
+  } else if (s.kind === CYLINDER) {
+    const r = h[0], half = h[1];
+    if (px * px + pz * pz <= r * r && Math.abs(py) <= half) return inside(dx, dy, dz);
+    // The earliest of: the side, a cylinder about y between the ends, and the
+    // two ends, discs, where the ray crosses their planes within the radius.
+    let best = Infinity;
+    const A = ux * ux + uz * uz;
+    if (A > 0) {
+      const B = px * ux + pz * uz, C = px * px + pz * pz - r * r, disc = B * B - A * C;
+      if (disc >= 0) {
+        const at = (-B - Math.sqrt(disc)) / A, y = py + at * uy;
+        if (at >= 0 && y >= -half && y <= half) { best = at; nx = (px + at * ux) / r; ny = 0; nz = (pz + at * uz) / r; }
+      }
+    }
+    for (const e of ENDS) {
+      // Only from beyond that end, heading back towards it.
+      if (!(e * py > half && e * uy < 0)) continue;
+      const at = (e * half - py) / uy;
+      if (at < 0 || at >= best) continue;
+      const x = px + at * ux, z = pz + at * uz;
+      if (x * x + z * z <= r * r) { best = at; nx = 0; ny = e; nz = 0; }
     }
     if (best === Infinity) return -1;
     t = best;
@@ -412,6 +436,7 @@ function advance(cast, b, scale, ox, oy, oz, dx, dy, dz, maxT, sliding = false) 
 /** A shape's thinnest size, as a body's _size: what its tolerance scales with. */
 function size(s) {
   if (s.kind === SPHERE || s.kind === CAPSULE) return 2 * s.half[0];
+  if (s.kind === CYLINDER) return 2 * Math.min(s.half[0], s.half[1]);
   if (s.kind === HULL_KIND) return s.hull.size;
   return 2 * Math.min(s.half[0], s.half[1], s.half[2]);
 }

@@ -17,7 +17,7 @@ export type Quat = ArrayLike<number>;
  */
 export type BodyType = 'dynamic' | 'static' | 'kinematic' | 'character';
 /** A body's shape. Named ShapeType, as BodyType and JointType are; QueryShape is a query's whole shape. */
-export type ShapeType = 'box' | 'sphere' | 'capsule' | 'hull' | 'compound' | 'mesh' | 'heightfield';
+export type ShapeType = 'box' | 'sphere' | 'capsule' | 'hull' | 'compound' | 'cylinder' | 'mesh' | 'heightfield';
 /** A list of numbers: a plain array or any typed array. */
 export type Numbers = ArrayLike<number>;
 
@@ -110,6 +110,18 @@ export interface CapsuleOptions extends BodyCommon, NoLevelSizes {
   size?: never;
 }
 
+/** A cylinder along its own y: round one way, flat the other, as a wheel. Never a character. */
+export interface CylinderOptions extends Omit<BodyCommon, 'type'>, NoLevelSizes {
+  shape: 'cylinder';
+  /** Default 'dynamic'. */
+  type?: 'dynamic' | 'static' | 'kinematic';
+  /** m, default 0.5. */
+  radius?: number;
+  /** End to end along its own y, in m, default 2. */
+  height?: number;
+  size?: never;
+}
+
 /** A convex hull of points: the smallest convex solid round them. Never a character. */
 export interface HullOptions extends Omit<BodyCommon, 'type'> {
   shape: 'hull';
@@ -136,12 +148,13 @@ interface PartCommon {
   density?: number;
 }
 
-/** One shape of a compound: a box, ball, capsule or hull, sized as a body of that shape is. */
+/** One shape of a compound: a box, ball, capsule, hull or cylinder, sized as a body of that shape is. */
 export type PartOptions =
   | (PartCommon & { shape?: 'box'; size?: Vec3; radius?: never; height?: never; vertices?: never })
   | (PartCommon & { shape: 'sphere'; radius?: number; size?: never; height?: never; vertices?: never })
   | (PartCommon & { shape: 'capsule'; radius?: number; height?: number; size?: never; vertices?: never })
-  | (PartCommon & { shape: 'hull'; vertices?: Numbers; size?: never; radius?: never; height?: never });
+  | (PartCommon & { shape: 'hull'; vertices?: Numbers; size?: never; radius?: never; height?: never })
+  | (PartCommon & { shape: 'cylinder'; radius?: number; height?: number; size?: never; vertices?: never });
 
 /** Several shapes as one rigid body. Never a character. */
 export interface CompoundOptions extends Omit<BodyCommon, 'type'> {
@@ -203,7 +216,7 @@ export interface HeightfieldOptions extends LevelCommon {
 }
 
 /** What world.addBody takes. A size option the shape doesn't have is refused, here and at run time. */
-export type BodyOptions = BoxOptions | SphereOptions | CapsuleOptions | HullOptions | CompoundOptions | MeshOptions | HeightfieldOptions;
+export type BodyOptions = BoxOptions | SphereOptions | CapsuleOptions | CylinderOptions | HullOptions | CompoundOptions | MeshOptions | HeightfieldOptions;
 
 /** What world.setBody takes: any of addBody's options. Which sizes fit is checked against the body's shape when called. */
 export interface BodyChanges extends BodyCommon {
@@ -266,6 +279,7 @@ export type BodyInfo =
   | (BodyInfoCommon & { shape: 'sphere'; radius: number })
   | (BodyInfoCommon & { shape: 'capsule'; radius: number; height: number })
   | (SolidInfoCommon & { shape: 'hull'; vertices: number[] })
+  | (SolidInfoCommon & { shape: 'cylinder'; radius: number; height: number })
   | (SolidInfoCommon & { shape: 'compound'; parts: PartInfo[] })
   | (LevelInfoCommon & { shape: 'mesh'; vertices: number[]; indices: number[] })
   | (LevelInfoCommon & { shape: 'heightfield'; heights: number[]; columns: number; spacing: number });
@@ -287,6 +301,7 @@ export type PartInfo = {
   | { shape: 'sphere'; radius: number }
   | { shape: 'capsule'; radius: number; height: number }
   | { shape: 'hull'; vertices: number[] }
+  | { shape: 'cylinder'; radius: number; height: number }
 );
 
 /** What world.save() returns: plain data, its layout Bearing's own. It loads only into the version that saved it. */

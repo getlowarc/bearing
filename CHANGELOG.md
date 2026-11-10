@@ -7,6 +7,15 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Cylinders: `shape: 'cylinder'`, with a `radius` and a `height` along the body's own y, for bodies
+  and compound parts. They collide with every shape, meshes and heightfields included, roll on
+  their side, stand on their ends and catch on their rims, float, and are seen by rays, casts and
+  overlaps. A wheel joint's wheel can be one, turned so its y is the axle: a car on four crosses a
+  heightfield at 20 m/s with every wheel on the ground. See [Cylinders](docs/API.md#cylinders).
+  A body's shape codes moved to make room, so saves are now format 20.
+
 ## [1.4.0] - 2026-11-10
 
 The kit: water, wheels, pieces and soft bodies, the physics a game reaches for beyond rigid

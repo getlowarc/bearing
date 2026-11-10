@@ -91,7 +91,8 @@
 // down and through. Points clipping makes on the seam are still left out: the
 // corner holds the shape.
 
-import { Shape, Manifold, Placed, LOOSE, SPHERE, CAPSULE, HULL, TRIANGLE, MAX_POINTS } from './collide.js';
+import { Shape, Manifold, Placed, LOOSE, SPHERE, CAPSULE, HULL, TRIANGLE, CYLINDER, MAX_POINTS } from './collide.js';
+import { cylinderFeature, cylinderPair } from './cylinder.js';
 import { closest, Closest } from './gjk.js';
 import { FLAT, ONE_SIDED, triangleNormal } from './mesh.js';
 import { resized } from './core/slots.js';
@@ -114,8 +115,12 @@ let folds = null;
  */
 let mix = 0;
 
-/** The most points one triangle can give: a 4-sided face clipped by 3 planes, or a triangle by 4, has at most 7 sides. */
-const MOST = 7;
+/**
+ * The most points one triangle can give: a cylinder's end, its rim's 16
+ * points (cylinder.js RIM) clipped by the triangle's 3 sides, has at most 19;
+ * a box's face, or the triangle clipped by a box's 4, at most 7.
+ */
+const MOST = 19;
 
 export function touch(s, t, flags, fold, margin, tolerance, out, tri, side = 0) {
   out.count = 0;
@@ -134,6 +139,7 @@ export function touch(s, t, flags, fold, margin, tolerance, out, tri, side = 0) 
   behind = front ? (flags >> 3) & 7 : flags & 7;
   if (s.kind === SPHERE) sphere(s, t, margin, tolerance, out);
   else if (s.kind === CAPSULE) capsule(s, t, margin, tolerance, out);
+  else if (s.kind === CYLINDER) cylinder(s, t, margin, tolerance, out);
   else if (s.kind === HULL) hull(s, t, margin, tolerance, out);
   else box(s, t, margin, tolerance, out);
   return out.count;
@@ -446,6 +452,106 @@ function capsule(s, t, margin, tolerance, out) {
   const m = r + sep / 2;
   add(out, near.a[0] - nx * m, near.a[1] - ny * m, near.a[2] - nz * m, sep, where);
 }
+
+// ---- a cylinder ----
+
+const rimA = new Float64Array(3 * 48), rimB = new Float64Array(3 * 48);
+const rimIdA = new Uint32Array(48), rimIdB = new Uint32Array(48);
+
+/**
+ * The cylinder's feature facing down into the triangle, along -up (its end,
+ * side or rim point, cylinder.js), clipped to the prism over the triangle,
+ * into src: returns its count. A side line clips as the capsule's segment
+ * does (overTriangle, which leaves cut), an end's rim as a box's face.
+ */
+function clipCylinder(s, slack) {
+  src = rimA; dst = rimB; srcId = rimIdA; dstId = rimIdB;
+  let n = cylinderFeature(s, -up[0], -up[1], -up[2], slack, src, srcId);
+  cut[0] = -1; cut[1] = -1;
+  if (n === 2) {
+    for (let k = 0; k < 6; k++) seg[k] = src[k];
+    if (!overTriangle()) return 0;
+    for (let k = 0; k < 6; k++) src[k] = seg[k];
+    return 2;
+  }
+  for (let e = 0; e < 3 && n > 0; e++) {
+    const a = 3 * e, q2 = 3 * ((e + 1) % 3), o = 3 * ((e + 2) % 3);
+    const vx = P[q2] - P[a], vy = P[q2 + 1] - P[a + 1], vz = P[q2 + 2] - P[a + 2];
+    let mx = up[1] * vz - up[2] * vy, my = up[2] * vx - up[0] * vz, mz = up[0] * vy - up[1] * vx;
+    if (mx * (P[o] - P[a]) + my * (P[o + 1] - P[a + 1]) + mz * (P[o + 2] - P[a + 2]) < 0) { mx = -mx; my = -my; mz = -mz; }
+    if (n === 1) {
+      if ((src[0] - P[a]) * mx + (src[1] - P[a + 1]) * my + (src[2] - P[a + 2]) * mz < 0) return 0;
+      continue;
+    }
+    n = clip(src, srcId, n, dst, dstId, P[a], P[a + 1], P[a + 2], mx, my, mz, e);
+    flip();
+  }
+  return n;
+}
+
+/**
+ * A cylinder against the triangle, as a capsule is (capsule()): the closest
+ * points of the two, the cylinder whole as its own core, unless its feature
+ * facing the triangle lies over it and is as near, when the triangle's face
+ * holds that feature: a cylinder lying on a floor rests on both ends of its
+ * side, and standing on it, on its end's rim.
+ */
+function cylinder(s, t, margin, tolerance, out) {
+  const c = s.center, a = s.axes, r = s.half[0], h = s.half[1];
+  const d = closest(s, t, near);
+  let nx = 0, ny = 0, nz = 0, sep = Infinity, where = FACE, held = false;
+  const apart = d > Math.max(r, h) / 67108864;
+  if (apart) {
+    nx = (near.a[0] - near.b[0]) / d; ny = (near.a[1] - near.b[1]) / d; nz = (near.a[2] - near.b[2]) / d;
+    sep = d;
+    where = region(near.b[0], near.b[1], near.b[2], tolerance);
+    held = seam(where) || beside(near.b[0], near.b[1], near.b[2], nx, ny, nz, tolerance)
+      || (oneSided && nx * up[0] + ny * up[1] + nz * up[2] < 0);
+  }
+  const slack = tolerance;
+  let n = clipCylinder(s, slack);
+  // Its feature over the triangle further past the plane than its centre
+  // stands off it: most of it is on the other side, and a two-sided triangle
+  // is met from there, as a box's or hull's is (over()).
+  if (!oneSided && n > 0 && bottom(n) + above(c[0], c[1], c[2]) < 0) { turn(); n = clipCylinder(s, slack); }
+  const face = n > 0 ? bottom(n) : Infinity;
+  // How far down the whole cylinder reaches past the plane, along -up.
+  const t2 = a[3] * up[0] + a[4] * up[1] + a[5] * up[2];
+  const whole = above(c[0], c[1], c[2]) - Math.abs(t2) * h - r * Math.sqrt(Math.max(0, 1 - t2 * t2));
+  if (n > 0 && (!apart || held || (face <= sep + tolerance && whole >= sep - tolerance))) {
+    aim(out, -up[0], -up[1], -up[2]);
+    for (let i = 0; i < n; i++) {
+      const x = src[3 * i], y = src[3 * i + 1], z = src[3 * i + 2], se = above(x, y, z), id = srcId[i];
+      if (se > margin) continue;
+      // A point clipping made, or an end of the side cut back, on a seam lies
+      // inside the surface the triangles make together (see SEAMS).
+      if (n === 2 && cut[i] >= 0 && (corners >> cut[i] & 1) === 0) continue;
+      if (n !== 2 && id >= 256 && seam(region(x - up[0] * se, y - up[1] * se, z - up[2] * se, tolerance))) continue;
+      add(out, x - up[0] * se / 2, y - up[1] * se / 2, z - up[2] * se / 2, se, id >= 256 ? mix + 64 + id : 64 + id);
+    }
+    return;
+  }
+  if (!apart) {
+    // Into the triangle, with no part of it facing down over it: as a box
+    // is, by separating axes (cylinder.js), the triangle a shape of three
+    // corners. Kept only where it doesn't lean past what an edge allows
+    // (FOLDS), nor push the cylinder in past a one-sided face.
+    if (cylinderPair(s, t, margin, tolerance, deep) === 0) return;
+    const mx = deep.normal[0], my = deep.normal[1], mz = deep.normal[2];
+    if (away(mx, my, mz)) return;
+    aim(out, mx, my, mz);
+    for (let k = 0; k < deep.count; k++) {
+      const x = deep.points[3 * k], y = deep.points[3 * k + 1], z = deep.points[3 * k + 2], se = deep.separations[k];
+      if (beside(x + mx * se / 2, y + my * se / 2, z + mz * se / 2, -mx, -my, -mz, tolerance)) continue;
+      add(out, x, y, z, se, mix + 128 + k);
+    }
+    return;
+  }
+  if (held || sep > margin) return;
+  aim(out, -nx, -ny, -nz);
+  add(out, near.a[0] - nx * sep / 2, near.a[1] - ny * sep / 2, near.a[2] - nz * sep / 2, sep, where);
+}
+const deep = new Manifold();
 
 // ---- a box ----
 

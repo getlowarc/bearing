@@ -8,8 +8,8 @@ import { World } from '../src/bearing.js';
  * walking, a sensor, a kinematic platform, a mesh and a heightfield, a fast
  * rod, a force waiting, and joints driven to targets: a limb, a hand after a
  * moving angle, a post kept upright, and a crate whose turn is held; water;
- * a cart on wheels; and soft bodies: a flag in the wind, a ball, and a cloth
- * thrown over a crate.
+ * a cart on wheels; soft bodies: a flag in the wind, a ball, and a cloth
+ * thrown over a crate; and cylinders, rolling, standing and on a mesh.
  */
 export function mixed(options = {}) {
   const world = new World(options);
@@ -59,6 +59,10 @@ export function mixed(options = {}) {
   world.addSoftBody({ ...ball(1, 0.3), pressure: 1, stretch: 0.98, bend: 0.1, density: 200, position: [16, 2, 2], velocity: [0, 0, 1] });
   world.addBody({ size: [0.6, 0.6, 0.6], density: 200, position: [16, 0.3, -2] });
   world.addSoftBody({ ...sheet(8, 8, 1.6, 1.6), position: [16, 1.2, -2], bend: 0.05 });
+  // Cylinders: one rolling on its side across the floor and onto the heightfield, one standing, one on the mesh.
+  world.addBody({ shape: 'cylinder', radius: 0.3, height: 0.2, rotation: [0, 0, Math.SQRT1_2, Math.SQRT1_2], position: [-6, 0.3, 8], velocity: [-2, 0, 0], angularVelocity: [0, 0, 6.7] });
+  world.addBody({ shape: 'cylinder', radius: 0.25, height: 0.6, position: [2, 2, -6], rotation: [0.2, 0, 0.1, 1] });
+  world.addBody({ shape: 'cylinder', radius: 0.4, height: 0.3, position: [22, 3, 0], rotation: [0.4, 0.2, 0, 1] });
   return { world, walker };
 }
 

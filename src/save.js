@@ -76,9 +76,11 @@ import { Softs, Soft } from './soft.js';
  * body may be water (World._fluid, _flow, _fluidCount): data of format 16
  * has none. 18 since a joint may be a wheel, with an axle (joints.js, the
  * axle column): data of format 17 has none. 19 since a world holds soft
- * bodies (World._softs, soft.js): data of format 18 has none.
+ * bodies (World._softs, soft.js): data of format 18 has none. 20 since a body
+ * may be a cylinder, shape code 5, and a mesh and a heightfield are 6 and 7:
+ * in data of format 19 a 5 is a mesh.
  */
-export const FORMAT = 19;
+export const FORMAT = 20;
 
 /**
  * The version of Bearing this is, stamped into every save: package.json's,

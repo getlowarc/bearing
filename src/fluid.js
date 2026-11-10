@@ -23,7 +23,7 @@
 // and a world with no fluid never comes here (World._fluidCount).
 
 import { atan2, cos } from './core/math.js';
-import { BOX, SPHERE, CAPSULE, HULL, Shape, Parts, placePart } from './collide.js';
+import { BOX, SPHERE, CAPSULE, HULL, CYLINDER, Shape, Parts, placePart } from './collide.js';
 import { load } from './contact.js';
 import { resized } from './core/slots.js';
 
@@ -42,7 +42,7 @@ export const UNDER = new Float64Array(4);
  */
 export function submerged(s, nx, ny, nz, c, out) {
   if (s.kind === SPHERE) ball(s.center, s.half[0], nx, ny, nz, c, out);
-  else if (s.kind === CAPSULE) capsule(s, nx, ny, nz, c, out);
+  else if (s.kind === CAPSULE || s.kind === CYLINDER) capsule(s, nx, ny, nz, c, out);
   else if (s.kind === BOX) {
     const A = s.axes, h = s.half, o = s.center;
     for (let i = 0; i < 8; i++) {
@@ -160,7 +160,8 @@ function solid(v, start, loops, F, o, nx, ny, nz, c, out) {
 // bunched toward the piece's ends. Measured over 300 random poses against
 // 400,000 slices each, the volume was within 2^-21 (5e-7) of the capsule's;
 // without the bunching 2^-16.7. An upright capsule, whose discs are each
-// wholly under or not, is exact to rounding (test/fluid.test.js).
+// wholly under or not, is exact to rounding (test/fluid.test.js). A cylinder
+// is the same discs between its ends, with no caps.
 
 /** Gauss-Legendre points a piece of a capsule's axis. See CAPSULES. */
 const NODES = 8;
@@ -185,32 +186,35 @@ for (let i = 0; i < NODES; i++) {
 const BREAKS = new Float64Array(10);
 
 function capsule(s, nx, ny, nz, c, out) {
-  const o = s.center, A = s.axes, r = s.half[0], half = s.half[1];
+  const o = s.center, A = s.axes, r = s.half[0], half = s.half[1], caps = s.kind === CAPSULE;
   const ax = A[3], ay = A[4], az = A[5];
   const h0 = nx * o[0] + ny * o[1] + nz * o[2] - c, k = nx * ax + ny * ay + nz * az;
-  // Wholly above or below: nothing to cut.
-  const reach = Math.abs(k) * half + r;
-  if (h0 >= reach) return;
-  if (h0 <= -reach) {
-    const v = Math.PI * r * r * (2 * half + (4 / 3) * r);
-    out[0] += v; out[1] += v * o[0]; out[2] += v * o[1]; out[3] += v * o[2];
-    return;
-  }
   // The plane's normal square to the axis, and how long it is: each disc is cut by a line square to it.
   let q2 = 1 - k * k;
   if (q2 < 0) q2 = 0;
   const q = Math.sqrt(q2);
+  // Wholly above or below: nothing to cut.
+  const reach = Math.abs(k) * half + (caps ? r : r * q);
+  if (h0 >= reach) return;
+  if (h0 <= -reach) {
+    const v = Math.PI * r * r * (2 * half + (caps ? (4 / 3) * r : 0));
+    out[0] += v; out[1] += v * o[0]; out[2] += v * o[1]; out[3] += v * o[2];
+    return;
+  }
   const px = q > 0 ? (nx - k * ax) / q : 0, py = q > 0 ? (ny - k * ay) / q : 0, pz = q > 0 ? (nz - k * az) / q : 0;
-  // The pieces: the segment and the two caps, cut again wherever a disc's edge meets the line.
+  // The pieces: the segment and the two caps, a cylinder's segment alone,
+  // cut again wherever a disc's edge meets the line.
   let n = 0;
-  BREAKS[n++] = -half - r; BREAKS[n++] = -half; BREAKS[n++] = half; BREAKS[n++] = half + r;
+  if (caps) BREAKS[n++] = -half - r;
+  BREAKS[n++] = -half; BREAKS[n++] = half;
+  if (caps) BREAKS[n++] = half + r;
   // (Written out, not looped over little arrays: a step makes no new arrays.)
   if (k !== 0) {
     const t0 = (-r * q - h0) / k, t1 = (r * q - h0) / k;
     if (t0 > -half && t0 < half) BREAKS[n++] = t0;
     if (t1 > -half && t1 < half) BREAKS[n++] = t1;
   }
-  if (q > 0) {
+  if (q > 0 && caps) {
     // Over a cap, with u from the segment's end: (H + k u)² = q² (r² - u²), H the height there.
     for (let side = 1; side >= -1; side -= 2) {
       const H = h0 + side * k * half, disc = r * r - H * H;

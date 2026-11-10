@@ -39,6 +39,7 @@
 
 import { build } from './hull.js';
 import { closest } from './gjk.js';
+import { cylinderPair } from './cylinder.js';
 
 /** Shape kinds, numbered in the order pairs are dispatched: a pair is always handled lower first. */
 export const SPHERE = 0, CAPSULE = 1, BOX = 2, HULL = 3;
@@ -47,6 +48,8 @@ export const SPHERE = 0, CAPSULE = 1, BOX = 2, HULL = 3;
  * by collide(): a triangle against a shape is triangle.js's.
  */
 export const TRIANGLE = 4;
+/** A cylinder: half[0] its radius, half[1] half its height, along its own y. Every pair with one is cylinder.js's. */
+export const CYLINDER = 5;
 
 /** One shape placed in the world, as collide() reads it. */
 export class Shape {
@@ -55,7 +58,7 @@ export class Shape {
     this.center = new Float64Array(3);
     /** The shape's own x, y and z axes in world space: x at 0..2, y at 3..5, z at 6..8. */
     this.axes = new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    /** Box: half its size along each axis. Sphere: radius. Capsule: radius, then half its segment's length. */
+    /** Box: half its size along each axis. Sphere: radius. Capsule: radius, then half its segment's length. Cylinder: radius, then half its height. */
     this.half = new Float64Array(3);
     /** Triangle: its corners, a, b and c, in the world. Its centre is their mean, and axes[0..2] its unit normal. */
     this.points = new Float64Array(9);
@@ -108,8 +111,8 @@ export class Part {
     /** How far it reaches from its own centre, and its thinnest size: as a body's _reach and _size. */
     const h = this.half;
     this.reach = kind === BOX ? Math.sqrt(h[0] * h[0] + h[1] * h[1] + h[2] * h[2])
-      : kind === SPHERE ? h[0] : kind === CAPSULE ? h[0] + h[1] : hull.reach;
-    this.size = kind === BOX ? 2 * Math.min(h[0], h[1], h[2]) : kind === HULL ? hull.size : 2 * h[0];
+      : kind === SPHERE ? h[0] : kind === CAPSULE ? h[0] + h[1] : kind === CYLINDER ? Math.sqrt(h[0] * h[0] + h[1] * h[1]) : hull.reach;
+    this.size = kind === BOX ? 2 * Math.min(h[0], h[1], h[2]) : kind === HULL ? hull.size : kind === CYLINDER ? 2 * Math.min(h[0], h[1]) : 2 * h[0];
   }
 }
 
@@ -169,6 +172,10 @@ export function reachAlong(s, x, y, z) {
   const A = s.axes, h = s.half;
   if (s.kind === SPHERE) return h[0];
   if (s.kind === CAPSULE) return Math.abs(A[3] * x + A[4] * y + A[5] * z) * h[1] + h[0];
+  if (s.kind === CYLINDER) {
+    const t = A[3] * x + A[4] * y + A[5] * z;
+    return Math.abs(t) * h[1] + h[0] * Math.sqrt(Math.max(0, 1 - t * t));
+  }
   if (s.kind === BOX) return support(A, h, x, y, z);
   const v = s.hull.vertices, lx = A[0] * x + A[1] * y + A[2] * z, ly = A[3] * x + A[4] * y + A[5] * z, lz = A[6] * x + A[7] * y + A[8] * z;
   let most = -Infinity;
@@ -223,6 +230,10 @@ export function collide(a, b, margin, tolerance, out) {
 let shapeA = null, shapeB = null;
 
 function pair(a, b, margin, tolerance, out) {
+  if (b.kind === CYLINDER) {
+    cylinderPair(a, b, margin, tolerance, out);
+    return;
+  }
   if (a.kind === SPHERE) {
     if (b.kind === SPHERE) sphereSphere(a, b, margin, out);
     else if (b.kind === CAPSULE) sphereCapsule(a, b, margin, out);
@@ -1127,7 +1138,7 @@ function reduce(n, nx, ny, nz, tolerance, out) {
 }
 
 /** reduce()'s work on any list of n points, with their separations and ids. */
-function reducePoints(kept, keptSep, keptId, n, nx, ny, nz, tolerance, out) {
+export function reducePoints(kept, keptSep, keptId, n, nx, ny, nz, tolerance, out) {
   if (n <= MAX_POINTS) {
     for (let k = 0; k < n; k++) addPoint(out, kept[3 * k], kept[3 * k + 1], kept[3 * k + 2], keptSep[k], keptId[k]);
     return;
@@ -1451,7 +1462,7 @@ let aboveA = new Float64Array(16), aboveB = new Float64Array(16), reachB = new U
 const near = { distance: 0, a: new Float64Array(3), b: new Float64Array(3) };
 
 /** A contact point's id from the features that made it: mixed, so any number of faces fits in 32 bits. */
-function mix(kind, i, j, k) {
+export function mix(kind, i, j, k) {
   return (Math.imul(kind + 1, 0x9e3779b1) ^ Math.imul(i + 1, 0x85ebca77) ^ Math.imul(j + 1, 0xc2b2ae3d)
     ^ Math.imul(k + 1, 0x27d4eb2f)) >>> 0;
 }

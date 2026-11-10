@@ -15,6 +15,7 @@ export function volume(spec) {
   if (spec.shape === 'mesh' || spec.shape === 'heightfield') return 0;
   const r = spec.radius;
   if (spec.shape === 'box') return spec.size[0] * spec.size[1] * spec.size[2];
+  if (spec.shape === 'cylinder') return Math.PI * r * r * spec.height;
   const ball = (4 / 3) * Math.PI * r * r * r;
   if (spec.shape === 'sphere') return ball;
   return Math.PI * r * r * (spec.height - 2 * r) + ball;
@@ -32,7 +33,8 @@ export function volume(spec) {
  * the parallel-axis theorem out to L/2 + 3r/8 from the capsule's centre, the
  * two give m (2r²/5 + L²/4 + 3Lr/8). test/motion.test.js checks this by
  * slicing the capsule into discs and integrating, so it isn't the formula
- * checking itself.
+ * checking itself. A cylinder of height H along y is the capsule's cylinder
+ * alone: m r²/2 about y, m (H²/12 + r²/4) across.
  */
 export function inertia(spec, mass, out) {
   if (spec.shape === 'box') {
@@ -45,6 +47,10 @@ export function inertia(spec, mass, out) {
     out[0] = out[1] = out[2] = 0.4 * mass * r * r;
   } else if (spec.shape === 'mesh' || spec.shape === 'heightfield') {
     out[0] = out[1] = out[2] = 0;
+  } else if (spec.shape === 'cylinder') {
+    const r = spec.radius, H = spec.height;
+    out[1] = mass * r * r / 2;
+    out[0] = out[2] = mass * (H * H / 12 + r * r / 4);
   } else {
     const r = spec.radius, L = spec.height - 2 * r;
     const cylinder = Math.PI * r * r * L, ball = (4 / 3) * Math.PI * r * r * r;
