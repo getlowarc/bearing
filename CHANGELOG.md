@@ -7,6 +7,16 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-10
+
+The kit: water, wheels, pieces and soft bodies, the physics a game reaches for beyond rigid
+bodies, each inside the same substeps as the solver. Boxes of water float what is in them as
+Archimedes says; a wheel joint holds a car's wheels on their suspension; `fracture()` cuts a box or
+hull into pieces that fill it exactly; and soft bodies are cloth, flags and closed shapes that keep
+their volume, colliding with every rigid body both ways. Joints with stops and bodies resting on
+terrain step faster, and a capsule leaning on what it rests on no longer buzzes. Saves are now
+format 19, and results change where capsules or bodies on meshes rest.
+
 ### Added
 
 - Water: a static or kinematic box given `fluid: true` holds up every dynamic body in it by the
@@ -683,7 +693,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.3.4...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/getlowarc/bearing/compare/v1.3.4...v1.4.0
 [1.3.4]: https://github.com/getlowarc/bearing/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/getlowarc/bearing/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/getlowarc/bearing/compare/v1.3.1...v1.3.2

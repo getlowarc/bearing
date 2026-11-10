@@ -944,11 +944,8 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.3.2 | — | Released 2026-11-05: bodies pressed into a mesh or heightfield stay on their side. |
 | 1.3.3 | — | Released 2026-11-06: an audit's fixes, and 3 to 8% on most heaps. |
 | 1.3.4 | — | Released 2026-11-06: joints stay on their bodies, and can't run away. |
-| 1.4.0 | 22 | Water. |
-| 1.5.0 | 23 | Wheels. |
-| 1.6.0 | 24 | Pieces. |
-| 1.7.0 | 25 | Soft bodies. |
-| 1.8.0 | 26 | Cylinders. |
+| 1.4.0 | 22, 23, 24, 25 | Released 2026-11-10: the kit, water, wheels, pieces and soft bodies, together (Nolan chose one release over four). |
+| 1.5.0 | 26 | Cylinders. |
 
 ### How a release is made
 
@@ -1293,3 +1290,5 @@ Winding's way, copied before the first one:
   `rotation`, `velocity`, `friction`, `damping`, `layers`, `mask`). He chose all three as
   recommended. `world.softBody(id)` added as `world.body(id)` is, or a loaded world's soft bodies
   had no handle.
+- **2026-11-10.** The kit released as one version, 1.4.0, at Nolan's word ("Release them all
+  together as 1.4.0"), not the four minors planned (1.4.0 to 1.7.0); cylinders become 1.5.0.
