@@ -10,7 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { World, readGlb } from '../src/bearing.js';
+import { World, readGlb, fracture } from '../src/bearing.js';
 import { VERSION } from '../src/save.js';
 import { suite, test, thrown } from './test.js';
 
@@ -417,6 +417,20 @@ const cases = [
   ['body-applyangularimpulse', () => fresh().body.applyAngularImpulse([0, '1', 0]), "applyAngularImpulse: impulse must be 3 finite numbers, got 0,'1',0"],
   ['body-destroy', () => gone().body.destroy(), 'destroy: this world was destroyed'],
 
+  ['fracture', () => fracture(5), 'fracture: shape must be an object, got 5'],
+  ['fracture', () => fracture({ sise: [1, 1, 1] }), "fracture: shape: unknown option 'sise' (did you mean 'size'?)"],
+  ['fracture', () => fracture({ radius: 1 }), "fracture: shape: unknown option 'radius' (the options are shape, size, vertices)"],
+  ['fracture', () => fracture({ shape: 'sphere' }), "fracture: shape.shape must be 'box' or 'hull', got 'sphere'"],
+  ['fracture', () => fracture({ vertices: [0, 0, 0] }), 'fracture: a box has no vertices'],
+  ['fracture', () => fracture({ shape: 'hull', size: [1, 1, 1] }), 'fracture: a hull has no size'],
+  ['fracture', () => fracture({ size: [1, 0, 1] }), 'fracture: shape.size must be 3 positive numbers, got 1,0,1'],
+  ['fracture', () => fracture({ shape: 'hull', vertices: [0, 0, NaN] }), 'fracture: shape.vertices must be finite numbers, three to a vertex, got NaN at index 2'],
+  ['fracture', () => fracture({ shape: 'hull', vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0] }), 'fracture: shape.vertices must span a solid (4 points not in one plane), got 4 points in one plane'],
+  ['fracture', () => fracture({}, 5), 'fracture: options must be an object, got 5'],
+  ['fracture', () => fracture({}, { cont: 4 }), "fracture: unknown option 'cont' (did you mean 'count'?)"],
+  ['fracture', () => fracture({}, { size: 4 }), "fracture: unknown option 'size' (the options are count, seed)"],
+  ['fracture', () => fracture({}, { count: 0 }), 'fracture: count must be a whole number, 1 or more, got 0'],
+  ['fracture', () => fracture({}, { seed: 1.5 }), 'fracture: seed must be a whole number, got 1.5'],
   ['readglb', () => readGlb(glb(), 5), 'readGlb: options must be an object, got 5'],
   ['readglb', () => readGlb(glb(), { nod: 'floor' }), "readGlb: unknown option 'nod' (did you mean 'node'?)"],
   ['readglb', () => readGlb(glb(), { scale: 2 }), "readGlb: unknown option 'scale' (the options are node)"],

@@ -20,7 +20,7 @@ of numbers may be given as); `BodyType`, `ShapeType` and `JointType`; `WorldOpti
 `HingeJointOptions`, `SliderJointOptions`, `DistanceJointOptions`, `RotationJointOptions`, `WheelJointOptions` and
 `JointChanges`; `JointInfo` (what [`jointOf`](#world-jointof) gives); `RayOptions`,
 `CastOptions`, `OverlapOptions`, `QueryShape` and `Hit`; `ContactEvent`, `BeginEvent`, `ImpactEvent`
-and `EndEvent`; `Ground`; `DebugLineOptions`; `GlbOptions`; and `SavedWorld`.
+and `EndEvent`; `Ground`; `DebugLineOptions`; `GlbOptions`; `FractureShape`, `FractureOptions` and `Piece` (what [`fracture`](#fracture) takes and gives); and `SavedWorld`.
 
 <a id="conventions"></a>
 ## Conventions
@@ -106,7 +106,7 @@ Before 1.0, a renamed option or property throws instead, saying what it is calle
 <a id="contents"></a>
 ## Contents
 
-[What 1.x promises](#promises) · [World](#world-class) · [Body](#body) · [Joint](#joint) · [Hulls and compounds](#hulls) · [Meshes and heightfields](#meshes) · [Character bodies](#characters) · [Joints](#joints) · [Contacts](#contacts) · [Contact events and sensors](#events) · [Water](#water) · [Layers, masks and groups](#layers) · [Sleeping](#sleeping) · [Queries](#queries) · [Determinism](#determinism) · [Limits](#limits) · [Renamed](#renamed)
+[What 1.x promises](#promises) · [World](#world-class) · [Body](#body) · [Joint](#joint) · [Hulls and compounds](#hulls) · [Pieces](#pieces) · [Meshes and heightfields](#meshes) · [Character bodies](#characters) · [Joints](#joints) · [Contacts](#contacts) · [Contact events and sensors](#events) · [Water](#water) · [Layers, masks and groups](#layers) · [Sleeping](#sleeping) · [Queries](#queries) · [Determinism](#determinism) · [Limits](#limits) · [Renamed](#renamed)
 
 <a id="index"></a>
 ## Index
@@ -121,7 +121,7 @@ Every call, setting and entry, A to Z by its name.
 
 **D** &nbsp; [`world.debugLines()`](#world-debuglines) · [`body.destroy()`](#body-destroy) · [`joint.destroy()`](#joint-destroy) · [`world.destroy()`](#world-destroy) · [Determinism](#determinism)
 
-**F** &nbsp; [`joint.force`](#joint-force)
+**F** &nbsp; [`joint.force`](#joint-force) · [`fracture()`](#fracture)
 
 **G** &nbsp; [`world.gravity`](#world-gravity) · [`world.groundOf()`](#world-groundof) · [Groups](#layers)
 
@@ -137,7 +137,7 @@ Every call, setting and entry, A to Z by its name.
 
 **O** &nbsp; [`world.overlap()`](#world-overlap)
 
-**P** &nbsp; [`body.position`](#body-position) · [`world.previous`](#world-previous)
+**P** &nbsp; [Pieces](#pieces) · [`body.position`](#body-position) · [`world.previous`](#world-previous)
 
 **Q** &nbsp; [Queries](#queries)
 
@@ -1566,6 +1566,55 @@ const hammer = world.addBody({
   feet are worked out for a box, ball or capsule. A query's shape is a box, ball or capsule too:
   a hull is built from its points by quickhull, too dear to do for each query. Queries see hulls
   and compounds as bodies like any other.
+
+<a id="pieces"></a>
+## Pieces
+
+[`fracture`](#fracture) cuts a box or a hull into pieces that fill it exactly, for something that
+breaks: a crate smashed, a wall knocked through. When it breaks, and what then becomes of the
+pieces, is the game's to say: remove the body and add the pieces where it was.
+
+<a id="fracture"></a>
+### `fracture(shape, options)` → `Array`
+
+Cuts `shape` into `count` convex pieces that fill it, face to face, with nothing between them and
+nothing overlapping: Voronoi cells, each the part of the shape nearer one of `count` points
+scattered through it than to any other. A seed gives the same pieces on every machine.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `count` | `8` | How many pieces, a whole number from 1. |
+| `seed` | `0` | Which pieces: a whole number. The same seed always gives the same pieces; another, other ones. |
+
+`shape` is a box, `{ shape: 'box', size }` (the default, a 1 m cube), or a hull,
+`{ shape: 'hull', vertices }`, as [`addBody`](#world-addbody) takes them; a box's pieces are about its
+centre, a hull's in the frame its `vertices` are given in.
+
+Returns: an array of `{ vertices, position }`, one for each piece: `vertices` its corners, three
+numbers each, in metres, about its own centre of mass, and `position` where that centre is in the
+shape's frame. Fresh arrays, yours to keep.
+
+Throws: `fracture: shape must be an object, got …`; `fracture: shape: unknown option '…' (did you mean '…'?)`; `fracture: shape: unknown option '…' (the options are shape, size, vertices)`; `fracture: shape.shape must be 'box' or 'hull', got …`; `fracture: a box has no vertices`; `fracture: a hull has no size`; `fracture: shape.size must be 3 positive numbers, got …`; `fracture: shape.vertices must be finite numbers, three to a vertex, got …`; `fracture: shape.vertices must span a solid (4 points not in one plane), got …`; `fracture: options must be an object, got …`; `fracture: unknown option '…' (did you mean '…'?)`; `fracture: unknown option '…' (the options are count, seed)`; `fracture: count must be a whole number, 1 or more, got …`; `fracture: seed must be a whole number, got …`.
+
+```js
+// A crate that breaks where it is, the pieces moving as it was.
+const pieces = fracture({ shape: 'box', size: [1, 1, 1] }, { count: 10, seed: 3 });
+const at = crate.position, q = crate.rotation, v = crate.velocity;
+world.remove(crate);
+for (const piece of pieces) {
+  const [px, py, pz] = piece.position, [x, y, z, w] = q;
+  // The piece's centre turned by the crate's rotation: q · p · q*.
+  const tx = 2 * (y * pz - z * py), ty = 2 * (z * px - x * pz), tz = 2 * (x * py - y * px);
+  const position = [at[0] + px + w * tx + (y * tz - z * ty), at[1] + py + w * ty + (z * tx - x * tz), at[2] + pz + w * tz + (x * ty - y * tx)];
+  world.addBody({ shape: 'hull', vertices: piece.vertices, position, rotation: q, velocity: v });
+}
+```
+
+Notes: the points are kept at least a quarter of their even spacing apart, so no piece is a sliver.
+A piece of a whole at rest rests where it was, held by those around it, unless it lies on a cut
+steeper than its friction holds where nothing else holds it, as at a block's edge, and then it
+slides off, as a real one would. The work grows as the square of `count`: 30 pieces take a few
+milliseconds, so cut ahead of time what must break at once.
 
 <a id="meshes"></a>
 ## Meshes and heightfields

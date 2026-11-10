@@ -7,3 +7,4 @@ export { World } from './world.js';
 export { Body } from './body.js';
 export { Joint } from './joints.js';
 export { readGlb } from './glb.js';
+export { fracture } from './fracture.js';

@@ -178,6 +178,13 @@ These were made with Nolan and override the rules below where they differ.
   RB - D); `pin(WHEEL)` the four that hold. `holds()` false: never in a tree, measured unneeded
   (0.08 mm, 0.03°). Steering's `setJoint` keeps impulses (axle changes don't zero them). Column
   `axle`; FORMAT 18.
+- **Pieces** (2026-11-10, milestone 24, API approved): `fracture(shape, { count, seed })`, exported
+  from `bearing.js` beside `readGlb`; `src/fracture.js`. Box or hull in, `[{ vertices, position }]`
+  out, corners about each piece's centre of mass. Voronoi cells: Park-Miller points (`APART` a
+  quarter of the even spacing, compared as sixth powers), `cut()` by bisecting planes nearest first
+  (a crossing corner from the kept end, so faces agree to the bit; the cap ordered by `atan2`),
+  `solid()` for volume and centre. `HASH_PIECES` in `test/determinism.test.js`. Not in the step,
+  so it allocates freely. Work grows as count².
 - **Joints that can't all be held** (2026-11-06, Nolan: "Go ahead with the joint anchors and NaN"):
   `rehome()` re-expresses a joint's anchors and frames when `setBody` moves a body's centre or
   principal axes. TORN: what a joint asks for is held to the reach of its moving bodies (`tear`,

@@ -384,6 +384,31 @@ export type QueryShape =
   | { shape: 'sphere'; radius?: number }
   | { shape: 'capsule'; radius?: number; height?: number };
 
+/** The shape fracture() cuts: a box, centred on its own origin, or a hull's corners. */
+export type FractureShape =
+  | { shape?: 'box'; size?: Vec3 }
+  | { shape: 'hull'; vertices?: ArrayLike<number> };
+
+export interface FractureOptions {
+  /** How many pieces, a whole number from 1. Default 8. */
+  count?: number;
+  /** Which pieces: the same seed gives the same pieces on every machine. A whole number, default 0. */
+  seed?: number;
+}
+
+/** One piece: its corners, m, about its own centre of mass, and where that centre is in the shape's frame. */
+export interface Piece {
+  vertices: number[];
+  position: [number, number, number];
+}
+
+/**
+ * The shape cut into `count` convex pieces that fill it exactly, face to face:
+ * Voronoi cells about points scattered through it from `seed`. Add each as a
+ * hull at the body's position plus its position turned by the body's rotation.
+ */
+export function fracture(shape?: FractureShape, options?: FractureOptions): Piece[];
+
 export interface GlbOptions {
   /** The name of one node: only it and the nodes under it are read, still placed as in the scene. */
   node?: string;

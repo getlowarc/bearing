@@ -22,6 +22,11 @@ All notable changes to Bearing are recorded here. The format follows
   with `setJoint`, which keeps what the wheel holds. A car on four of them crosses a heightfield
   or a mesh at 20 m/s with every wheel on the ground. See [Joints](docs/API.md#joints). Saves are
   now format 18.
+- Pieces: `fracture(shape, { count, seed })`, exported beside `readGlb`, cuts a box or a hull
+  into `count` convex pieces that fill it exactly, face to face, each `{ vertices, position }`
+  ready for `addBody({ shape: 'hull', ... })`. A seed gives the same pieces on every machine. When
+  something breaks is the game's to say: remove the body and add the pieces. See
+  [Pieces](docs/API.md#pieces).
 
 ### Changed
 

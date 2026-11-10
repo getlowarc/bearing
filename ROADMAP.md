@@ -807,12 +807,20 @@ one way and flat the other, so a car's wheel doesn't roll over its own edge in a
 for by Nolan (2026-11-10: "Definitely add a cylinder at some point"); after the kit's four, or
 when wheels need it.
 
-**24. Pieces ⬜**
+**24. Pieces ✅** *(done 2026-11-10)*
 *Concepts:* Voronoi cells; cutting a convex shape into convex pieces that fill it.
 `fracture(shape, { count, seed })`, exported beside `readGlb`: hulls that fill a box or hull
 exactly, the same on every machine for a seed. When to break stays in the game, which removes the
 body and adds the pieces.
 *Done when:* the pieces' volumes sum to the shape's, none overlap, and they rest as the whole did.
+*Done (2026-11-10):* `src/fracture.js`: points by Park and Miller's generator, kept a quarter of
+their even spacing apart (compared as sixth powers, no cube root), each cell the shape cut by the
+bisecting planes, nearest first, a crossing corner worked out from the kept end so neighbouring
+faces agree to the bit, the cap ordered by Bearing's atan2. Volumes sum to the shape's within
+1e-12, every one of 16,000 points is in exactly one piece, and a seed's pieces are a stored hash,
+on Bun too. Slabs broken into 6 and 12 rest within 2 mm and sleep; of 30, one at the slab's edge on
+a cut of 44° slides off, friction 0.5 holding 27°, as a real one would. 20 pieces of a rock in about
+5 ms. Found on the way: the default box was 2 m, not 1.
 
 **25. Soft bodies ⬜**
 *Concepts:* XPBD; distance, bending and volume constraints; particles against rigid shapes, both
@@ -1258,3 +1266,5 @@ Winding's way, copied before the first one:
 - **2026-11-10.** Wheels, milestone 23, at Nolan's word ("Go ahead with wheels"). The approved API
   had no way to say what a wheel spins about, which a 3D wheel needs: `axle` added, Nolan choosing
   its default. Cylinders added as milestone 26, at his word, wheels being balls until then.
+- **2026-11-10.** Pieces, milestone 24, at Nolan's word ("Go ahead with pieces"), as approved:
+  `fracture(shape, { count, seed })`, defaults 8 pieces of a 1 m cube from seed 0.

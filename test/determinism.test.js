@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { suite, test } from './test.js';
 import { mixed } from './scenes.js';
-import { World } from '../src/bearing.js';
+import { World, fracture } from '../src/bearing.js';
 import { World2D } from '../src/2d/bearing2d.js';
 
 suite('determinism');
@@ -19,6 +19,7 @@ suite('determinism');
 const HASH = '735a1fe9f9e2a523aaaed2873e9aed9d92cd3ab7cd2ad2c231a4bd7f8e88e8e5';
 const HASH_2D = 'b41b4c94c33da216b500e4d47af29ef3941a436503784e07d10494bf976105a8';
 const HASH_STOPS = '3c890bc7d753531340e4416e84fdf6f0dbf1a85c61d630ae38a7f76627bed7af';
+const HASH_PIECES = '19993e3c075df87bee0a1e0d29395ae1d953b95fb38bbd9d1677eff09350407c';
 
 test('a world of everything steps to the stored bits', () => {
   const { world } = mixed({ workers: 0 });
@@ -72,6 +73,16 @@ test('joints pressed into their stops step to their stored bits', () => {
   world.destroy();
   const got = hash.digest('hex');
   assert.equal(got, HASH_STOPS, `the bits changed: if that is meant, store ${got} as HASH_STOPS`);
+});
+
+test('a hull broken into pieces gives its stored bits', () => {
+  // Every cut is exact operations and Bearing's own atan2, and the points come
+  // from a generator of whole-number steps: the same pieces on every engine.
+  const hash = createHash('sha256');
+  const rock = [0, 1, 0, 1, -0.5, 0.3, -0.8, -0.5, 0.6, -0.2, -0.4, -1, 0.6, 0.2, -0.5];
+  for (const p of fracture({ shape: 'hull', vertices: rock }, { count: 20, seed: 3 })) hash.update(new Float64Array([...p.position, ...p.vertices]));
+  const got = hash.digest('hex');
+  assert.equal(got, HASH_PIECES, `the pieces changed: if that is meant, store ${got} as HASH_PIECES`);
 });
 
 test('a 2D world steps to its stored bits', () => {

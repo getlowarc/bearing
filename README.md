@@ -81,6 +81,8 @@ mine as the game runs, and characters that walk on them.
 - **Contact events and sensors**: which bodies began and stopped touching in each step, where and
   how hard, read after the step; what touches a body now; and sensors, zones that report what
   enters them and push nothing. See [Contact events and sensors](docs/API.md#events).
+- **Pieces**: `fracture()` cuts a box or a hull into pieces that fill it exactly, the same for a
+  seed on every machine, for things that break. See [Pieces](docs/API.md#pieces).
 - **Water**: boxes of water that hold up what is in them as Archimedes says, at the centre of
   the part under the surface, so planks float flat and rafts drift on a current. See
   [Water](docs/API.md#water).
