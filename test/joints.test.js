@@ -1422,3 +1422,143 @@ test('cone and swing read back as given, swing defaults square to the axis, and 
   world.setJoint(joint, { swing: null });
   assert.equal(world.jointOf(joint).swing, null);
 });
+
+
+// ---- wheels ----
+
+/** A car: a 691 kg chassis on four ball wheels of 54 kg, each on a wheel joint, facing +z. */
+function car(world, at = [0, 0, 0]) {
+  const chassis = world.addBody({ size: [1.6, 0.4, 3.6], density: 300, position: [at[0], at[1] + 0.75, at[2]] });
+  const wheels = [], joints = [];
+  for (const [x, z] of [[-0.85, 1.3], [0.85, 1.3], [-0.85, -1.3], [0.85, -1.3]]) {
+    const p = [at[0] + x, at[1] + 0.35, at[2] + z];
+    wheels.push(world.addBody({ shape: 'sphere', radius: 0.35, density: 300, friction: 1, position: p }));
+    joints.push(world.addJoint({ type: 'wheel', a: wheels.at(-1), b: chassis, anchor: p, axis: [0, 1, 0], frequency: 3, dampingRatio: 0.7, min: -0.2, max: 0.2 }));
+  }
+  return { chassis, wheels, joints };
+}
+
+/**
+ * Wheel joint j's own error, read from its frames as the solver holds them:
+ * how far its wheel's anchor is off the chassis's line, and its axle off the chassis's.
+ */
+function wheelError(world, joint) {
+  const J = world._joints, j = J.slots.slotOf(joint.id), a = J.a[j], b = J.b[j], P = world._position, R = world._rotation;
+  const q = (s) => [R[4 * s], R[4 * s + 1], R[4 * s + 2], R[4 * s + 3]];
+  const mul = (p, f) => { const [x, y, z, w] = p, a2 = J[f][4 * j], b2 = J[f][4 * j + 1], c2 = J[f][4 * j + 2], d2 = J[f][4 * j + 3]; return [w * a2 + x * d2 + y * c2 - z * b2, w * b2 + y * d2 + z * a2 - x * c2, w * c2 + z * d2 + x * b2 - y * a2, w * d2 - x * a2 - y * b2 - z * c2]; };
+  const ra = turned(q(a), [...J.localA.slice(3 * j, 3 * j + 3)]), rb = turned(q(b), [...J.localB.slice(3 * j, 3 * j + 3)]);
+  const D = [0, 1, 2].map((k) => P[3 * b + k] + rb[k] - P[3 * a + k] - ra[k]);
+  const QB = mul(q(b), 'frameB'), X2 = turned(QB, [1, 0, 0]), Y2 = turned(QB, [0, 1, 0]), Z2 = turned(QB, [0, 0, 1]), A1 = turned(mul(q(a), 'frameA'), [1, 0, 0]);
+  const S = [0, 1, 2].map((k) => J.facing[2 * j] * Y2[k] + J.facing[2 * j + 1] * Z2[k]);
+  const T2 = [S[1] * X2[2] - S[2] * X2[1], S[2] * X2[0] - S[0] * X2[2], S[0] * X2[1] - S[1] * X2[0]];
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  return { off: Math.hypot(dot(D, X2), dot(D, T2)), tilt: Math.acos(Math.min(1, dot(A1, X2))), travel: -dot(D, S) };
+}
+
+const lean = (b) => { const [x, , z] = b.rotation; return Math.acos(Math.min(1, 1 - 2 * (x * x + z * z))); };
+
+test('a car on wheel joints stands level, drives at its wheels\' speed, brakes and sleeps', () => {
+  const world = new World();
+  world.addBody({ type: 'static', size: [400, 1, 400], position: [0, -0.5, 0] });
+  const c = car(world);
+  for (let i = 0; i < 180; i++) world.step(DT);
+  assert.ok(lean(c.chassis) < 1e-4, `the chassis leans ${lean(c.chassis)} rad`);
+  assert.ok(c.chassis.asleep, 'the parked car is awake');
+  const standing = c.chassis.position[1];
+  for (const j of c.joints) world.setJoint(j, { motorSpeed: 20, motorForce: 400 });
+  for (let i = 0; i < 300; i++) world.step(DT);
+  // 20 rad/s on 0.35 m wheels rolls it at 7 m/s.
+  near(c.chassis.velocity[2], 7, 0.01, 'its speed');
+  near(c.chassis.position[1], standing, 0.001, 'its height driving');
+  for (const j of c.joints) world.setJoint(j, { motorSpeed: 0, motorForce: 3000 });
+  for (let i = 0; i < 180; i++) world.step(DT);
+  assert.ok(Math.hypot(...c.chassis.velocity) < 0.01, `braked, it still goes ${Math.hypot(...c.chassis.velocity)} m/s`);
+  for (let i = 0; i < 180; i++) world.step(DT);
+  assert.ok(c.chassis.asleep);
+});
+
+test('steered every step, a car turns, its wheels on their tracks and its suspension holding', () => {
+  // Steering turns the front axles with setJoint, which keeps what they hold:
+  // started from nothing each step, the suspension would sag.
+  const world = new World();
+  world.addBody({ type: 'static', size: [400, 1, 400], position: [0, -0.5, 0] });
+  const c = car(world);
+  for (let i = 0; i < 120; i++) world.step(DT);
+  const standing = c.chassis.position[1];
+  for (const j of c.joints) world.setJoint(j, { motorSpeed: 15, motorForce: 400 });
+  let off = 0, tilt = 0, lowest = Infinity;
+  for (let i = 0; i < 480; i++) {
+    const steer = 0.25, [x, y, z, w] = c.chassis.rotation;
+    // The chassis's own x, turned by the steering angle about its own y.
+    const X = turned([x, y, z, w], [Math.cos(steer), 0, -Math.sin(steer)]);
+    for (const j of c.joints.slice(0, 2)) world.setJoint(j, { axle: X });
+    world.step(DT);
+    if (i > 60) lowest = Math.min(lowest, c.chassis.position[1]);
+    for (const j of c.joints) { const e = wheelError(world, j); off = Math.max(off, e.off); tilt = Math.max(tilt, e.tilt); }
+  }
+  const heading = yaw(c.chassis.rotation);
+  // At 5 m/s on a 2.6 m wheelbase, 0.25 rad of steering turns it about 0.5 rad a second.
+  assert.ok(Math.abs(heading) > 1, `it turned ${heading} rad`);
+  assert.ok(off < 0.0005, `a wheel ${off} m off its track`);
+  assert.ok(tilt < 0.002, `an axle ${tilt} rad off the chassis's`);
+  // Leaning out on the turns, but never sagging toward its stops.
+  assert.ok(lowest > standing - 0.05, `the chassis down to ${lowest}, standing at ${standing}`);
+});
+
+test('a car crosses a heightfield and a mesh at 20 m/s without leaving the ground on their seams', () => {
+  for (const ground of [
+    (w) => w.addBody({ shape: 'heightfield', heights: new Array(161 * 161).fill(0), columns: 161, spacing: 1 }),
+    (w) => { const n = 100, v = [], idx = []; for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) v.push(i - n / 2, 0, j - n / 2); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i; idx.push(a, a + n + 1, a + n + 2, a, a + n + 2, a + 1); } w.addBody({ shape: 'mesh', vertices: v, indices: idx }); },
+  ]) {
+    const world = new World();
+    ground(world);
+    const c = car(world, [0.3, 0.45, -45]);
+    for (let i = 0; i < 120; i++) world.step(DT);
+    for (const j of c.joints) world.setJoint(j, { motorSpeed: 20 / 0.35, motorForce: 1500 });
+    let lifted = 0, bounce = 0;
+    for (let i = 0; i < 270; i++) {
+      world.step(DT);
+      if (c.wheels.some((wb) => world.touching(wb).length === 0)) lifted++;
+      if (i > 120) bounce = Math.max(bounce, Math.abs(c.chassis.velocity[1]));
+    }
+    near(c.chassis.velocity[2], 20, 0.1, 'its speed');
+    assert.equal(lifted, 0, 'a wheel left the ground');
+    // The same as on one flat box: what moves it is pitching as it gathers speed, not the seams.
+    assert.ok(bounce < 0.02, `the chassis bounced at ${bounce} m/s`);
+  }
+});
+
+test('a wheel\'s suspension sags as its frequency says, and stops at min', () => {
+  // Under a frame that can't move, a wheel's spring carries the wheel alone:
+  // it sags g / (2π f)², 62 mm at 2 Hz, and with min -0.03 no further than that.
+  for (const [min, sag] of [[null, -9.81 / (4 * Math.PI ** 2 * 4)], [-0.03, -0.03]]) {
+    const world = new World({ sleeping: false });
+    const frame = world.addBody({ type: 'static', size: [1, 0.2, 1], position: [0, 2, 0] });
+    const tyre = world.addBody({ shape: 'sphere', radius: 0.3, position: [0, 1.5, 0] });
+    const joint = world.addJoint({ type: 'wheel', a: tyre, b: frame, anchor: [0, 1.5, 0], frequency: 2, dampingRatio: 1, ...(min === null ? {} : { min }) });
+    for (let i = 0; i < 300; i++) world.step(DT);
+    near(wheelError(world, joint).travel, sag, 0.0005, `its travel with min ${min}`);
+  }
+});
+
+test('jointOf reads a wheel back, its axle square to its axis unless given, and setJoint of that changes nothing', () => {
+  const world = new World();
+  const frame = world.addBody({ size: [2, 0.4, 4] }), tyre = world.addBody({ shape: 'sphere', radius: 0.3, position: [1, -0.4, 1.5] });
+  const joint = world.addJoint({ type: 'wheel', a: tyre, b: frame, anchor: [1, -0.4, 1.5], axis: [0, 2, 0], min: -0.1, frequency: 4 });
+  const spec = world.jointOf(joint);
+  assert.deepEqual(spec.axis, [0, 1, 0]);
+  assert.deepEqual(spec.axle, [1, 0, 0]);
+  assert.equal(spec.min, -0.1);
+  assert.equal(spec.max, null);
+  assert.equal(spec.target, undefined);
+  world.step(DT);
+  // Its frames, its suspension's way and what it holds, as they were: setJoint moves only the pair epoch on.
+  const J = world._joints, j = J.slots.slotOf(joint.id), mine = () => ['frameA', 'frameB', 'facing', 'impulse', 'axle', 'axis'].map((k) => {
+    const per = J[k].length / J.slots.capacity;
+    return Array.from(J[k].slice(per * j, per * j + per));
+  });
+  const before = mine();
+  world.setJoint(joint, world.jointOf(joint));
+  assert.deepEqual(mine(), before);
+  assert.deepEqual(world.jointOf(world.addJoint(spec)), spec);
+});

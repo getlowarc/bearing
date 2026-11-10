@@ -168,6 +168,16 @@ These were made with Nolan and override the rules below where they differ.
   those it lagged and fed every rock. Waking: `_wet`/`_soak` (added, changed, moved by hand),
   `stirred()` in `contact.js` (moving water), `released()` lets water's ending wake. Only the box's
   top is asked. Columns `_fluid`, `_flow`; `_fluidCount`, `_floatSteps` (off means off); FORMAT 17.
+- **Wheels** (2026-11-10, milestone 23, API approved, `axle` and its default chosen by Nolan): joint
+  type `'wheel'` (`WHEEL` 6), options `axis` (suspension), `axle`, `min`/`max` (travel, m),
+  `frequency`/`dampingRatio` (the suspension spring; 0 holds it stiff), `motorSpeed`/`motorForce`
+  (spin; speed 0 brakes), `frictionForce`. `wheel()` sets frames: the axle as each body's joint x
+  (`orient`), the suspension in b's joint frame (`facing`), so it turns with the chassis and not the
+  spinning wheel. Rows: `suspension()` (spring and stops, pinned), the motor (`axle()`, `driven()`),
+  `holdAxis()`, `holdTrack()` (`onLine()`: b carries the line, its lever reaching a's anchor,
+  RB - D); `pin(WHEEL)` the four that hold. `holds()` false: never in a tree, measured unneeded
+  (0.08 mm, 0.03°). Steering's `setJoint` keeps impulses (axle changes don't zero them). Column
+  `axle`; FORMAT 18.
 - **Joints that can't all be held** (2026-11-06, Nolan: "Go ahead with the joint anchors and NaN"):
   `rehome()` re-expresses a joint's anchors and frames when `setBody` moves a body's centre or
   principal axes. TORN: what a joint asks for is held to the reach of its moving bodies (`tear`,

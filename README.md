@@ -72,8 +72,8 @@ mine as the game runs, and characters that walk on them.
 - **Character bodies**: a body the game gives a velocity to, that walks rather than flies: it
   slides along walls, walks up slopes and stairs to a limit, stays on the ground going down, and
   rides moving platforms. See [Character bodies](docs/API.md#characters).
-- **Joints**: fixed, ball, hinge, slider, distance and rotation joints, with stops, motors,
-  springs and friction. A motor can drive to a target angle, position or orientation, as a spring
+- **Joints**: fixed, ball, hinge, slider, distance, rotation and wheel joints, with stops, motors,
+  springs and friction. A wheel joint is a car's wheel on its suspension, driven, braked and steered. A motor can drive to a target angle, position or orientation, as a spring
   solved inside the step, so a ragdoll with its joints driven to a pose stands on its own feet.
   Chains, ragdolls and bridges are solved exactly, so a 100-link chain hangs at its built length.
   Each joint's force and torque over the last step can be read, to break it. See

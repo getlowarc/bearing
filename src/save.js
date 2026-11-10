@@ -73,9 +73,10 @@ import { COLOURS, DIGITS } from './graph.js';
  * (World._lockMove): data of format 14 has none. 16 since a mesh pair keeps
  * its manifolds (pairs.js, Memory): data of format 15 has none. 17 since a
  * body may be water (World._fluid, _flow, _fluidCount): data of format 16
- * has none.
+ * has none. 18 since a joint may be a wheel, with an axle (joints.js, the
+ * axle column): data of format 17 has none.
  */
-export const FORMAT = 17;
+export const FORMAT = 18;
 
 /**
  * The version of Bearing this is, stamped into every save: package.json's,

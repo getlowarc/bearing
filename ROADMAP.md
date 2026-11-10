@@ -780,7 +780,7 @@ from the step's start, which fed every rock (an undamped plank 0.89 to 5.5 rad/s
 sensors never woke what they let go of, which water must. 1,000 floating bodies, all awake, 3.1 ms a
 step on one thread. 3D only for now.
 
-**23. Wheels ⬜**
+**23. Wheels ✅** *(done 2026-11-10)*
 *Concepts:* suspension as a soft constraint; a wheel joint, slider and hinge in one; tyre grip as
 contact friction.
 A joint type `'wheel'` between a wheel body and a chassis: the wheel slides along `axis` on a spring
@@ -790,6 +790,22 @@ steering feel) stays outside Bearing.
 *Belongs in Bearing because* a stiff suspension spring is only steady inside the substeps.
 *Done when:* a four-wheeled car stands level, drives, brakes, steers and crosses a heightfield at
 speed without hopping on its seams. A cylinder shape is proposed separately, if wheels want one.
+*Done (2026-11-10):* joint type `'wheel'` and option `axle` (Nolan chose its default: the world
+axis most square to `axis`, as `swing`'s). The suspension line is the chassis's, kept in b's frame
+of the joint as a cone's swing is (`facing`); a's frame carries the axle, as a hinge's. Solved one
+joint at a time, never in a tree: a car's wheels held within 0.08 mm of their tracks and 0.03° of
+their axles driving, steering and braking, so the tree solver wasn't needed. Steering through
+`setJoint` keeps the impulses. A car stands level and sleeps, drives at its spin times its radius,
+brakes to a stop, turns steered every step, and crosses a flat heightfield and a mesh at 20 m/s
+with no wheel lifting, its chassis moving exactly as on one flat box. A wheel under a fixed frame
+sags g / (2π f)² and stops at `min`. FORMAT 18.
+
+**26. Cylinders ⬜**
+*Concepts:* a cylinder's contacts against every shape: its flat ends, its rim, its round side.
+`shape: 'cylinder'` (`radius`, `height`), for bodies and compound parts: what wheels are, round
+one way and flat the other, so a car's wheel doesn't roll over its own edge in a hard turn. Asked
+for by Nolan (2026-11-10: "Definitely add a cylinder at some point"); after the kit's four, or
+when wheels need it.
 
 **24. Pieces ⬜**
 *Concepts:* Voronoi cells; cutting a convex shape into convex pieces that fill it.
@@ -905,6 +921,7 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.5.0 | 23 | Wheels. |
 | 1.6.0 | 24 | Pieces. |
 | 1.7.0 | 25 | Soft bodies. |
+| 1.8.0 | 26 | Cylinders. |
 
 ### How a release is made
 
@@ -1238,3 +1255,6 @@ Winding's way, copied before the first one:
   defaults to 3 for new water, measured as the least whole number that put six shapes dropped 2 m
   to sleep within 9 to 16 s (at 0 a body bobs for good: a flat surface has no waves to take the
   energy). That default wasn't in the approved proposal; it is Nolan's to change.
+- **2026-11-10.** Wheels, milestone 23, at Nolan's word ("Go ahead with wheels"). The approved API
+  had no way to say what a wheel spins about, which a 3D wheel needs: `axle` added, Nolan choosing
+  its default. Cylinders added as milestone 26, at his word, wheels being balls until then.

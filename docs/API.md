@@ -17,7 +17,7 @@ of numbers may be given as); `BodyType`, `ShapeType` and `JointType`; `WorldOpti
 `BodyOptions`, `BoxOptions`, `SphereOptions`, `CapsuleOptions`, `HullOptions`, `CompoundOptions`,
 `PartOptions`, `MeshOptions`, `HeightfieldOptions` and `BodyChanges`; `BodyInfo` and `PartInfo`
 (what [`bodyOf`](#world-bodyof) gives); `JointOptions`, `FixedJointOptions`, `BallJointOptions`,
-`HingeJointOptions`, `SliderJointOptions`, `DistanceJointOptions`, `RotationJointOptions` and
+`HingeJointOptions`, `SliderJointOptions`, `DistanceJointOptions`, `RotationJointOptions`, `WheelJointOptions` and
 `JointChanges`; `JointInfo` (what [`jointOf`](#world-jointof) gives); `RayOptions`,
 `CastOptions`, `OverlapOptions`, `QueryShape` and `Hit`; `ContactEvent`, `BeginEvent`, `ImpactEvent`
 and `EndEvent`; `Ground`; `DebugLineOptions`; `GlbOptions`; and `SavedWorld`.
@@ -582,28 +582,29 @@ the joint's type allows, and returns its [handle](#joint). See [Joints](#joints)
 
 | Option | Default | Meaning |
 |---|---|---|
-| `type` | `'ball'` | `'fixed'`: welded, nothing free. `'ball'`: turns any way about its anchor. `'hinge'`: turns about `axis`. `'slider'`: slides along `axis`, turning not at all. `'distance'`: keeps two points `length` apart, or between `min` and `max`. `'rotation'`: holds or drives how `a` is turned against `b`, and leaves where it is free. |
+| `type` | `'ball'` | `'fixed'`: welded, nothing free. `'ball'`: turns any way about its anchor. `'hinge'`: turns about `axis`. `'slider'`: slides along `axis`, turning not at all. `'distance'`: keeps two points `length` apart, or between `min` and `max`. `'rotation'`: holds or drives how `a` is turned against `b`, and leaves where it is free. `'wheel'`: `a`, the wheel, slides along `axis` on a spring and spins about `axle`, as a car's wheel on its suspension (see [Joints](#joints)). |
 | `a` | none; it must be given | The body. Its angle, position and motor are measured against `b`. |
 | `b` | `null` | What `a` is held to: another body, or `null` for a point in the world that never moves. |
 | `anchor` | midway between their centres of mass; with no `b`, `a`'s centre of mass; a distance joint's, `a`'s centre of mass | Where the joint is, in world space, in metres, where the bodies are now. Bearing works out where that is on each. Not for a rotation joint, which holds no point. |
 | `anchorB` | `anchor`; a distance joint's, `b`'s centre of mass | Where it is on `b`, or in the world with no `b`, if not the same point: a distance joint's other end. For any other joint, a point it pulls to `anchor`. Not for a rotation joint. |
-| `axis` | `[0, 1, 0]` | A hinge's axis, a slider's direction, a ball or rotation joint's axis for `cone`, and a ball joint's for its twist, in world space where the bodies are now. Needn't be unit length. Not for a fixed or distance joint. |
-| `min` | none (-Infinity); a distance joint's, its `length`, or 0 with a spring | The least a's free coordinate may be: a hinge's angle or a ball joint's twist about `axis`, in radians, from -π to π, or -Infinity for none; a slider's position along `axis`, in metres; a distance joint's length, in metres, 0 or more. A hinge's angle, a slider's position and a ball joint's twist are measured from where the joint is made. `null` goes back to the default. Not for a fixed or rotation joint. |
+| `axis` | `[0, 1, 0]` | A hinge's axis, a slider's direction, a wheel's suspension, a ball or rotation joint's axis for `cone`, and a ball joint's for its twist, in world space where the bodies are now. Needn't be unit length. Not for a fixed or distance joint. |
+| `axle` | the world's x, y or z most at right angles to `axis` | What a wheel spins about, in world space where the bodies are now: at an angle to `axis`, and made square to it. Steering is turning it with [`setJoint`](#world-setjoint), which keeps what the wheel holds. Only a wheel. |
+| `min` | none (-Infinity); a distance joint's, its `length`, or 0 with a spring | The least a's free coordinate may be: a hinge's angle or a ball joint's twist about `axis`, in radians, from -π to π, or -Infinity for none; a slider's or wheel's position along `axis`, in metres; a distance joint's length, in metres, 0 or more. A hinge's angle, a slider's position and a ball joint's twist are measured from where the joint is made. `null` goes back to the default. Not for a fixed or rotation joint. |
 | `max` | none (Infinity); a distance joint's, its `length`, or none with a spring | The most, the same way: up to π, or Infinity for none. `null` goes back to the default. |
 | `length` | how far apart the anchors are | A distance joint's length, in metres, 0 or more: what it holds, or springs back to. `null` goes back to the default: how far apart the anchors are when it is set. |
 | `cone` | `π` (none) | How far a ball or rotation joint's `axis` on `a` may swing from its `axis` on `b` (the world's, with no `b`), in radians, from 0 to π. A hard stop, as `min` and `max` are. One angle is the same every way round; two, `[toward, across]`, are an ellipse: how far it may swing toward `swing`, and at right angles to it, each above 0, as a shoulder swings further forward than up. |
 | `swing` | `null`: the world's x, y or z most at right angles to `axis` | Which way an elliptical `cone`'s first angle faces, in world space where the bodies are now; it turns with `b` from there. At an angle to `axis`, not along it; needn't be square to it or unit length. `null` goes back to the default. Only a ball or rotation joint. |
 | `target` | `null` (none: the motor drives a speed) | Where the motor drives `a` against `b`, as a spring (see `frequency`): a hinge's angle about `axis`, in radians, from -π to π; a slider's position along `axis`, in metres; a ball or rotation joint's turn, `[x, y, z, w]`, any length but not all zero, about `b`'s own axes (the world's with no `b`). Measured as `min` and `max` are, from where the joint was made: `0`, or `[0, 0, 0, 1]`, is as they were. It drives only while `motorForce` is more than 0. `null` goes back to none. Not for a fixed or distance joint. |
-| `motorSpeed` | `0` | The speed a hinge's or slider's motor drives `a` at against `b`: rad/s about `axis`, or m/s along it. With a `target`, how fast the target moves: Bearing carries it on as it steps, and the drive follows it without lagging. Not for a ball or rotation joint. |
-| `motorForce` | `0` (motor off) | The most the motor may push, 0 or more: N·m for a hinge, ball or rotation joint, N for a slider. `0` is a motor off, so a `target` with no `motorForce` does nothing. A ball or rotation joint's is one limit for every way it turns. A ball or rotation joint's motor with no `target` holds it from turning, up to this, as `frictionForce` does. Not for a fixed or distance joint. |
-| `frictionForce` | `0` (none) | The most a ball, hinge, slider or rotation joint resists `a` turning or sliding against `b` with, 0 or more, as a stiff hinge does: N·m for a ball, hinge or rotation joint, N for a slider. It acts while the motor is off. Not for a fixed or distance joint. |
-| `frequency` | `0` | How springy a distance joint or a motor's drive to its `target` is: how many times a second it would bounce, in Hz. A distance joint with one is a spring, pulling it to `length`; with none, a rod. A drive with none is as stiff as the solver goes, reaching its target as fast as `motorForce` lets it. Not for a fixed joint. |
+| `motorSpeed` | `0` | The speed a hinge's, slider's or wheel's motor drives `a` at against `b`: rad/s about `axis` (a wheel's `axle`), or m/s along it. With a `target`, how fast the target moves: Bearing carries it on as it steps, and the drive follows it without lagging. Not for a ball or rotation joint. |
+| `motorForce` | `0` (motor off) | The most the motor may push, 0 or more: N·m for a hinge, wheel, ball or rotation joint, N for a slider. A wheel's motor at `motorSpeed: 0` is its brake. `0` is a motor off, so a `target` with no `motorForce` does nothing. A ball or rotation joint's is one limit for every way it turns. A ball or rotation joint's motor with no `target` holds it from turning, up to this, as `frictionForce` does. Not for a fixed or distance joint. |
+| `frictionForce` | `0` (none) | The most a ball, hinge, slider, wheel or rotation joint resists `a` turning or sliding against `b` with, 0 or more, as a stiff hinge does: N·m for a ball, hinge or rotation joint, N for a slider. It acts while the motor is off. Not for a fixed or distance joint. |
+| `frequency` | `0` | How springy a distance joint, a wheel's suspension or a motor's drive to its `target` is: how many times a second it would bounce, in Hz. A distance joint with one is a spring, pulling it to `length`; with none, a rod. A wheel's pulls it back to where it was joined along `axis`; with none, the wheel doesn't slide at all. A drive with none is as stiff as the solver goes, reaching its target as fast as `motorForce` lets it. Not for a fixed joint. |
 | `dampingRatio` | `1` | How quickly the spring stops bouncing: 1 settles without overshooting, as Bearing's contacts do; 0 is no damping of its own (see [Joints](#joints), Notes). Not for a fixed joint. |
 | `collide` | `false` | Whether `a` and `b` still collide with each other. The name is Box2D's `collideConnected`, shortened, the one physics engines use. |
 
 Returns: a [`Joint`](#joint).
 
-Throws: `addJoint: this world was destroyed`; `addJoint: options must be an object, got …`; `addJoint: friction is now frictionForce, the same N·m or N`; `addJoint: unknown option '…' (did you mean '…'?)`; `addJoint: unknown option '…' (the options are type, a, b, anchor, anchorB, axis, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide)`; `addJoint: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance' or 'rotation', got …`; `addJoint: a <type> joint has no <option>`; `addJoint: <a or b> must be a Body, got …`; `addJoint: <a or b> belongs to another world`; `addJoint: <a or b> was removed`; `addJoint: a and b must be different bodies`; `addJoint: anchor must be 3 finite numbers, got …`; `addJoint: anchorB must be 3 finite numbers, got …`; `addJoint: axis must be 3 finite numbers, not all zero, got …`; `addJoint: length must be 0 or more, got …`; `addJoint: cone must be an angle from 0 to π, or two above 0, in radians, got …`; `addJoint: swing must be 3 finite numbers, not all zero, got …`; `addJoint: swing must be at an angle to axis, got …`; `addJoint: target must be from -π to π, in radians, got …`; `addJoint: target must be a finite number, got …`; `addJoint: target must be 4 finite numbers, not all zero, got …`; `addJoint: motorSpeed must be a finite number, got …`; `addJoint: motorForce must be 0 or more, got …`; `addJoint: frictionForce must be 0 or more, got …`; `addJoint: frequency must be 0 or more, got …`; `addJoint: dampingRatio must be 0 or more, got …`; `addJoint: min must be from -π to π, in radians, or -Infinity, got …`; `addJoint: max must be from -π to π, in radians, or Infinity, got …`; `addJoint: min must be a number or -Infinity, got …`; `addJoint: max must be a number or Infinity, got …`; `addJoint: min must be 0 or more, got …`; `addJoint: max must be 0 or more, or Infinity, got …`; `addJoint: min must be at most max (…), got …`; `addJoint: collide must be true or false, got …`; `addJoint: a world holds at most 16777216 joints (the slot field of an id is 24 bits)`.
+Throws: `addJoint: this world was destroyed`; `addJoint: options must be an object, got …`; `addJoint: friction is now frictionForce, the same N·m or N`; `addJoint: unknown option '…' (did you mean '…'?)`; `addJoint: unknown option '…' (the options are type, a, b, anchor, anchorB, axis, axle, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide)`; `addJoint: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance', 'rotation' or 'wheel', got …`; `addJoint: a <type> joint has no <option>`; `addJoint: <a or b> must be a Body, got …`; `addJoint: <a or b> belongs to another world`; `addJoint: <a or b> was removed`; `addJoint: a and b must be different bodies`; `addJoint: anchor must be 3 finite numbers, got …`; `addJoint: anchorB must be 3 finite numbers, got …`; `addJoint: axis must be 3 finite numbers, not all zero, got …`; `addJoint: length must be 0 or more, got …`; `addJoint: cone must be an angle from 0 to π, or two above 0, in radians, got …`; `addJoint: swing must be 3 finite numbers, not all zero, got …`; `addJoint: swing must be at an angle to axis, got …`; `addJoint: axle must be 3 finite numbers, not all zero, got …`; `addJoint: axle must be at an angle to axis, got …`; `addJoint: target must be from -π to π, in radians, got …`; `addJoint: target must be a finite number, got …`; `addJoint: target must be 4 finite numbers, not all zero, got …`; `addJoint: motorSpeed must be a finite number, got …`; `addJoint: motorForce must be 0 or more, got …`; `addJoint: frictionForce must be 0 or more, got …`; `addJoint: frequency must be 0 or more, got …`; `addJoint: dampingRatio must be 0 or more, got …`; `addJoint: min must be from -π to π, in radians, or -Infinity, got …`; `addJoint: max must be from -π to π, in radians, or Infinity, got …`; `addJoint: min must be a number or -Infinity, got …`; `addJoint: max must be a number or Infinity, got …`; `addJoint: min must be 0 or more, got …`; `addJoint: max must be 0 or more, or Infinity, got …`; `addJoint: min must be at most max (…), got …`; `addJoint: collide must be true or false, got …`; `addJoint: a world holds at most 16777216 joints (the slot field of an id is 24 bits)`.
 
 ```js
 const frame = world.addBody({ type: 'static', size: [0.1, 2, 0.1], position: [-0.05, 1, 0] });
@@ -631,7 +632,7 @@ Changes any of the options [`addJoint`](#world-addjoint) took, with the same nam
 checks, and leaves the rest as they are. `a` and `b` can't change: given as they are, as
 [`jointOf`](#world-jointof) gives them, they are taken, and naming another body throws.
 
-Throws: `setJoint: this world was destroyed`; `setJoint: joint must be a Joint, got …`; `setJoint: joint belongs to another world`; `setJoint: joint was removed`; `setJoint: changes must be an object, got …`; `setJoint: friction is now frictionForce, the same N·m or N`; `setJoint: unknown option '…' (did you mean '…'?)`; `setJoint: unknown option '…' (the options are type, a, b, anchor, anchorB, axis, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide)`; `setJoint: a and b can't change; remove the joint and add another`; `setJoint: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance' or 'rotation', got …`; `setJoint: a <type> joint has no <option>`; `setJoint: anchor must be 3 finite numbers, got …`; `setJoint: anchorB must be 3 finite numbers, got …`; `setJoint: axis must be 3 finite numbers, not all zero, got …`; `setJoint: length must be 0 or more, got …`; `setJoint: cone must be an angle from 0 to π, or two above 0, in radians, got …`; `setJoint: swing must be 3 finite numbers, not all zero, got …`; `setJoint: swing must be at an angle to axis, got …`; `setJoint: target must be from -π to π, in radians, got …`; `setJoint: target must be a finite number, got …`; `setJoint: target must be 4 finite numbers, not all zero, got …`; `setJoint: motorSpeed must be a finite number, got …`; `setJoint: motorForce must be 0 or more, got …`; `setJoint: frictionForce must be 0 or more, got …`; `setJoint: frequency must be 0 or more, got …`; `setJoint: dampingRatio must be 0 or more, got …`; `setJoint: min must be from -π to π, in radians, or -Infinity, got …`; `setJoint: max must be from -π to π, in radians, or Infinity, got …`; `setJoint: min must be a number or -Infinity, got …`; `setJoint: max must be a number or Infinity, got …`; `setJoint: min must be 0 or more, got …`; `setJoint: max must be 0 or more, or Infinity, got …`; `setJoint: min must be at most max (…), got …`; `setJoint: collide must be true or false, got …`.
+Throws: `setJoint: this world was destroyed`; `setJoint: joint must be a Joint, got …`; `setJoint: joint belongs to another world`; `setJoint: joint was removed`; `setJoint: changes must be an object, got …`; `setJoint: friction is now frictionForce, the same N·m or N`; `setJoint: unknown option '…' (did you mean '…'?)`; `setJoint: unknown option '…' (the options are type, a, b, anchor, anchorB, axis, axle, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide)`; `setJoint: a and b can't change; remove the joint and add another`; `setJoint: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance', 'rotation' or 'wheel', got …`; `setJoint: a <type> joint has no <option>`; `setJoint: anchor must be 3 finite numbers, got …`; `setJoint: anchorB must be 3 finite numbers, got …`; `setJoint: axis must be 3 finite numbers, not all zero, got …`; `setJoint: length must be 0 or more, got …`; `setJoint: cone must be an angle from 0 to π, or two above 0, in radians, got …`; `setJoint: swing must be 3 finite numbers, not all zero, got …`; `setJoint: swing must be at an angle to axis, got …`; `setJoint: axle must be 3 finite numbers, not all zero, got …`; `setJoint: axle must be at an angle to axis, got …`; `setJoint: target must be from -π to π, in radians, got …`; `setJoint: target must be a finite number, got …`; `setJoint: target must be 4 finite numbers, not all zero, got …`; `setJoint: motorSpeed must be a finite number, got …`; `setJoint: motorForce must be 0 or more, got …`; `setJoint: frictionForce must be 0 or more, got …`; `setJoint: frequency must be 0 or more, got …`; `setJoint: dampingRatio must be 0 or more, got …`; `setJoint: min must be from -π to π, in radians, or -Infinity, got …`; `setJoint: max must be from -π to π, in radians, or Infinity, got …`; `setJoint: min must be a number or -Infinity, got …`; `setJoint: max must be a number or Infinity, got …`; `setJoint: min must be 0 or more, got …`; `setJoint: max must be 0 or more, or Infinity, got …`; `setJoint: min must be at most max (…), got …`; `setJoint: collide must be true or false, got …`.
 
 ```js
 const hinge = world.addJoint({ type: 'hinge', a: crate, anchor: [2, 1, 0], axis: [0, 0, 1] });
@@ -660,10 +661,10 @@ A copy of the joint's options as they are now, in the form [`addJoint`](#world-a
 so `world.addJoint(world.jointOf(joint))` makes another like it. Changing the result changes
 nothing.
 
-Returns: `{ type, a, b, anchor, anchorB, axis, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide }`,
+Returns: `{ type, a, b, anchor, anchorB, axis, axle, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide }`,
 each only for the types that have it: `anchor` where `a`'s end is now, in world space, and
 `anchorB` for a distance joint, or one given it, where `b`'s is; a rotation joint has neither.
-`axis` as it was last given, made unit length, in world space as it was then. `min` and `max` as
+`axis`, and a wheel's `axle`, as last given, made unit length, in world space as it was then. `min` and `max` as
 given, or `null` for the default. `target` is `null` for none, a number for a hinge or slider, and
 `[x, y, z, w]`, of unit length, for a ball or rotation joint; one given a `motorSpeed` is where
 Bearing has carried it to. `a` and `b` are [`Body`](#body) handles, `b` `null` for a point in the
@@ -944,7 +945,7 @@ stepping exactly as the saved world would have.
 Returns: a new [`World`](#world), its own: changing it changes nothing in the world it was saved
 from, or the data.
 
-Throws: `load: data must be what world.save() returned, got …`; `load: this data was saved by …, and this is …; a save loads only into the version that made it`; `load: data is format …; this Bearing reads format 17`; `load: data is damaged: …`.
+Throws: `load: data must be what world.save() returned, got …`; `load: this data was saved by …, and this is …; a save loads only into the version that made it`; `load: data is format …; this Bearing reads format 18`; `load: data is damaged: …`.
 
 ```js
 const checkpoint = world.save();
@@ -1846,6 +1847,37 @@ const post = world.addBody({ type: 'static', size: [0.2, 3, 0.2], position: [0, 
 const sign = world.addBody({ size: [1, 0.5, 0.05], position: [0.6, 2.5, 0] });
 world.addJoint({ type: 'hinge', a: sign, b: post, anchor: [0.1, 2.75, 0], axis: [1, 0, 0] });
 ```
+
+A wheel joint holds a wheel to a chassis as a car's suspension does: the wheel slides along `axis`
+on a spring, and spins about `axle`, driven by its motor.
+
+```js
+const body = world.addBody({ size: [1.6, 0.4, 3.6], density: 300, position: [0, 0.75, 0] });
+const wheels = [[-0.85, 1.3], [0.85, 1.3], [-0.85, -1.3], [0.85, -1.3]].map(([x, z]) => {
+  const tyre = world.addBody({ shape: 'sphere', radius: 0.35, density: 300, friction: 1, position: [x, 0.35, z] });
+  return world.addJoint({ type: 'wheel', a: tyre, b: body, anchor: [x, 0.35, z], axis: [0, 1, 0], axle: [1, 0, 0],
+    frequency: 3, dampingRatio: 0.7, min: -0.2, max: 0.2 });
+});
+for (const w of wheels) world.setJoint(w, { motorSpeed: 20, motorForce: 400 });   // drive: 20 rad/s, 7 m/s on 0.35 m wheels
+world.setJoint(wheels[0], { axle: [Math.cos(0.3), 0, -Math.sin(0.3)] });        // steer the front left
+for (const w of wheels) world.setJoint(w, { motorSpeed: 0, motorForce: 3000 });   // brake
+```
+
+- **The suspension** is a spring along `axis`, toward where the wheel was joined: `frequency` and
+  `dampingRatio` as a distance spring's, between `min` and `max` along it, in metres. Its frequency is
+  how the wheel and chassis alone would bounce on it, so a heavier chassis sinks further on the
+  same frequency; with none, the wheel doesn't slide. The line it slides on is the chassis's, and
+  turns with it.
+- **Driving and braking.** The motor drives the wheel's spin about `axle`, in rad/s, up to
+  `motorForce` N·m: on the ground that rolls it at `motorSpeed` times its radius. `motorSpeed: 0` with
+  a force is a brake, and `frictionForce` a drag with the motor off. Grip is the wheel's own
+  `friction` against the ground, as any contact's.
+- **Steering** is turning `axle` with [`setJoint`](#world-setjoint), in world space where the bodies
+  are now: work it out from the chassis's rotation each step. It keeps what the wheel holds, so a
+  car steered every step doesn't sag.
+- **What it isn't.** An engine, gears, a differential, steering that eases back: those are how a
+  game wants its car to feel, built from the motor, so they stay outside Bearing. Wheels are balls
+  until Bearing has a cylinder shape.
 
 A free body can move in six ways, three along and three about the axes: its degrees of freedom.
 A joint takes some away, and leaves the rest:

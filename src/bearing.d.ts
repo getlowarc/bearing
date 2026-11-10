@@ -396,7 +396,7 @@ export interface GlbOptions {
  */
 export function readGlb(bytes: ArrayBuffer | ArrayBufferView, options?: GlbOptions): { vertices: Float64Array; indices: Uint32Array };
 
-export type JointType = 'fixed' | 'ball' | 'hinge' | 'slider' | 'distance' | 'rotation';
+export type JointType = 'fixed' | 'ball' | 'hinge' | 'slider' | 'distance' | 'rotation' | 'wheel';
 
 /** What every joint takes. */
 interface JointBase {
@@ -465,6 +465,20 @@ export interface BallJointOptions extends JointCommon, Turning, TurnDrive {
 export interface HingeJointOptions extends JointCommon, Driven { type: 'hinge' }
 /** Slides along axis; min and max limit its position, m. */
 export interface SliderJointOptions extends JointCommon, Driven { type: 'slider' }
+/** A wheel: a slides along axis, its suspension, on a spring, and spins about axle, driven by its motor. */
+export interface WheelJointOptions extends JointCommon, Drive {
+  type: 'wheel';
+  /** Its suspension, world space; needn't be unit length. Default [0, 1, 0]. */
+  axis?: Vec3;
+  /** What it spins about, world space, at an angle to axis. Default the world axis most square to axis. Steer by changing it. */
+  axle?: Vec3;
+  /** How far it may slide along axis from where it was joined, m; null goes back to none. */
+  min?: number | null;
+  /** The most; null goes back to none. */
+  max?: number | null;
+  /** rad/s about axle that the motor spins it at against b; 0 with a motorForce brakes. */
+  motorSpeed?: number;
+}
 /** Keeps its anchors length apart, or between min and max; a spring with a frequency. */
 export interface DistanceJointOptions extends JointCommon {
   type: 'distance';
@@ -491,7 +505,7 @@ export interface RotationJointOptions extends JointBase, TurnDrive {
   swing?: Vec3 | null;
 }
 
-export type JointOptions = FixedJointOptions | BallJointOptions | HingeJointOptions | SliderJointOptions | DistanceJointOptions | RotationJointOptions;
+export type JointOptions = FixedJointOptions | BallJointOptions | HingeJointOptions | SliderJointOptions | DistanceJointOptions | RotationJointOptions | WheelJointOptions;
 
 /** What world.setJoint takes: any of addJoint's options. a and b can't change, but may be given as they are. Which fit is checked against the joint's type when called. */
 export interface JointChanges {
@@ -503,6 +517,7 @@ export interface JointChanges {
   anchor?: Vec3;
   anchorB?: Vec3;
   axis?: Vec3;
+  axle?: Vec3;
   min?: number | null;
   max?: number | null;
   length?: number | null;
@@ -545,7 +560,8 @@ export type JointInfo =
   | (JointInfoCommon & DriveInfo & { type: 'ball'; anchorB?: [number, number, number]; axis: [number, number, number]; min: number | null; max: number | null; cone: number | [number, number]; swing: [number, number, number] | null; target: [number, number, number, number] | null })
   | (JointInfoCommon & DriveInfo & { type: 'hinge' | 'slider'; anchorB?: [number, number, number]; axis: [number, number, number]; min: number | null; max: number | null; target: number | null; motorSpeed: number })
   | (JointInfoCommon & { type: 'distance'; anchorB: [number, number, number]; length: number; min: number | null; max: number | null; frequency: number; dampingRatio: number })
-  | (JointInfoBase & DriveInfo & { type: 'rotation'; axis: [number, number, number]; cone: number | [number, number]; swing: [number, number, number] | null; target: [number, number, number, number] | null });
+  | (JointInfoBase & DriveInfo & { type: 'rotation'; axis: [number, number, number]; cone: number | [number, number]; swing: [number, number, number] | null; target: [number, number, number, number] | null })
+  | (JointInfoCommon & DriveInfo & { type: 'wheel'; anchorB?: [number, number, number]; axis: [number, number, number]; axle: [number, number, number]; min: number | null; max: number | null; motorSpeed: number });
 
 export interface WorldOptions {
   /** m/s², default [0, -9.81, 0]. */

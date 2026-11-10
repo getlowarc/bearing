@@ -51,7 +51,7 @@ const joined = () => {
   return { world, body, joint: world.addJoint({ a: body }) };
 };
 
-const JOINT_OPTIONS = 'type, a, b, anchor, anchorB, axis, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide';
+const JOINT_OPTIONS = 'type, a, b, anchor, anchorB, axis, axle, min, max, length, cone, swing, target, motorSpeed, motorForce, frictionForce, frequency, dampingRatio, collide';
 const OPTIONS = 'type, shape, size, radius, height, vertices, indices, heights, columns, spacing, parts, density, mass, inertia, centerOfMass, friction, restitution, damping, angularDamping, gravityScale, layers, mask, group, sensor, fluid, flow, lockRotation, lockPosition, maxSlope, stepHeight, pushForce, position, rotation, velocity, angularVelocity';
 
 /** The smallest .glb: one node, 'floor', showing one triangle; `json` adds to its JSON. */
@@ -198,8 +198,8 @@ const cases = [
     `load: this data was saved by Bearing 0.13.0, and this is ${VERSION}; a save loads only into the version that made it`],
   ['world-load', () => World.load({ format: 9, objects: [] }),
     `load: this data was saved by a Bearing from before saves were stamped, and this is ${VERSION}; a save loads only into the version that made it`],
-  ['world-load', () => World.load({ ...new World().save(), format: 14 }), 'load: data is format 14; this Bearing reads format 17'],
-  ['world-load', () => World.load({ version: VERSION, format: 17, objects: [{ c: 'Box', f: {} }] }), "load: data is damaged: an object of an unknown kind, 'Box'"],
+  ['world-load', () => World.load({ ...new World().save(), format: 14 }), 'load: data is format 14; this Bearing reads format 18'],
+  ['world-load', () => World.load({ version: VERSION, format: 18, objects: [{ c: 'Box', f: {} }] }), "load: data is damaged: an object of an unknown kind, 'Box'"],
   ['world-debuglines', () => gone().world.debugLines(), 'debugLines: this world was destroyed'],
   ['world-debuglines', () => fresh().world.debugLines(true), 'debugLines: options must be an object, got true'],
   ['world-debuglines', () => fresh().world.debugLines({ shape: true }), "debugLines: unknown option 'shape' (did you mean 'shapes'?)"],
@@ -230,7 +230,12 @@ const cases = [
       [e, run('hinge'), `${call}: ${name} must be an object, got 'hinge'`],
       [e, run({ anchr: [0, 0, 0] }), `${call}: unknown option 'anchr' (did you mean 'anchor'?)`],
       [e, run({ banana: 1 }), `${call}: unknown option 'banana' (the options are ${JOINT_OPTIONS})`],
-      [e, run({ type: 'weld' }), `${call}: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance' or 'rotation', got 'weld'`],
+      [e, run({ type: 'weld' }), `${call}: type must be 'fixed', 'ball', 'hinge', 'slider', 'distance', 'rotation' or 'wheel', got 'weld'`],
+      [e, run({ type: 'wheel', axle: [0, 0, 0] }), `${call}: axle must be 3 finite numbers, not all zero, got 0,0,0`],
+      [e, run({ type: 'wheel', axis: [1, 0, 0], axle: [-1, 0, 0] }), `${call}: axle must be at an angle to axis, got -1,0,0`],
+      [e, run({ type: 'hinge', axle: [1, 0, 0] }), `${call}: a hinge joint has no axle`],
+      [e, run({ type: 'wheel', target: 1 }), `${call}: a wheel joint has no target`],
+      [e, run({ type: 'wheel', min: NaN }), `${call}: min must be a number or -Infinity, got NaN`],
       [e, run({ type: 'fixed', axis: [1, 0, 0] }), `${call}: a fixed joint has no axis`],
       [e, run({ anchor: [0, 0] }), `${call}: anchor must be 3 finite numbers, got 0,0`],
       [e, run({ anchorB: 'x' }), `${call}: anchorB must be 3 finite numbers, got 'x'`],

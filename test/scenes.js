@@ -38,6 +38,12 @@ export function mixed(options = {}) {
   world.addBody({ type: 'kinematic', size: [2, 0.2, 2], position: [6, 0.5, 6], velocity: [0, 0, -1] });
   world.addBody({ size: [0.1, 0.02, 0.02], position: [-12, 1, 12], velocity: [200, 0, 0], rotation: [0.2, 0.3, 0.1, 1] });
   world.addBody({ type: 'static', size: [0.01, 4, 4], position: [-8, 2, 12] });
+  // A cart on two wheel joints, driven, its suspension sprung.
+  const cart = world.addBody({ size: [0.8, 0.2, 1.2], density: 300, position: [14, 0.55, -10] });
+  for (const z of [-0.45, 0.45]) {
+    const tyre = world.addBody({ shape: 'sphere', radius: 0.25, density: 300, position: [14, 0.25, -10 + z] });
+    world.addJoint({ type: 'wheel', a: tyre, b: cart, anchor: [14, 0.25, -10 + z], frequency: 3, dampingRatio: 0.7, min: -0.1, max: 0.1, motorSpeed: 4, motorForce: 30 });
+  }
   // Water, with a current, and a raft, a ball and a rock dropped in.
   world.addBody({ type: 'static', fluid: true, size: [4, 1.5, 4], position: [-12, 0.75, -12], flow: [0.3, 0, 0] });
   world.addBody({ size: [1, 0.3, 0.6], density: 500, position: [-12, 2.5, -12], rotation: [0.2, 0.1, 0, 1] });

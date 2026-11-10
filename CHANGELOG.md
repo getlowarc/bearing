@@ -15,7 +15,13 @@ All notable changes to Bearing are recorded here. The format follows
   water's `density`, `damping` and `angularDamping` (3 each for new water unless given) and its
   `flow`, a current, set how it holds and carries what is in it. Water is a sensor, so nothing
   collides with it, and water added, moved or taken away wakes what it covers. See
-  [Water](docs/API.md#water). Saves are now format 17.
+  [Water](docs/API.md#water).
+- Wheels: a joint of type `'wheel'` holds a wheel to a chassis as a car's suspension does. The
+  wheel slides along `axis` on a spring (`frequency`, `dampingRatio`, between `min` and `max`) and
+  spins about the new option `axle`, driven and braked by its motor; steering is turning `axle`
+  with `setJoint`, which keeps what the wheel holds. A car on four of them crosses a heightfield
+  or a mesh at 20 m/s with every wheel on the ground. See [Joints](docs/API.md#joints). Saves are
+  now format 18.
 
 ### Changed
 
