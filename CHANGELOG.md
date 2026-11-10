@@ -7,6 +7,13 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-10
+
+Cylinders: wheels, logs, barrels and coins, round one way and flat the other. They roll on their
+side, stand on their ends and catch on their rims, against every shape and on any ground, and a
+car on cylinder wheels crosses a heightfield at 20 m/s with every wheel down. Saves are now format
+20; nothing else changes for worlds without cylinders.
+
 ### Added
 
 - Cylinders: `shape: 'cylinder'`, with a `radius` and a `height` along the body's own y, for bodies
@@ -702,7 +709,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/getlowarc/bearing/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/getlowarc/bearing/compare/v1.3.4...v1.4.0
 [1.3.4]: https://github.com/getlowarc/bearing/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/getlowarc/bearing/compare/v1.3.2...v1.3.3
