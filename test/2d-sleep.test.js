@@ -297,3 +297,21 @@ test('adding, removing and stepping at random keeps the list sound', () => {
   }
   world.step(DT);
 });
+
+test('a fast body is re-filed every few steps, not every step, and a box it no longer needs is drawn in', () => {
+  // 500 boxes flying sideways at 300 px/s, 6 times their 2.5 px margin a step.
+  const world = new World2D({ gravity: [0, 0] });
+  for (let i = 0; i < 500; i++) world.addBody({ size: [10, 10], position: [(i % 25) * 30, Math.floor(i / 25) * 30], velocity: [300, 0] });
+  const broad = world._broad, candidates = broad.candidates;
+  let filed = 0;
+  broad.candidates = function (w, p) { filed += this.movedCount; return candidates.call(this, w, p); };
+  steps(world, 60);
+  assert.ok(filed < 60 * 500 / 2, `${filed} re-filings in 60 steps of 500 bodies`);
+  // One that fell fast and landed keeps no box from its fall.
+  const landed = new World2D();
+  floor(landed);
+  const box = landed.addBody({ size: [10, 10], position: [0, -2000] });
+  steps(landed, 150);
+  const n6 = 6 * landed._broad.leaf[box.id % 16777216], b = landed._broad.trees[0].box;
+  assert.ok(b[n6 + 4] - b[n6 + 1] < 40, `its box is ${b[n6 + 4] - b[n6 + 1]} px tall, for a 10 px box at rest`);
+});

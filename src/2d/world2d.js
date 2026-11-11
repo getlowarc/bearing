@@ -626,7 +626,7 @@ export class World2D {
     }
     // Bodies out of their fat boxes are filed again now, so queries between
     // steps find them where they are; 3D keeps a list of strays instead.
-    this._broad.update(this);
+    this._broad.update(this, dt, false);
     if (this._sleeping) this._sleep(dt);
   }
 
@@ -1168,7 +1168,7 @@ export class World2D {
     // Columns in locals: meet() isn't inlined, and after a call V8 reloads each this._x.
     const damping = this._damping;
     this._sensed.length = 0;
-    broad.update(this);
+    broad.update(this, dt, true);
     if (broad.movedCount > 0) broad.candidates(this, pairs);
     c.count = 0;
     // `active` may grow as this walks: a pair woken here is looked at this step.
@@ -1345,6 +1345,7 @@ export class World2D {
       for (let b = head; b >= 0; b = nextOf[b] - 1) {
         isle[b] = head + 1;
         v[2 * b] = 0; v[2 * b + 1] = 0; w[b] = 0;
+        this._broad.settle(this, b);
         this._unawaken(b);
         this._note(b, this._stepCount);
       }

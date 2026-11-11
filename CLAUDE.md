@@ -628,7 +628,17 @@ These were made with Nolan and override the rules below where they differ.
   3D crowd 6x, stack/pyramid/pile same bits and even, hulls 1% faster; 2D crowd 3x, pile 12%,
   stack/pyramid even. 10,000 falling 2D boxes 361 -> 143 ms. The broadphase still files by each
   body's own motion (2D's now with `|gravityScale|`), so a falling crowd still lists its
-  neighbours as pairs: that is next. HASH and HASH_2D changed. Mesh pairs (`level()`) unchanged.
+  neighbours as pairs: no fix (a pair not listed is found again only on a re-file, so one dropped
+  for moving together is missed when a body stops). HASH and HASH_2D changed. Mesh pairs
+  (`level()`) unchanged.
+  The 2D broadphase (2026-11-11, Nolan: "Go ahead with both"): a body moving past its margin
+  (`FAT` of its size) in a step reaches `AHEAD` = 2 steps along its velocity (`fat()` in
+  pairs2d.js); `update(world, dt, draw)` with `draw` (the narrowphase's, once a step) also re-files
+  a box wider or taller than it needs by 4 margins (Box2D 2's rule), and `settle()` draws a box in
+  as its body falls asleep. Reaching ahead for every body left 5 of 60 rained-piece starts unslept
+  at 60 s against 2; for fast bodies only, 1. Pinned: flock 0.56, bullets 0.67, 10,000 falling
+  0.72, 2,000 drifting 0.88, pieces/pile/stack/pyramid even or faster; 4 ahead doubled a crowd's
+  pairs and lost it 9-14%. HASH_2D changed.
 - **`package.json` was `"private": true` until the first release** (0.14.0, 2026-11-02), so a
   stray `npm publish` from the repo was refused; `release.yml` still stops on it if it returns. The name claim in rule 9 is a separate placeholder package that Nolan
   publishes himself (it needs his 2FA), and it is also what npm needs to exist before trusted

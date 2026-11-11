@@ -26,6 +26,15 @@ All notable changes to Bearing are recorded here. The format follows
   at up to 17 m/s spent 90% of their step there. A fast body with no candidate pair, no joint, and
   a path inside its own broadphase box now skips that walk, since anything it could meet would be
   its pair. Those 10,000 step in 16 ms rather than 72, with the same results to the bit.
+- Fast 2D bodies are re-filed in the broadphase every few steps rather than every step. A 2D
+  body's broadphase box didn't reach ahead along its velocity as 3D's does, so every moving body
+  was taken out of the broadphase's tree, put back and asked what it overlapped, every step. A
+  body moving past its box's margin in a step now has a box reaching 2 steps ahead, and a box far
+  longer than its body still needs, as one that fell fast and landed, is drawn in, as is any box
+  whose body falls asleep. 5,000 boxes flying sideways step in 0.56 of the time, 2,000 bullets
+  through 1,000 boxes 0.67, 10,000 falling boxes 0.72; landing pieces, piles and stacks are even
+  or faster. 1,000 pieces rained on a map keep 9,000 pairs rather than 41,000 and step 33% faster,
+  sleeping as soon as before.
 
 ## [1.5.1] - 2026-11-11
 
