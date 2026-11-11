@@ -614,6 +614,14 @@ These were made with Nolan and override the rules below where they differ.
   circle or capsule; a climb rises `2 * tolerance` over `stepHeight` so a box rises off an exact
   step's tread, and lands held to it. `fromFront` takes only what is within the tolerance of the
   line: a margin reaches the back of a one-tile wall.
+  A pair looks ahead by how fast its bodies close on each other, not the sum of their own speeds
+  (2026-11-11, Nolan: "Go ahead with the 2D fix"): `_narrow` in `world2d.js` works it out per pair
+  (relative velocity, gravity by the difference in `gravityScale`, damping, spin times reach) and
+  passes it to `meet()`/`meetMany()` as `closing`; sensors pass 0. 10,000 falling boxes 361 -> 143
+  ms, rows 103,000 -> 1,700; pinned: crowd 3x, pile 10% faster, stack and pyramid 1-3% slower
+  (rows identical: the arithmetic). The broadphase still files by each body's own motion (now with
+  `|gravityScale|`), so a falling crowd still lists its neighbours as pairs: that is next. HASH_2D
+  changed. 3D has the same sum (`contact.js` margins).
 - **`package.json` was `"private": true` until the first release** (0.14.0, 2026-11-02), so a
   stray `npm publish` from the repo was refused; `release.yml` still stops on it if it returns. The name claim in rule 9 is a separate placeholder package that Nolan
   publishes himself (it needs his 2FA), and it is also what npm needs to exist before trusted

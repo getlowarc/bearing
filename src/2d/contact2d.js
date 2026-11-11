@@ -97,13 +97,15 @@ const found = new Manifold2();
 
 /**
  * Whether slots a and b touch this step, and if so a row in c, starting from
- * what the pair pushed with last step, by point name: the warm start.
+ * what the pair pushed with last step, by point name: the warm start. `closing`
+ * is how far they can close on each other in the step (World2D._narrow), 0
+ * for where they are now.
  */
-export function meet(world, c, a, b, pair, pairs) {
+export function meet(world, c, a, b, pair, pairs, closing) {
   const coreA = world._core[a], coreB = world._core[b];
   const sa = world._size[a], sb = world._size[b];
   const tolerance = Math.min(sa, sb) * PIXEL;
-  const margin = tolerance + world._motion[a] + world._motion[b];
+  const margin = tolerance + closing;
   const p = world._position, r = world._rotation, a2 = 2 * a, b2 = 2 * b;
   if (apart(coreA, coreB, p, r, a2, b2, margin + tolerance)) return false;
   if (collideAt(coreA, coreB, p, r, a2, b2, margin, tolerance, found) === 0) return false;
@@ -124,14 +126,14 @@ function emit(manifold, sub) {
  * start. The body is `a` in every row, whichever slot is lower.
  * Returns how many rows were made.
  */
-export function meetMany(world, c, a0, b0, pair, pairs) {
+export function meetMany(world, c, a0, b0, pair, pairs, closing) {
   const levels = world._level;
   // The level, if there is one, is b.
   const a = levels[a0] !== null ? b0 : a0, b = a === a0 ? b0 : a0;
   const level = levels[b], listA = world._cores[a], listB = world._cores[b];
   const sa = world._size[a], sb = world._size[b];
   const tolerance = (sb > 0 ? Math.min(sa, sb) : sa) * PIXEL;
-  const margin = tolerance + world._motion[a] + world._motion[b];
+  const margin = tolerance + closing;
   const p = world._position, r = world._rotation, a2 = 2 * a, b2 = 2 * b;
   const ax = p[a2], ay = p[a2 + 1], ac = r[a2], as = r[a2 + 1];
   mWorld = world; mC = c; mA = a; mB = b; mPair = pair; mPairs = pairs; mTolerance = tolerance; mRows = 0;

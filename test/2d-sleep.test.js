@@ -76,9 +76,12 @@ test('a pile goes to sleep, a sleeping world costs nothing, and moved() is empty
   for (let i = 0; i < 300; i++) {
     bodies.push(world.addBody({ ...(i % 2 ? { shape: 'circle', radius: 8 } : { size: [16, 12] }), position: [(i % 20) * 18 - 180, -10 - Math.floor(i / 20) * 18], angle: i }));
   }
+  // How long is chance: the last to stop are balls rolling thousands of pixels
+  // away, slowed only by rolling resistance. Started up to 15 px to one side,
+  // 28 piles slept by 29-57 s (2026-11-11), so 40 s was a coin toss.
   let at = 0;
-  while (!bodies.every((b) => b.asleep) && at < 2400) { world.step(DT); at++; }
-  assert.ok(at < 2400, `${bodies.filter((b) => !b.asleep).length} still awake after 40 s; the last to stop are balls rolling away`);
+  while (!bodies.every((b) => b.asleep) && at < 3600) { world.step(DT); at++; }
+  assert.ok(at < 3600, `${bodies.filter((b) => !b.asleep).length} still awake after 60 s; the last to stop are balls rolling away`);
   assert.equal(world._awakeCount, 0);
   assert.equal(world._pairs.active, 0);
   const tested = world._narrowed, since = world.stepCount;

@@ -7,6 +7,18 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- 2D bodies moving together no longer solve contacts between them. A pair looked ahead for a
+  contact by the sum of each body's own speed, so boxes falling side by side at 1,000 px/s were
+  taken to close at 2,000 px/s, and every neighbour in a falling crowd had a contact solved every
+  substep. A pair now looks ahead by how fast the two close on each other: their speed against
+  each other, gravity only where it pulls them differently, damping and spin. 2,000 boxes falling
+  through each other step 3 times as fast, a 1,000-body pile landing 10% faster; stacks and
+  pyramids at rest are 1-3% slower for the extra arithmetic. A body's own look-ahead, which files
+  it in the broadphase, now counts its `gravityScale` as well. Results change wherever moving
+  bodies are near each other.
+
 ## [1.5.1] - 2026-11-11
 
 Two speed-ups from an audit, with no change to the API. Ragdolls and other jointed bodies lying
