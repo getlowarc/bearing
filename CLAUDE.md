@@ -346,7 +346,10 @@ These were made with Nolan and override the rules below where they differ.
   rule; fast bodies skipped as targets, the moving tree not walked when all of it is fast); caught,
   it goes back along its path (rotation nlerped) and its velocity into the surface is reflected
   with the larger restitution; its manifolds' gaps are measured again (`gapOf`) for events.
-  `_catchSteps`/`_catches` count.
+  `_catchSteps`/`_catches` count. ALONE (2026-11-11, Nolan: "Go ahead with both"; same bits): a
+  fast body with no pair (one pass over the pair list, stopped once none is left), no joint, and its
+  core's path inside its own fat box is marked 3 in `_fast` and `sweep()`s the strays only
+  (`alone`): 10,000 fliers 72 -> 16 ms pinned, crowd, pile and the rest even.
 - **Hulls and compounds** (2026-10-16, milestone 14, approved with the `centerOfMass` option):
   `shape: 'hull'` (`vertices`; `src/hull.js` quickhull, triangles merged into polygons within FLAT
   of the hull's size, points on edges dropped, d of each face through the farthest corner) and

@@ -158,6 +158,9 @@ export const SLEEP_TIME = 1;
 // by hand since the step before, which keeps it from the first; and, at a
 // frozen piece's root, that some body of it thaws.
 const STILL = 1, QUIET = 2, CALM = 4, HANDLED = 8, THAWING = 16, RESTLESS = 32;
+// _fast in _catch: 1 fast, 2 fast but held by its joints (anchored()), ALONE
+// fast with nothing in the trees to meet; the moving tree, as Broadphase's.
+const ALONE = 3, MOVING = 1;
 
 // SPIN: the most a body other than a sphere turns in a step, π, half a turn.
 // Its contacts are found once a step, where the step starts or at the moment
@@ -269,7 +272,7 @@ const COLUMNS = [
   ['_invIt', Float64Array, 6],       // the same where a jointed body has turned to in the substep: what its joints read (contact.js turnedInertias())
   ['_start', Float64Array, 3],       // its position when the step began
   ['_startQ', Float64Array, 4],      // and its rotation, for a fast body caught after the solve (_catch)
-  ['_fast', Uint8Array, 1],          // during _catch: 1 for a fast body, which is never another's target; 2 for one not swept
+  ['_fast', Uint8Array, 1],          // during _catch: 1 for a fast body, which is never another's target; 2 for one not swept; 3 (ALONE) swept past the strays only
   ['_caught', Uint8Array, 1],        // during _catch: 1 for a body put back
   ['_type', Uint8Array, 1],
   ['_shape', Uint8Array, 1],
@@ -1862,6 +1865,15 @@ export class World {
    * ball joint thrown at 200 m/s at a 1 cm wall went through it 18 times in
    * 40 when no jointed body was caught, and once, as before, as it is.
    *
+   * ALONE. A fast body with no pair and no joint, whose core stayed inside
+   * its own fat box the whole way, sweeps only the strays (query.js), not the
+   * trees: anything in them it could meet has a fat box overlapping its own,
+   * and so would be its pair (broadphase.js keeps every such pair listed). The
+   * walk is no cheaper for finding nothing: 10,000 0.3 m boxes flying at up to
+   * 17 m/s with nothing near opened some 225 tree nodes a sweep, 11 us, and
+   * the catch was 90% of their step (88 ms; 16 ms alone). Same bits: a jointed
+   * body's partner may be one pairable() keeps apart and the sweep doesn't.
+   *
    * Reads the bodies' end poses and _start/_startQ; changes only the caught.
    */
   _catch(next) {
@@ -1880,16 +1892,34 @@ export class World {
     // and so no target, but not swept. Only this step's forest is read.
     const J = this._joints;
     if (J.count > 0 && J.active > 0 && J.forest.count > 0) anchored(this, fast);
+    // ALONE (above): marked 3, still fast, so no target; any pair takes it back.
+    const bp = this._broadphase, fat = bp.trees[MOVING].box, leaf = bp.leaf, home = bp.which, joined = this._jointHead;
+    let alones = 0;
+    for (let i = 0; i < n; i++) {
+      const s = list[i];
+      if (fast[s] === 1 && joined[s] === 0 && home[s] === MOVING) { fast[s] = ALONE; alones++; }
+    }
+    // Stopped once none is left: in a falling crowd every body has pairs.
+    const pairs = this._pairs, pa = pairs.a, pb = pairs.b;
+    for (let k = 0; k < pairs.count && alones > 0; k++) {
+      if (fast[pa[k]] === ALONE) { fast[pa[k]] = 1; alones--; }
+      if (fast[pb[k]] === ALONE) { fast[pb[k]] = 1; alones--; }
+    }
     let caught = 0;
     for (let i = 0; i < n; i++) {
       const s = list[i], s3 = 3 * s, s4 = 4 * s;
-      if (fast[s] !== 1) continue;
+      if (fast[s] !== 1 && fast[s] !== ALONE) continue;
       const dx = p[s3] - st[s3], dy = p[s3 + 1] - st[s3 + 1], dz = p[s3 + 2] - st[s3 + 2];
-      const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const length = Math.sqrt(dx * dx + dy * dy + dz * dz), core = 0.125 * size[s];
+      let alone = fast[s] === ALONE;
+      for (let k = 0, o = 6 * leaf[s]; k < 3 && alone; k++) {
+        const from = st[s3 + k], to = p[s3 + k];
+        if ((from < to ? from : to) - core < fat[o + k] || (from > to ? from : to) + core > fat[o + 3 + k]) alone = false;
+      }
       CORE.kind = SPHERE_KIND;
-      CORE.half[0] = 0.125 * size[s];
+      CORE.half[0] = core;
       CORE.place(st[s3], st[s3 + 1], st[s3 + 2], IDENTITY, 0);
-      const hit = sweep(this, CORE, s, -1, dx / length, dy / length, dz / length, length, SWEPT, fast, count);
+      const hit = sweep(this, CORE, s, -1, dx / length, dy / length, dz / length, length, SWEPT, fast, count, alone);
       if (hit < 0) continue;
       SWEPT_SLOT[0] = hit;
       // Back to where its core met: along its path, and turned that far

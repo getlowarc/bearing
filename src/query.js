@@ -633,16 +633,17 @@ function blocks(world, s, o, other) {
  * touch, or -1. Into out: [distance, normal (from the body towards the cast),
  * point]. Leaves out slot `other` as well as self, or none if -1, and any slot
  * `skip` (a column of flags, or null) marks: `skipped` of them, and when that
- * is every body in the moving tree, the tree isn't walked at all.
+ * is every body in the moving tree, the tree isn't walked at all. `alone`:
+ * neither tree is walked, only the strays (world.js, _catch's ALONE).
  */
-export function sweep(world, cast, self, other, dx, dy, dz, maxT, out, skip = null, skipped = 0) {
+export function sweep(world, cast, self, other, dx, dy, dz, maxT, out, skip = null, skipped = 0, alone = false) {
   sweepWorld = world; sweepShape = cast; sweepSelf = self; sweepOther = other; sweepBest = -1; sweepSkip = skip;
   sweepOx = cast.center[0]; sweepOy = cast.center[1]; sweepOz = cast.center[2];
   sweepDx = dx; sweepDy = dy; sweepDz = dz; sweepMax = maxT;
   extents(cast, ext);
   sweepGx = ext[0]; sweepGy = ext[1]; sweepGz = ext[2];
   const trees = world._broadphase.trees;
-  for (let k = 0; k < trees.length; k++) {
+  for (let k = 0; k < trees.length && !alone; k++) {
     if (k === MOVING_TREE && skip !== null && trees[k].leaves === skipped) continue;
     sweepMax = walk(trees[k], sweepOx, sweepOy, sweepOz, dx, dy, dz, sweepMax, sweepGx, sweepGy, sweepGz, sweepVisit);
   }

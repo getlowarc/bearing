@@ -20,6 +20,12 @@ All notable changes to Bearing are recorded here. The format follows
   faster and sleeps sooner; 3D stacks, pyramids and piles are unchanged to the bit, hull heaps 1%
   faster. A 2D body's own look-ahead, which files it in the broadphase, now counts its
   `gravityScale`, as 3D's did. Results change wherever moving bodies near each other aren't touching.
+- Fast bodies in open space step far faster in 3D. After the solve, every body that moved more
+  than half its size in a step is swept along its path to catch it going through something, and
+  each sweep walked the broadphase's trees even with nothing near: 10,000 boxes 0.3 m wide flying
+  at up to 17 m/s spent 90% of their step there. A fast body with no candidate pair, no joint, and
+  a path inside its own broadphase box now skips that walk, since anything it could meet would be
+  its pair. Those 10,000 step in 16 ms rather than 72, with the same results to the bit.
 
 ## [1.5.1] - 2026-11-11
 
