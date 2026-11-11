@@ -449,3 +449,23 @@ test('a column of boxes leaning in a heap, each turned on the one below, comes t
   steps(world, 3);
   for (const [k, b] of boxes.entries()) assert.ok(b.asleep, `box ${k} awake at ${speed(b)} m/s`);
 });
+
+test('bodies falling together find no contacts between them, and ones pulled harder still land on what they reach', () => {
+  // 512 boxes 0.2 m wide, 0.6 m apart, falling as one: after 1.5 s at 15 m/s
+  // each moves 0.25 m a step, past the 0.4 m gap counted twice, but they close
+  // on each other at nothing. Counted by their own speeds, every neighbour had
+  // a contact found and solved.
+  const world = new World({ workers: 0, sleeping: false });
+  for (let i = 0; i < 512; i++) world.addBody({ size: [0.2, 0.2, 0.2], position: [(i % 8) * 0.6, 100 + Math.floor(i / 64) * 0.6, (Math.floor(i / 8) % 8) * 0.6] });
+  steps(world, 1.5);
+  const solved = world._solverSteps;
+  steps(world, 0.5);
+  assert.equal(world._solverSteps, solved, 'steps with contacts to solve, among bodies falling together');
+  // A body pulled down 4 times as hard closes on one gravity doesn't move.
+  const still = new World({ workers: 0 });
+  ground(still);
+  const held = still.addBody({ position: [0, 4, 0], gravityScale: 0 });
+  const heavy = still.addBody({ position: [0, 20, 0], gravityScale: 4 });
+  steps(still, 2);
+  assert.ok(Math.abs(heavy.position[1] - held.position[1] - 1) < 0.01, `the heavy box lands on the held one, at ${heavy.position[1]}`);
+});

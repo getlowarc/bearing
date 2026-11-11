@@ -7,6 +7,45 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-11-11
+
+Moving bodies cost less, with no change to the API. Bodies moving together, a crowd falling or a
+flock flying, no longer find and solve contacts between each other; fast 3D bodies with nothing
+near no longer search the whole world to be caught; and fast 2D bodies are re-filed in the
+broadphase every few steps rather than every step. Resting scenes are unchanged or faster, and
+sleep as soon as before. Results change wherever moving bodies near each other aren't touching,
+and for 2D bodies, as their broadphase finds pairs in another order. Saves are unchanged, still
+format 20.
+
+### Changed
+
+- Bodies moving together no longer find contacts between them, in 3D and 2D. A pair not in touch
+  looked ahead for a contact by the sum of each body's own speed, so boxes falling side by side at
+  10 m/s were taken to close at 20 m/s, and every neighbour in a falling crowd had a contact found
+  and solved. Such a pair now looks ahead by how fast the two close on each other: their speed
+  against each other, gravity only where it pulls them differently, damping and spin. Pairs
+  already touching keep the old reach, which also holds their contact while a resting body rocks by
+  a hair (with the new reach for them too, 8 of 360 mixed heaps were still awake at 40 s, against 2).
+  4,000 boxes falling in 3D step 6 times as fast, 2,000 in 2D 3 times; a landing 2D pile is 12%
+  faster and sleeps sooner; 3D stacks, pyramids and piles are unchanged to the bit, hull heaps 1%
+  faster. A 2D body's own look-ahead, which files it in the broadphase, now counts its
+  `gravityScale`, as 3D's did. Results change wherever moving bodies near each other aren't touching.
+- Fast bodies in open space step far faster in 3D. After the solve, every body that moved more
+  than half its size in a step is swept along its path to catch it going through something, and
+  each sweep walked the broadphase's trees even with nothing near: 10,000 boxes 0.3 m wide flying
+  at up to 17 m/s spent 90% of their step there. A fast body with no candidate pair, no joint, and
+  a path inside its own broadphase box now skips that walk, since anything it could meet would be
+  its pair. Those 10,000 step in 16 ms rather than 72, with the same results to the bit.
+- Fast 2D bodies are re-filed in the broadphase every few steps rather than every step. A 2D
+  body's broadphase box didn't reach ahead along its velocity as 3D's does, so every moving body
+  was taken out of the broadphase's tree, put back and asked what it overlapped, every step. A
+  body moving past its box's margin in a step now has a box reaching 2 steps ahead, and a box far
+  longer than its body still needs, as one that fell fast and landed, is drawn in, as is any box
+  whose body falls asleep. 5,000 boxes flying sideways step in 0.56 of the time, 2,000 bullets
+  through 1,000 boxes 0.67, 10,000 falling boxes 0.72; landing pieces, piles and stacks are even
+  or faster. 1,000 pieces rained on a map keep 9,000 pairs rather than 41,000 and step 33% faster,
+  sleeping as soon as before.
+
 ## [1.5.1] - 2026-11-11
 
 Two speed-ups from an audit, with no change to the API. Ragdolls and other jointed bodies lying
@@ -729,7 +768,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/getlowarc/bearing/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/getlowarc/bearing/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/getlowarc/bearing/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/getlowarc/bearing/compare/v1.3.4...v1.4.0

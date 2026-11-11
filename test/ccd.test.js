@@ -311,3 +311,27 @@ test('fast bodies give the same result twice, to the bit', () => {
   };
   assert.deepEqual(run(), run());
 });
+
+test('a fast body with nothing near walks no tree to be caught, and one with something near still is', () => {
+  // 200 small boxes flying apart through open space: each is swept every step,
+  // and with no pair it can meet nothing in the trees (world.js, ALONE).
+  const world = new World({ workers: 0, gravity: [0, 0, 0] });
+  for (let i = 0; i < 200; i++) world.addBody({ size: [0.1, 0.1, 0.1], position: [(i % 10) * 5, Math.floor(i / 10) * 5, 0], velocity: [0, 0, 20 + i % 7] });
+  const wall = world.addBody({ type: 'static', size: [1, 1, 0.01], position: [100, 100, 5] });
+  const shot = world.addBody({ shape: 'sphere', radius: 0.005, position: [100, 100, 0], velocity: [0, 0, 600] });
+  // Tree walks are counted by reads of a tree's root while the catch runs.
+  let walks = 0, catching = false;
+  const trees = world._broadphase.trees;
+  for (let k = 0; k < trees.length; k++) {
+    trees[k] = new Proxy(trees[k], { get(t, key) { if (catching && key === 'root') walks++; return Reflect.get(t, key); } });
+  }
+  const steps0 = world._catchSteps, catch0 = World.prototype._catch;
+  world._catch = function (next) { catching = true; try { return catch0.call(this, next); } finally { catching = false; } };
+  world.step(DT);
+  assert.ok(world._catchSteps > steps0, 'the catch ran');
+  // The shot has the wall as a pair and walks both trees; the 200 walk none.
+  assert.ok(walks <= 2, `${walks} tree walks for one body with something near`);
+  for (let i = 0; i < 5; i++) world.step(DT);
+  assert.ok(shot.position[2] < 5, `the shot went through the wall, to z ${shot.position[2]}`);
+  void wall;
+});

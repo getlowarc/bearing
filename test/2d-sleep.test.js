@@ -76,9 +76,12 @@ test('a pile goes to sleep, a sleeping world costs nothing, and moved() is empty
   for (let i = 0; i < 300; i++) {
     bodies.push(world.addBody({ ...(i % 2 ? { shape: 'circle', radius: 8 } : { size: [16, 12] }), position: [(i % 20) * 18 - 180, -10 - Math.floor(i / 20) * 18], angle: i }));
   }
+  // How long is chance: the last to stop are balls rolling thousands of pixels
+  // away, slowed only by rolling resistance. Started up to 15 px to one side,
+  // 28 piles slept by 29-57 s (2026-11-11), so 40 s was a coin toss.
   let at = 0;
-  while (!bodies.every((b) => b.asleep) && at < 2400) { world.step(DT); at++; }
-  assert.ok(at < 2400, `${bodies.filter((b) => !b.asleep).length} still awake after 40 s; the last to stop are balls rolling away`);
+  while (!bodies.every((b) => b.asleep) && at < 3600) { world.step(DT); at++; }
+  assert.ok(at < 3600, `${bodies.filter((b) => !b.asleep).length} still awake after 60 s; the last to stop are balls rolling away`);
   assert.equal(world._awakeCount, 0);
   assert.equal(world._pairs.active, 0);
   const tested = world._narrowed, since = world.stepCount;
@@ -293,4 +296,22 @@ test('adding, removing and stepping at random keeps the list sound', () => {
     if (k % 1500 === 1499) for (const b of live.splice(0)) { b.destroy(); listed(world); }
   }
   world.step(DT);
+});
+
+test('a fast body is re-filed every few steps, not every step, and a box it no longer needs is drawn in', () => {
+  // 500 boxes flying sideways at 300 px/s, 6 times their 2.5 px margin a step.
+  const world = new World2D({ gravity: [0, 0] });
+  for (let i = 0; i < 500; i++) world.addBody({ size: [10, 10], position: [(i % 25) * 30, Math.floor(i / 25) * 30], velocity: [300, 0] });
+  const broad = world._broad, candidates = broad.candidates;
+  let filed = 0;
+  broad.candidates = function (w, p) { filed += this.movedCount; return candidates.call(this, w, p); };
+  steps(world, 60);
+  assert.ok(filed < 60 * 500 / 2, `${filed} re-filings in 60 steps of 500 bodies`);
+  // One that fell fast and landed keeps no box from its fall.
+  const landed = new World2D();
+  floor(landed);
+  const box = landed.addBody({ size: [10, 10], position: [0, -2000] });
+  steps(landed, 150);
+  const n6 = 6 * landed._broad.leaf[box.id % 16777216], b = landed._broad.trees[0].box;
+  assert.ok(b[n6 + 4] - b[n6 + 1] < 40, `its box is ${b[n6 + 4] - b[n6 + 1]} px tall, for a 10 px box at rest`);
 });

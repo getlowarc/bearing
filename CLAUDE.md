@@ -346,7 +346,10 @@ These were made with Nolan and override the rules below where they differ.
   rule; fast bodies skipped as targets, the moving tree not walked when all of it is fast); caught,
   it goes back along its path (rotation nlerped) and its velocity into the surface is reflected
   with the larger restitution; its manifolds' gaps are measured again (`gapOf`) for events.
-  `_catchSteps`/`_catches` count.
+  `_catchSteps`/`_catches` count. ALONE (2026-11-11, Nolan: "Go ahead with both"; same bits): a
+  fast body with no pair (one pass over the pair list, stopped once none is left), no joint, and its
+  core's path inside its own fat box is marked 3 in `_fast` and `sweep()`s the strays only
+  (`alone`): 10,000 fliers 72 -> 16 ms pinned, crowd, pile and the rest even.
 - **Hulls and compounds** (2026-10-16, milestone 14, approved with the `centerOfMass` option):
   `shape: 'hull'` (`vertices`; `src/hull.js` quickhull, triangles merged into polygons within FLAT
   of the hull's size, points on edges dropped, d of each face through the farthest corner) and
@@ -614,6 +617,28 @@ These were made with Nolan and override the rules below where they differ.
   circle or capsule; a climb rises `2 * tolerance` over `stepHeight` so a box rises off an exact
   step's tread, and lands held to it. `fromFront` takes only what is within the tolerance of the
   line: a margin reaches the back of a one-tile wall.
+  A pair not touching looks ahead by how fast its bodies close on each other, not the sum of their
+  own speeds (2026-11-11, Nolan: "Go ahead with the 2D fix", then "Go ahead with step one" for 3D):
+  relative velocity, gravity by the difference in `gravityScale`, damping, spin times reach;
+  inline in `_narrow` (world2d.js, passed to `meet()`/`meetMany()` as `closing`, sensors 0) and
+  `lookahead()`/`nearing()` in contact.js (find() and the workers' look(); `_damping` shared).
+  A pair touching after the last step keeps the sum of its bodies' motions: that reach is also the
+  hysteresis that keeps a rocking or creeping body's contact and warm start, and the relative reach
+  for every pair left 8 of 360 mixed heaps unslept at 40 s against 2 (with the rule, 2). Pinned:
+  3D crowd 6x, stack/pyramid/pile same bits and even, hulls 1% faster; 2D crowd 3x, pile 12%,
+  stack/pyramid even. 10,000 falling 2D boxes 361 -> 143 ms. The broadphase still files by each
+  body's own motion (2D's now with `|gravityScale|`), so a falling crowd still lists its
+  neighbours as pairs: no fix (a pair not listed is found again only on a re-file, so one dropped
+  for moving together is missed when a body stops). HASH and HASH_2D changed. Mesh pairs
+  (`level()`) unchanged.
+  The 2D broadphase (2026-11-11, Nolan: "Go ahead with both"): a body moving past its margin
+  (`FAT` of its size) in a step reaches `AHEAD` = 2 steps along its velocity (`fat()` in
+  pairs2d.js); `update(world, dt, draw)` with `draw` (the narrowphase's, once a step) also re-files
+  a box wider or taller than it needs by 4 margins (Box2D 2's rule), and `settle()` draws a box in
+  as its body falls asleep. Reaching ahead for every body left 5 of 60 rained-piece starts unslept
+  at 60 s against 2; for fast bodies only, 1. Pinned: flock 0.56, bullets 0.67, 10,000 falling
+  0.72, 2,000 drifting 0.88, pieces/pile/stack/pyramid even or faster; 4 ahead doubled a crowd's
+  pairs and lost it 9-14%. HASH_2D changed.
 - **`package.json` was `"private": true` until the first release** (0.14.0, 2026-11-02), so a
   stray `npm publish` from the repo was refused; `release.yml` still stops on it if it returns. The name claim in rule 9 is a separate placeholder package that Nolan
   publishes himself (it needs his 2FA), and it is also what npm needs to exist before trusted

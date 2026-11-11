@@ -963,6 +963,7 @@ Each milestone that adds API is a minor version. Fixes between them are patches.
 | 1.4.0 | 22, 23, 24, 25 | Released 2026-11-10: the kit, water, wheels, pieces and soft bodies, together (Nolan chose one release over four). |
 | 1.5.0 | 26 | Released 2026-11-10: cylinders. |
 | 1.5.1 | — | Released 2026-11-11: a speed audit's two gains, jointed bodies freezing as whole trees and small worlds' sort. |
+| 1.5.2 | — | Released 2026-11-11: moving bodies cost less: pairs look ahead by how fast they close, the catch skips lone bodies, 2D boxes reach ahead. |
 
 ### How a release is made
 
@@ -1318,3 +1319,10 @@ Winding's way, copied before the first one:
   shrinking stale fat boxes, keeping the four-point block's factor for the step; a hand-emitted
   WebAssembly kernel gave the contact solve 6 to 20%, and no WebAssembly stays (rule 2). Joint
   friction stays 0 by default (Nolan). Released as 1.5.1 at his word ("Release it as 1.5.1").
+- **2026-11-11.** Moving bodies, from Nolan's question whether motion itself could sleep: it
+  can't usefully (moving a body is 1-3% of a flying body's step), but what checking it costs can.
+  Landed: a pair not touching looks ahead by how fast it closes (2D, then 3D; touching pairs keep
+  their reach, which holds a rocking body's contact); a fast 3D body with nothing near skips the
+  catch's tree walk (same bits); 2D boxes of fast bodies reach 2 steps ahead and draw in when no
+  longer needed. Not done: dropping pairs that move together from the broadphase, since a pair is
+  found again only when a body is re-filed. Released as 1.5.2 at his word ("Go ahead and release").

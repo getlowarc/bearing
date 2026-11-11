@@ -626,7 +626,7 @@ export class World2D {
     }
     // Bodies out of their fat boxes are filed again now, so queries between
     // steps find them where they are; 3D keeps a list of strays instead.
-    this._broad.update(this);
+    this._broad.update(this, dt, false);
     if (this._sleeping) this._sleep(dt);
   }
 
@@ -1152,19 +1152,23 @@ export class World2D {
   /**
    * This step's manifolds, and how far each body can move in it: speed, plus
    * what gravity adds, plus spin times reach (a circle's spin moves nothing),
-   * all over dt. Two bodies further apart than the sum of theirs can't meet.
+   * all over dt. The broadphase files each body by its own motion; a pair is
+   * then asked about only as far as the two can close on each other, which
+   * for bodies moving together is far less.
    */
   _narrow(dt, gravity) {
     const list = this._awakeList, n = this._awakeCount, v = this._velocity, w = this._angular;
-    const motion = this._motion, reach = this._reach, shape = this._shape, type = this._type;
+    const motion = this._motion, reach = this._reach, shape = this._shape, type = this._type, scale = this._gravityScale;
     for (let i = 0; i < n; i++) {
       const s = list[i], s2 = 2 * s;
-      const speed = Math.sqrt(v[s2] * v[s2] + v[s2 + 1] * v[s2 + 1]) + (type[s] === DYNAMIC ? gravity * dt : 0);
+      const speed = Math.sqrt(v[s2] * v[s2] + v[s2 + 1] * v[s2 + 1]) + (type[s] === DYNAMIC ? gravity * Math.abs(scale[s]) * dt : 0);
       motion[s] = (speed + (shape[s] === CIRCLE ? 0 : Math.abs(w[s]) * reach[s])) * dt;
     }
     const broad = this._broad, pairs = this._pairs, c = this._contacts, core = this._core, island = this._island, sensor = this._sensor;
+    // Columns in locals: meet() isn't inlined, and after a call V8 reloads each this._x.
+    const damping = this._damping;
     this._sensed.length = 0;
-    broad.update(this);
+    broad.update(this, dt, true);
     if (broad.movedCount > 0) broad.candidates(this, pairs);
     c.count = 0;
     // `active` may grow as this walks: a pair woken here is looked at this step.
@@ -1179,7 +1183,33 @@ export class World2D {
       if (sensor[a] === 1 || sensor[b] === 1) { this._sensed.push(p); p++; continue; }
       this._narrowed++;
       // A compound or a level touches in many places; everything else, one.
-      const touched = core[a] !== null && core[b] !== null ? meet(this, c, a, b, p, pairs) : meetMany(this, c, a, b, p, pairs) > 0;
+      // How far a contact between a and b looks ahead. For a pair not
+      // touching after the last step, how far they can close on each other:
+      // their speed against each other, not each one's own. Two boxes falling
+      // side by side at 1,000 px/s close at nothing, and counted as closing at
+      // 2,000 px/s every neighbour in a falling crowd had a contact solved
+      // every substep (10,000 boxes: 103,000 rows, none touching). Gravity adds
+      // only where it pulls them differently (one not dynamic, or another
+      // gravityScale); damping slows one and not the other, by at most its rate
+      // times dt of its speed; spin adds its reach, as in motion. Only pairs the
+      // broadphase lists get here, and it files each body by its own motion,
+      // which bounds where each can get. A touching pair keeps the sum of their
+      // own motions: there the reach is also how long it keeps its contact and
+      // the push it is warm-started from while a body rocks or creeps off by a
+      // hair, and in 3D the relative reach left 8 of 360 mixed heaps unslept at
+      // 40 s against 2 (contact.js, lookahead()).
+      let closing = motion[a] + motion[b];
+      if (pairs.touching[p] === 0) {
+        const a2 = 2 * a, b2 = 2 * b, da = type[a] === DYNAMIC, db = type[b] === DYNAMIC;
+        const ga = da ? scale[a] : 0, gb = db ? scale[b] : 0, dx = v[a2] - v[b2], dy = v[a2 + 1] - v[b2 + 1];
+        let speed = Math.sqrt(dx * dx + dy * dy) + gravity * Math.abs(ga - gb) * dt;
+        if (da && damping[a] !== 0) speed += Math.min(1, damping[a] * dt) * (Math.sqrt(v[a2] * v[a2] + v[a2 + 1] * v[a2 + 1]) + gravity * Math.abs(ga) * dt);
+        if (db && damping[b] !== 0) speed += Math.min(1, damping[b] * dt) * (Math.sqrt(v[b2] * v[b2] + v[b2 + 1] * v[b2 + 1]) + gravity * Math.abs(gb) * dt);
+        if (shape[a] !== CIRCLE) speed += Math.abs(w[a]) * reach[a];
+        if (shape[b] !== CIRCLE) speed += Math.abs(w[b]) * reach[b];
+        closing = speed * dt;
+      }
+      const touched = core[a] !== null && core[b] !== null ? meet(this, c, a, b, p, pairs, closing) : meetMany(this, c, a, b, p, pairs, closing) > 0;
       if (touched) {
         // A sleeping body touched wakes, and its island's pairs join this walk.
         if (island[a] !== 0) this._wake(a);
@@ -1224,14 +1254,12 @@ export class World2D {
   _senseAll() {
     this._sensorPasses++;
     const pairs = this._pairs, rows = this._sensedRows, core = this._core, v = this._velocity, sensed = this._sensed;
-    const motion = this._motion;
     for (let i = 0; i < sensed.length; i++) {
-      const p = sensed[i], a = pairs.a[p], b = pairs.b[p], ma = motion[a], mb = motion[b];
+      const p = sensed[i], a = pairs.a[p], b = pairs.b[p];
       rows.count = 0;
-      motion[a] = 0; motion[b] = 0;   // where they are, with no reach ahead
-      if (core[a] !== null && core[b] !== null) meet(this, rows, a, b, p, pairs);
-      else meetMany(this, rows, a, b, p, pairs);
-      motion[a] = ma; motion[b] = mb;
+      // Where they are, with no reach ahead: closing 0.
+      if (core[a] !== null && core[b] !== null) meet(this, rows, a, b, p, pairs, 0);
+      else meetMany(this, rows, a, b, p, pairs, 0);
       let hit = -1;
       for (let m = 0; m < rows.count && hit < 0; m++) if (rows.gap[m] <= rows.tolerance[m]) hit = m;
       const now = hit >= 0 ? 1 : 0;
@@ -1317,6 +1345,7 @@ export class World2D {
       for (let b = head; b >= 0; b = nextOf[b] - 1) {
         isle[b] = head + 1;
         v[2 * b] = 0; v[2 * b + 1] = 0; w[b] = 0;
+        this._broad.settle(this, b);
         this._unawaken(b);
         this._note(b, this._stepCount);
       }

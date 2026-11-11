@@ -281,3 +281,21 @@ test('pieces a few pixels across rest on a floor and on each other', () => {
     assert.ok(Math.hypot(...s.velocity) < 1, `a piece still moves at ${Math.hypot(...s.velocity)}`);
   }
 });
+
+test('bodies falling together solve no contacts between them, and ones pulled harder still land on what they reach', () => {
+  // 400 boxes 10 px wide, 30 px apart, falling as one: after 1.5 s at 1,470
+  // px/s each moves 25 px a step, more than the 20 px gap, but they close on
+  // each other at nothing. Counted by their own speeds, every neighbour had a
+  // contact solved each substep.
+  const world = new World2D({ sleeping: false });
+  for (let i = 0; i < 400; i++) world.addBody({ size: [10, 10], position: [(i % 20) * 30, -Math.floor(i / 20) * 30] });
+  steps(world, 90);
+  assert.equal(world._contacts.count, 0, 'contacts between bodies falling together');
+  // A body pulled down 4 times as hard closes on one gravity doesn't move.
+  const still = new World2D();
+  floor(still);
+  const held = still.addBody({ size: [40, 40], position: [0, -400], gravityScale: 0 });
+  const heavy = still.addBody({ size: [40, 40], position: [0, -2000], gravityScale: 4 });
+  steps(still, 120);
+  near(heavy.position[1], held.position[1] - 40, 1, 'the heavy box lands on the held one, at');
+});

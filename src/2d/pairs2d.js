@@ -1,18 +1,16 @@
 // Which bodies might touch, and what each such pair remembers.
 //
-// BROADPHASE. Testing every body against every other is n² tests; a pile of
+// BROADPHASE. Testing every body against every other is nÂ² tests; a pile of
 // 5,000 pieces is 12 million a step, nearly all of them between bodies nowhere
 // near each other. So each body sits in a tree of boxes (tree.js, 3D's, used
 // as it is with every box of no depth), in a FAT box a little bigger than it.
 // While it stays inside that box nothing changes, so most steps touch the tree
 // not at all. A body that leaves it is put back and asked what it now overlaps.
 // Static bodies have a tree of their own, since nothing needs to ask them
-// anything. The box doesn't reach ahead of the body, as 3D's does (AHEAD,
-// broadphase.js), which suits a metre-wide crate: an 8 px piece falling 16
-// steps ahead has a box 20 times itself, touching everything near it long after
-// it stops. Measured on 5,000 pieces landing: 105 ms a step and 210 pairs a
-// piece with it, 25 ms and 10 pairs without, and a reach held to the body's own
-// size was worse the longer it was.
+// anything. A fast body's box reaches AHEAD steps along its velocity, as 3D's
+// does (broadphase.js), so it is re-filed every few steps, not every step. A
+// box far longer than its body now needs, as one that fell fast and landed, is
+// drawn in (update()), and so is a box whose body falls asleep (settle()).
 //
 // PAIRS are kept from step to step: a pair stays listed while its fat boxes
 // overlap, and holds what it pushed with, so a stack starts each step from what
@@ -28,6 +26,20 @@ import { resized } from '../core/slots.js';
 
 /** How much bigger a fat box is, of the body's thinnest width: 3D's measure (broadphase.js). */
 const FAT = 1 / 4;
+
+/**
+ * How many steps ahead a fast body's fat box reaches along its velocity (see
+ * fat()). With none, every moving body was re-filed every step: out of the
+ * tree, back in, and asked what it overlaps. Measured pinned against none
+ * (2026-11-11, i7-1260P, both load orders), time a step at 2 / 4 ahead:
+ * 5,000 boxes flying sideways 0.56 / 0.48; 2,000 bullets through 1,000 boxes
+ * 0.67 / 0.63; 10,000 boxes falling together 0.72 / 0.72-0.79; 2,000 falling
+ * and drifting 0.88 / 1.09-1.14, its pairs doubling at 4; 5,000 pieces
+ * landing 0.99 / 1.02. 2 is no slower anywhere. 3D's 16 suits its sparse
+ * fliers; in 2D, 16 cost the falling boxes twice what none did, each box
+ * reaching every one below it.
+ */
+const AHEAD = 2;
 
 const NONE = -1;
 const DYNAMIC = 0, STATIC = 1;
@@ -207,7 +219,7 @@ export class Broad2D {
   add(world, s) {
     const tree = world._type[s] === STATIC ? 1 : 0;
     this.home[s] = tree;
-    fat(world, s);
+    fat(world, s, 0);
     this.leaf[s] = this.trees[tree].insert(s, X0, Y0, 0, X1, Y1, 0);
     this.mark(s);
   }
@@ -226,15 +238,40 @@ export class Broad2D {
     this.add(world, s);
   }
 
-  /** Puts back whichever awake bodies have left their fat boxes. */
-  update(world) {
+  /**
+   * A body falling asleep: its fat box drawn in snug, without the reach ahead
+   * along a velocity it no longer has (as 3D's). A smaller box can't overlap
+   * anything new, so there is nothing to ask the trees.
+   */
+  settle(world, s) {
+    if (this.home[s] !== 0 || this.leaf[s] === NONE) return;
+    fat(world, s, 0);
+    this.trees[0].move(this.leaf[s], X0, Y0, 0, X1, Y1, 0);
+  }
+
+  /**
+   * Puts back whichever awake bodies have left their fat boxes, reaching AHEAD
+   * steps of dt along their velocity; with `draw`, also those whose boxes are
+   * far longer than they now need (once a step is enough).
+   */
+  update(world, dt, draw) {
+    const ahead = AHEAD * dt, v = world._velocity, size = world._size;
     const list = world._awakeList, n = world._awakeCount, p = world._position, reach = world._reach, motion = world._motion;
     const moving = this.trees[0], box = moving.box, leaf = this.leaf;
     for (let i = 0; i < n; i++) {
       const s = list[i], s2 = 2 * s, n6 = 6 * leaf[s], x = p[s2], y = p[s2 + 1], r = reach[s], m = motion[s];
       if (this.home[s] !== 0) continue;
-      if (x - r - m < box[n6] || x + r + m > box[n6 + 3] || y - r - m < box[n6 + 1] || y + r + m > box[n6 + 4]) {
-        fat(world, s);
+      let out = x - r - m < box[n6] || x + r + m > box[n6 + 3] || y - r - m < box[n6 + 1] || y + r + m > box[n6 + 4];
+      if (!out && draw) {
+        // Far longer than it now needs, as a body that fell fast and landed:
+        // drawn in, by Box2D 2's rule, 4 margins (fat() for the box it needs).
+        const margin = FAT * size[s], need = 2 * (r + m + margin) + 4 * margin;
+        let wide = need, high = need;
+        if (m > margin) { wide += Math.abs(v[s2]) * ahead; high += Math.abs(v[s2 + 1]) * ahead; }
+        out = box[n6 + 3] - box[n6] > wide || box[n6 + 4] - box[n6 + 1] > high;
+      }
+      if (out) {
+        fat(world, s, ahead);
         moving.move(leaf[s], X0, Y0, 0, X1, Y1, 0);
         this.mark(s);
       }
@@ -275,10 +312,18 @@ export class Broad2D {
 // The box fat() works out, and query's callback's state: a step isn't re-entered.
 let X0 = 0, Y0 = 0, X1 = 0, Y1 = 0, self = 0, asking = null, list = null;
 
-function fat(world, s) {
+function fat(world, s, ahead) {
   const s2 = 2 * s, x = world._position[s2], y = world._position[s2 + 1];
   const r = world._reach[s] + world._motion[s] + FAT * world._size[s];
   X0 = x - r; X1 = x + r; Y0 = y - r; Y1 = y + r;
+  // Only a body that moves past its margin in a step, which would otherwise be
+  // re-filed every step, reaches ahead: reaching ahead for every body, rained
+  // pieces settling on a map stayed awake past 60 s in 5 starts of 60 against
+  // 2 before, and with it only for these, in none.
+  if (ahead === 0 || world._type[s] === STATIC || world._motion[s] <= FAT * world._size[s]) return;
+  const dx = world._velocity[s2] * ahead, dy = world._velocity[s2 + 1] * ahead;
+  if (dx > 0) X1 += dx; else X0 += dx;
+  if (dy > 0) Y1 += dy; else Y0 += dy;
 }
 
 function meetLeaf(other) {

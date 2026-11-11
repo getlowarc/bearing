@@ -371,7 +371,7 @@ function find(world, pairs, p, a, b, next, tolerance, sensing) {
     level(world, pairs, p, a, b, next);
     return false;
   }
-  const margin = world._motion[a] + world._motion[b] + tolerance, inner = world._inner;
+  const margin = lookahead(world, pairs, p, a, b) + tolerance, inner = world._inner;
   if (inner[a] instanceof Parts || inner[b] instanceof Parts) {
     parted(world, pairs, p, a, b, next, tolerance, margin);
     return false;
@@ -817,6 +817,44 @@ function moving(world, a, b) {
 }
 
 /**
+ * How far ahead pair p's contact looks: nearing() for a pair not touching
+ * after the last step, the sum of its bodies' own motions for one that is.
+ * Touching, the reach is also how long a pair keeps its contact, and with it
+ * the push it is warm-started from, while a body rocking or creeping lifts off
+ * by a hair: on 360 mixed heaps, nearing() for every pair left 8 unslept at
+ * 40 s against 2. A pair not touching has nothing to keep, and a falling
+ * crowd's pairs never touch.
+ */
+function lookahead(world, pairs, p, a, b) {
+  return pairs.touching[p] === 1 ? world._motion[a] + world._motion[b] : nearing(world, a, b);
+}
+
+/**
+ * How far slots a and b can close on each other in the step: how far ahead a
+ * contact between them looks while they aren't touching (lookahead()). Their
+ * speed against each other, not each one's own: two boxes falling side by side
+ * at 10 m/s close at nothing, and counted as closing at 20 m/s every neighbour
+ * in a falling crowd got a contact found and solved (4,000 boxes falling 0.6 m
+ * apart, none touching, stepped 6 times as slowly). As moving(), with gravity's whole g dt rather than its mean (the
+ * substeps' velocities add up to more than half), and damping, which slows one
+ * and not the other, by at most its rate times dt of its speed. Only pairs the
+ * broadphase lists get here, filed by each body's own motion (world.js,
+ * _boundsOf), which bounds where each can get. 2D's the same (world2d.js).
+ */
+function nearing(world, a, b) {
+  const v = world._velocity, w = world._angular, g = world._gravity, dt = world._stepDt, type = world._type, a3 = 3 * a, b3 = 3 * b;
+  const da = type[a] === DYNAMIC, db = type[b] === DYNAMIC, scale = world._gravityScale, damping = world._damping;
+  const ga = da ? scale[a] : 0, gb = db ? scale[b] : 0, gl = Math.sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
+  const dx = v[b3] - v[a3], dy = v[b3 + 1] - v[a3 + 1], dz = v[b3 + 2] - v[a3 + 2];
+  let speed = Math.sqrt(dx * dx + dy * dy + dz * dz) + gl * Math.abs(gb - ga) * dt
+    + Math.sqrt(w[a3] * w[a3] + w[a3 + 1] * w[a3 + 1] + w[a3 + 2] * w[a3 + 2]) * world._reach[a]
+    + Math.sqrt(w[b3] * w[b3] + w[b3 + 1] * w[b3 + 1] + w[b3 + 2] * w[b3 + 2]) * world._reach[b];
+  if (da && damping[a] !== 0) speed += Math.min(1, damping[a] * dt) * (Math.sqrt(v[a3] * v[a3] + v[a3 + 1] * v[a3 + 1] + v[a3 + 2] * v[a3 + 2]) + gl * Math.abs(ga) * dt);
+  if (db && damping[b] !== 0) speed += Math.min(1, damping[b] * dt) * (Math.sqrt(v[b3] * v[b3] + v[b3 + 1] * v[b3 + 1] + v[b3 + 2] * v[b3 + 2]) + gl * Math.abs(gb) * dt);
+  return speed * dt;
+}
+
+/**
  * Manifold mf, found where the bodies are at time t of the step, back to the
  * step's start: each point's two ends, a's and b's, carried back with their
  * bodies; the point becomes a's end, SHIFT the way from it to b's, and the
@@ -1141,7 +1179,7 @@ function look(world, pairs, c, p, epoch) {
   const tolerance = Math.min(world._size[a], world._size[b]) * PIXEL;
   // Its kept manifold will do: this thread rebuilds it, and a look would be thrown away.
   if (pairs.cache[p] !== 0 && keeps(world, pairs, p, a, b, tolerance)) return UNSEEN;
-  const margin = world._motion[a] + world._motion[b] + tolerance;
+  const margin = lookahead(world, pairs, p, a, b) + tolerance;
   if (apart(world, a, b, margin + tolerance)) return MISSED;
   load(world, a, shapeA);
   load(world, b, shapeB);
@@ -2377,7 +2415,7 @@ export const WORK = {
   columns: [
     '_position', '_rotation', '_velocity', '_angular', '_start', '_dims', '_shape', '_invMass', '_invI',
     '_box', '_motion', '_size', '_reach', '_awake', '_type', '_framed', '_sensor', '_gravityScale', '_axes',
-    '_jointHead',
+    '_jointHead', '_damping',
   ],
   /** The pair list's columns a look reads, and its verdicts (see LOOKED). */
   pairs: ['a', 'b', 'checked', 'verdict', 'touching', 'cache', 'cachePose', 'cacheLoss'],
