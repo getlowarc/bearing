@@ -19,15 +19,15 @@ const scenes = ['1,000 boxes landing', '1,000 hulls landing', '32 ragdolls', '21
 const slides = [
   {
     title: 'Time per step, ms (lower is better)',
-    note: 'Laptop: Intel i7-1260P, Chrome 152',
+    note: 'Laptop: Intel i7-1260P, Chrome 156',
     cap: 30, ticks: [0, 10, 20, 30], groups: scenes,
-    // bench/RESULTS.md, 2026-11-02 (82b6a59): the piles' first 5 s, the ragdolls' first 4 s.
+    // bench/RESULTS.md, 2026-11-11 (b500ef3): the piles' first 5 s, the ragdolls' first 4 s.
     values: {
-      'Bearing': [6.53, 14.1, 4.71, 0.381],
-      'Bearing (1 thread)': [12.7, 18.0, 8.27, 0.397],
-      'Rapier': [2.37, 3.21, 1.50, 0.0638],
-      'Jolt': [5.78, 7.07, 3.49, 0.0726],
-      'cannon-es': [23.1, 259, 7.95, 4.79],
+      'Bearing': [6.04, 11.4, 4.80, 0.433],
+      'Bearing (1 thread)': [10.9, 15.9, 6.71, 0.412],
+      'Rapier': [1.88, 2.97, 1.13, 0.0700],
+      'Jolt': [4.78, 6.49, 2.27, 0.0726],
+      'cannon-es': [19.4, 232, 5.81, 5.18],
     },
   },
 ];

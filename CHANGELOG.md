@@ -7,6 +7,26 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-11
+
+Two speed-ups from an audit, with no change to the API. Ragdolls and other jointed bodies lying
+still in a heap where something else still moves now stop being simulated, a whole tree of joints
+at a time, as unjointed bodies already did; and small worlds no longer pay a fixed cost for the
+solve order's sort. Saves are unchanged, still format 20.
+
+### Changed
+
+- Bodies held together by joints now freeze, as a whole tree at a time: a ragdoll lying still in a
+  heap where something else still moves stops being simulated, and starts again with its whole
+  tree. Before, a jointed body never froze, so 32 ragdolls fallen in heaps, each heap kept awake by
+  one forearm swinging on a frictionless hinge, had 255 of their 264 awake parts simulated though
+  still; from 8 s they now step in 4.2 to 6.6 ms rather than 7 to 11. A frozen joint keeps its
+  last `force` and `torque`, as a sleeping one does. See [Sleeping](docs/API.md#sleeping).
+- Small worlds step faster: the solve order's sort no longer clears and sums a table of 4,096
+  counts every step whatever the world's size, but sorts up to 128 contacts by insertion and sizes
+  its tables by the bodies in use. A box resting alone steps in half the time, a 10-box stack 11
+  to 13% faster, a sleeping 1,000-box pile 4%; results are the same to the bit.
+
 ## [1.5.0] - 2026-11-10
 
 Cylinders: wheels, logs, barrels and coins, round one way and flat the other. They roll on their
@@ -709,7 +729,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/getlowarc/bearing/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/getlowarc/bearing/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/getlowarc/bearing/compare/v1.3.4...v1.4.0
 [1.3.4]: https://github.com/getlowarc/bearing/compare/v1.3.3...v1.3.4

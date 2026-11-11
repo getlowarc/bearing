@@ -851,12 +851,30 @@ export function gather(world) {
     if (awakeB && island[a] !== 0 && type[a] === DYNAMIC) world._wake(a);
     if (type[a] !== DYNAMIC && (b < 0 || type[b] !== DYNAMIC)) continue;
     list[n++] = j;
-    // Its force from here on is this step's (JOINT FORCES); one left out keeps its last.
-    const j3 = 3 * j;
-    J.force[j3] = 0; J.force[j3 + 1] = 0; J.force[j3 + 2] = 0;
-    J.torque[j3] = 0; J.torque[j3 + 1] = 0; J.torque[j3 + 2] = 0;
   }
   J.active = n;
+}
+
+/**
+ * The step's joints, once World._freeze has run: those gather() listed less
+ * a frozen tree's, whose bodies nothing moves (World, FREEZING, TREES), in
+ * the same order. Returns how many. Each one's force from here on is this
+ * step's (JOINT FORCES); one left out, asleep or frozen, keeps its last.
+ */
+export function unfrozen(world) {
+  const J = world._joints, list = J.list, frozen = world._frozen, type = world._type, force = J.force, torque = J.torque;
+  let n = 0;
+  for (let i = 0; i < J.active; i++) {
+    const j = list[i], a = J.a[j], b = J.b[j];
+    const movesA = type[a] === DYNAMIC && frozen[a] === 0, movesB = b >= 0 && type[b] === DYNAMIC && frozen[b] === 0;
+    if (!movesA && !movesB) continue;
+    list[n++] = j;
+    const j3 = 3 * j;
+    force[j3] = 0; force[j3 + 1] = 0; force[j3 + 2] = 0;
+    torque[j3] = 0; torque[j3 + 1] = 0; torque[j3 + 2] = 0;
+  }
+  J.active = n;
+  return n;
 }
 
 /** How soft the solve pass is this step: set by World from JOINT_STIFFNESS and the substep. */
@@ -2806,7 +2824,7 @@ function angles(acc, i) {
 // a takes, to PUSH, and save(), the end of each joint's pass, moves PUSH into
 // the joint's columns, the turning part about a's anchor where that pass
 // put it (RA). The trees' rows, which forest.js applies itself, are counted
-// from their factor's own Jacobian (forestPushes()). gather() zeroes the
+// from their factor's own Jacobian (forestPushes()). unfrozen() zeroes the
 // joints the step solves; jointForces() divides by the step at its end.
 //
 // Every operation is + - * /, so the figures are the same on every machine.

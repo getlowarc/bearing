@@ -103,30 +103,30 @@ mine as the game runs, and characters that walk on them.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/compare-dark.svg">
-  <img src="docs/images/compare-light.svg" width="760" alt="Time per step in milliseconds, lower is better. Laptop, Intel i7-1260P, Chrome 152. 1,000 boxes landing: Bearing 6.5, Bearing on one thread 13, Rapier 2.4, Jolt 5.8, cannon-es 23. 1,000 hulls landing: Bearing 14, Bearing on one thread 18, Rapier 3.2, Jolt 7.1, cannon-es 259. 32 ragdolls: Bearing 4.7, Bearing on one thread 8.3, Rapier 1.5, Jolt 3.5, cannon-es 8.0. 210-box pyramid: Bearing 0.38, Bearing on one thread 0.40, Rapier 0.064, Jolt 0.073, cannon-es 4.8.">
+  <img src="docs/images/compare-light.svg" width="760" alt="Time per step in milliseconds, lower is better. Laptop, Intel i7-1260P, Chrome 156. 1,000 boxes landing: Bearing 6.0, Bearing on one thread 11, Rapier 1.9, Jolt 4.8, cannon-es 19. 1,000 hulls landing: Bearing 11, Bearing on one thread 16, Rapier 3.0, Jolt 6.5, cannon-es 232. 32 ragdolls: Bearing 4.8, Bearing on one thread 6.7, Rapier 1.1, Jolt 2.3, cannon-es 5.8. 210-box pyramid: Bearing 0.43, Bearing on one thread 0.41, Rapier 0.070, Jolt 0.073, cannon-es 5.2.">
 </picture>
 
 The same scenes through Bearing, Rapier, Jolt and cannon-es, in one page, taking turns. Bearing
 holds stacks tightest of the four, casts rays faster than Jolt and cannon-es, and with its workers
-is faster than cannon-es on every scene. It is slower than Rapier on every scene, from 1.1 times
-on the stack (on one thread) to 7.2 times on the hull pile once it has landed, and slowest
+is faster than cannon-es on every scene. It is slower than Rapier on every scene, from 1.2 times
+on the stack (on one thread) to 6.8 times on the hull pile once it has landed, and slowest
 against Rapier and Jolt on scenes that have settled, which they put to sleep sooner.
 
 <!-- TODO(lead): add the Ryzen 5 5500 desktop's run when there is one. -->
 
 | Laptop, ms a step unless said | Bearing | Bearing, 1 thread | Rapier | Jolt | cannon-es |
 |---|---|---|---|---|---|
-| 10-box stack, 10 s | 0.0204 | 0.0154 | 0.0143 | 0.00305 | 0.0976 |
+| 10-box stack, 10 s | 0.0123 | 0.0111 | 0.00922 | 0.00236 | 0.0887 |
 | …how far a box strayed | 0.00 mm | 0.00 mm | 9.54 mm | 20.0 mm | fell |
-| 210-box pyramid, 10 s | 0.381 | 0.397 | 0.0638 | 0.0726 | 4.79 |
+| 210-box pyramid, 10 s | 0.433 | 0.412 | 0.0700 | 0.0726 | 5.18 |
 | …how far a box strayed | 0.08 mm | 0.08 mm | 11.1 mm | 6.38 mm | fell |
-| 1,000-box pile, 0–5 s | 6.53 | 12.7 | 2.37 | 5.78 | 23.1 |
-| 1,000-box pile, 5–10 s | 4.97 | 9.33 | 1.36 | 4.87 | 24.1 |
-| 1,000-hull pile, 5–10 s | 1.72 | 1.98 | 0.240 | 0.286 | 357 |
-| 10,000-box pile, 0–1 s | 37.3 | 82.2 | 21.8 | 34.2 | — |
-| 10,000 rays into 1,000 boxes, ms for all | 28.9 | 32.6 | 18.6 | 251 | 380 |
-| 32 ragdolls, 0–4 s | 4.71 | 8.27 | 1.50 | 3.49 | 7.95 |
-| 32 ragdolls, 4–8 s | 3.14 | 5.82 | 0.971 | 0.00108 | 5.06 |
+| 1,000-box pile, 0–5 s | 6.04 | 10.9 | 1.88 | 4.78 | 19.4 |
+| 1,000-box pile, 5–10 s | 4.62 | 8.40 | 1.20 | 4.46 | 21.7 |
+| 1,000-hull pile, 5–10 s | 1.56 | 1.86 | 0.230 | 0.291 | 338 |
+| 10,000-box pile, 0–1 s | 30.9 | 48.8 | 13.8 | 24.2 | — |
+| 10,000 rays into 1,000 boxes, ms for all | 33.8 | 30.7 | 17.1 | 239 | 462 |
+| 32 ragdolls, 0–4 s | 4.80 | 6.71 | 1.13 | 2.27 | 5.81 |
+| 32 ragdolls, 4–8 s | 3.18 | 5.46 | 0.952 | 0.00158 | 4.97 |
 | …widest joint gap at 8 s | 0.00 mm | 0.00 mm | 7.08 mm | 0.10 mm | 5.25 mm |
 
 Where Bearing is ahead:
@@ -134,32 +134,34 @@ Where Bearing is ahead:
 - **Stacks.** Its 10-box stack strayed 0.00 mm in 10 s and sank 6.57 mm, against 9.54 and
   23.9 mm in Rapier and 20.0 and 13.1 mm in Jolt; its pyramid strayed 0.08 mm against 6 to 11.
   cannon-es's stack and pyramid fell.
-- **Rays.** 10,000 rays in 28.9 ms: 8.7 times faster than Jolt and 13 times faster than
-  cannon-es, though 1.6 times Rapier's 18.6 ms.
+- **Rays.** 10,000 rays in 30.7 ms on one thread: 7.8 times faster than Jolt and 15 times faster
+  than cannon-es, though 1.8 times Rapier's 17.1 ms.
 - **Joints held shut.** The ragdolls' widest joint gap was 0.00 mm, against 0.10 mm in Jolt and
   5 to 7 mm in cannon-es and Rapier.
 - **Against cannon-es**, the other engine in plain JavaScript: faster on every scene with
-  workers, 3.5 to 200 times on the piles and the pyramid. On one thread, cannon-es is still 1.04
+  workers, 3.2 to 200 times on the piles and the pyramid. On one thread, cannon-es is still 1.10
   to 1.15 times faster on the ragdolls, holding their joints far looser.
 - **The same bits everywhere, and no WebAssembly**: see [Determinism](#determinism).
 
 Where it is behind:
 
 - **Settled scenes.** Rapier and Jolt put the pyramid, the hull pile and the ragdolls to sleep
-  sooner, and Bearing goes on solving them: its pyramid costs 6 times Rapier's and 5 times Jolt's,
-  its hull pile 7 times Rapier's once landed, and at 10 s Rapier had all 1,000 boxes of the pile
+  sooner, and Bearing goes on solving them: its pyramid costs 6 times Rapier's and Jolt's, its
+  hull pile 7 times Rapier's once landed, and at 10 s Rapier had all 1,000 boxes of the pile
   asleep, Bearing 101. Its sleep rule is stricter by design: a body sleeps only once no point of
   it has strayed more than about a pixel in any second for a second
   ([Sleeping](docs/API.md#sleeping)).
-- **Ragdolls.** Rapier stepped the 32 ragdolls 3.1 to 3.2 times faster than Bearing with workers;
-  Jolt put all of them to sleep by 8 s, Bearing 88 of 352 parts.
-- **Busy piles.** As 1,000 boxes land, Rapier steps them 2.8 times faster than Bearing with
-  workers and Jolt about as fast (5.78 ms against 6.53); 10,000 boxes, 1.7 and 1.1 times.
-- **Small worlds with workers.** Waking threads costs more than a 10-box stack saves: 0.0204 ms a
-  step with workers against 0.0154 on one thread.
+- **Ragdolls.** Rapier stepped the 32 ragdolls 3.3 to 4.2 times faster than Bearing with workers;
+  Jolt put all of them to sleep by 8 s, Bearing 66 of 352 parts. Here the joints are frictionless,
+  and a limb left hanging swings on in Bearing, as an ideal hinge does, keeping its heap awake;
+  Jolt's solver loses that energy. Give the joints some `frictionForce` and they settle.
+- **Busy piles.** As 1,000 boxes land, Rapier steps them 3.2 times faster than Bearing with
+  workers and Jolt 1.26 times (4.78 ms against 6.04); 10,000 boxes, 2.2 and 1.3 times.
+- **Small worlds with workers.** Waking threads costs more than a 10-box stack saves: 0.0123 ms a
+  step with workers against 0.0111 on one thread.
 
-<sub>Laptop: Intel i7-1260P with Iris Xe, on the charger, Chrome 152, 2026-11-02, Bearing at commit
-`82b6a59`; the Ryzen 5 5500 desktop is still to be run. Each number is the median of 3 runs, the
+<sub>Laptop: Intel i7-1260P with Iris Xe, on the charger, Chrome 156, 2026-11-11, Bearing at commit
+`b500ef3`; the Ryzen 5 5500 desktop is still to be run. Each number is the median of 3 runs, the
 engines taking turns in blocks of 10 steps, each timed on its own `step()` call alone, the first
 block a warm-up. Rapier 0.21.0 (its SIMD build), Jolt 1.1.0 (single-threaded), cannon-es 0.20.0
 (given its sweep-and-prune broadphase and sleeping, as its docs advise for many bodies), and
@@ -184,7 +186,7 @@ import are the files in this repository.
 
 ```html
 <script type="module">
-  import { World } from 'https://cdn.jsdelivr.net/npm/bearing-physics@1.5.0/src/bearing.js';
+  import { World } from 'https://cdn.jsdelivr.net/npm/bearing-physics@1.5.1/src/bearing.js';
 </script>
 ```
 
@@ -204,9 +206,9 @@ import { World } from 'bearing-physics';
 <script type="importmap">
 {
   "imports": {
-    "bearing-physics": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.0/src/bearing.js",
-    "bearing-physics/2d": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.0/src/2d/bearing2d.js",
-    "bearing-physics/": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.0/src/"
+    "bearing-physics": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.1/src/bearing.js",
+    "bearing-physics/2d": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.1/src/2d/bearing2d.js",
+    "bearing-physics/": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.1/src/"
   }
 }
 </script>
