@@ -285,7 +285,7 @@ heightfields and compounds are found, and sleep and the rest run, on the steppin
   joint pass that last took over 50 µs they sleep, and the next group wakes them.
 - **What they gain** depends on the work: 7 workers stepped 100 ragdolls standing on their motors
   in about 6 ms, against 18 to 21 ms on one thread (i7-1260P). A small world gains nothing: a
-  stack of 10 boxes stepped in 0.0204 ms with workers and 0.0154 ms without, in Chrome.
+  stack of 10 boxes stepped in 0.0123 ms with workers and 0.0111 ms without, in Chrome.
 - **[`destroy()`](#world-destroy) ends them**, and so does the world being garbage collected. They
   never keep a Node process from exiting.
 - **They aren't saved.** A world from [`World.load`](#world-load) has `'auto'`, as a new one does.
