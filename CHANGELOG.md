@@ -9,15 +9,17 @@ All notable changes to Bearing are recorded here. The format follows
 
 ### Changed
 
-- 2D bodies moving together no longer solve contacts between them. A pair looked ahead for a
-  contact by the sum of each body's own speed, so boxes falling side by side at 1,000 px/s were
-  taken to close at 2,000 px/s, and every neighbour in a falling crowd had a contact solved every
-  substep. A pair now looks ahead by how fast the two close on each other: their speed against
-  each other, gravity only where it pulls them differently, damping and spin. 2,000 boxes falling
-  through each other step 3 times as fast, a 1,000-body pile landing 10% faster; stacks and
-  pyramids at rest are 1-3% slower for the extra arithmetic. A body's own look-ahead, which files
-  it in the broadphase, now counts its `gravityScale` as well. Results change wherever moving
-  bodies are near each other.
+- Bodies moving together no longer find contacts between them, in 3D and 2D. A pair not in touch
+  looked ahead for a contact by the sum of each body's own speed, so boxes falling side by side at
+  10 m/s were taken to close at 20 m/s, and every neighbour in a falling crowd had a contact found
+  and solved. Such a pair now looks ahead by how fast the two close on each other: their speed
+  against each other, gravity only where it pulls them differently, damping and spin. Pairs
+  already touching keep the old reach, which also holds their contact while a resting body rocks by
+  a hair (with the new reach for them too, 8 of 360 mixed heaps were still awake at 40 s, against 2).
+  4,000 boxes falling in 3D step 6 times as fast, 2,000 in 2D 3 times; a landing 2D pile is 12%
+  faster and sleeps sooner; 3D stacks, pyramids and piles are unchanged to the bit, hull heaps 1%
+  faster. A 2D body's own look-ahead, which files it in the broadphase, now counts its
+  `gravityScale`, as 3D's did. Results change wherever moving bodies near each other aren't touching.
 
 ## [1.5.1] - 2026-11-11
 

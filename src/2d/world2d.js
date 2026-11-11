@@ -1183,24 +1183,32 @@ export class World2D {
       if (sensor[a] === 1 || sensor[b] === 1) { this._sensed.push(p); p++; continue; }
       this._narrowed++;
       // A compound or a level touches in many places; everything else, one.
-      // How far a and b can close on each other in the step: what a contact
-      // between them must look ahead to. Their speed against each other, not
-      // each one's own: two boxes falling side by side at 1,000 px/s close at
-      // nothing, and counted as closing at 2,000 px/s every neighbour in a
-      // falling crowd had a contact solved every substep (10,000 boxes: 103,000
-      // rows, none touching). Gravity adds only where it pulls them differently
-      // (one not dynamic, or another gravityScale); damping slows one and not
-      // the other, by at most its rate times dt of its speed; spin adds its
-      // reach, as in motion. Only pairs the broadphase lists get here, and it
-      // files each body by its own motion, which bounds where each can get.
-      const a2 = 2 * a, b2 = 2 * b, da = type[a] === DYNAMIC, db = type[b] === DYNAMIC;
-      const ga = da ? scale[a] : 0, gb = db ? scale[b] : 0, dx = v[a2] - v[b2], dy = v[a2 + 1] - v[b2 + 1];
-      let speed = Math.sqrt(dx * dx + dy * dy) + gravity * Math.abs(ga - gb) * dt;
-      if (da && damping[a] !== 0) speed += Math.min(1, damping[a] * dt) * (Math.sqrt(v[a2] * v[a2] + v[a2 + 1] * v[a2 + 1]) + gravity * Math.abs(ga) * dt);
-      if (db && damping[b] !== 0) speed += Math.min(1, damping[b] * dt) * (Math.sqrt(v[b2] * v[b2] + v[b2 + 1] * v[b2 + 1]) + gravity * Math.abs(gb) * dt);
-      if (shape[a] !== CIRCLE) speed += Math.abs(w[a]) * reach[a];
-      if (shape[b] !== CIRCLE) speed += Math.abs(w[b]) * reach[b];
-      const closing = speed * dt;
+      // How far a contact between a and b looks ahead. For a pair not
+      // touching after the last step, how far they can close on each other:
+      // their speed against each other, not each one's own. Two boxes falling
+      // side by side at 1,000 px/s close at nothing, and counted as closing at
+      // 2,000 px/s every neighbour in a falling crowd had a contact solved
+      // every substep (10,000 boxes: 103,000 rows, none touching). Gravity adds
+      // only where it pulls them differently (one not dynamic, or another
+      // gravityScale); damping slows one and not the other, by at most its rate
+      // times dt of its speed; spin adds its reach, as in motion. Only pairs the
+      // broadphase lists get here, and it files each body by its own motion,
+      // which bounds where each can get. A touching pair keeps the sum of their
+      // own motions: there the reach is also how long it keeps its contact and
+      // the push it is warm-started from while a body rocks or creeps off by a
+      // hair, and in 3D the relative reach left 8 of 360 mixed heaps unslept at
+      // 40 s against 2 (contact.js, lookahead()).
+      let closing = motion[a] + motion[b];
+      if (pairs.touching[p] === 0) {
+        const a2 = 2 * a, b2 = 2 * b, da = type[a] === DYNAMIC, db = type[b] === DYNAMIC;
+        const ga = da ? scale[a] : 0, gb = db ? scale[b] : 0, dx = v[a2] - v[b2], dy = v[a2 + 1] - v[b2 + 1];
+        let speed = Math.sqrt(dx * dx + dy * dy) + gravity * Math.abs(ga - gb) * dt;
+        if (da && damping[a] !== 0) speed += Math.min(1, damping[a] * dt) * (Math.sqrt(v[a2] * v[a2] + v[a2 + 1] * v[a2 + 1]) + gravity * Math.abs(ga) * dt);
+        if (db && damping[b] !== 0) speed += Math.min(1, damping[b] * dt) * (Math.sqrt(v[b2] * v[b2] + v[b2 + 1] * v[b2 + 1]) + gravity * Math.abs(gb) * dt);
+        if (shape[a] !== CIRCLE) speed += Math.abs(w[a]) * reach[a];
+        if (shape[b] !== CIRCLE) speed += Math.abs(w[b]) * reach[b];
+        closing = speed * dt;
+      }
       const touched = core[a] !== null && core[b] !== null ? meet(this, c, a, b, p, pairs, closing) : meetMany(this, c, a, b, p, pairs, closing) > 0;
       if (touched) {
         // A sleeping body touched wakes, and its island's pairs join this walk.

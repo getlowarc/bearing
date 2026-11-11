@@ -614,14 +614,18 @@ These were made with Nolan and override the rules below where they differ.
   circle or capsule; a climb rises `2 * tolerance` over `stepHeight` so a box rises off an exact
   step's tread, and lands held to it. `fromFront` takes only what is within the tolerance of the
   line: a margin reaches the back of a one-tile wall.
-  A pair looks ahead by how fast its bodies close on each other, not the sum of their own speeds
-  (2026-11-11, Nolan: "Go ahead with the 2D fix"): `_narrow` in `world2d.js` works it out per pair
-  (relative velocity, gravity by the difference in `gravityScale`, damping, spin times reach) and
-  passes it to `meet()`/`meetMany()` as `closing`; sensors pass 0. 10,000 falling boxes 361 -> 143
-  ms, rows 103,000 -> 1,700; pinned: crowd 3x, pile 10% faster, stack and pyramid 1-3% slower
-  (rows identical: the arithmetic). The broadphase still files by each body's own motion (now with
-  `|gravityScale|`), so a falling crowd still lists its neighbours as pairs: that is next. HASH_2D
-  changed. 3D has the same sum (`contact.js` margins).
+  A pair not touching looks ahead by how fast its bodies close on each other, not the sum of their
+  own speeds (2026-11-11, Nolan: "Go ahead with the 2D fix", then "Go ahead with step one" for 3D):
+  relative velocity, gravity by the difference in `gravityScale`, damping, spin times reach;
+  inline in `_narrow` (world2d.js, passed to `meet()`/`meetMany()` as `closing`, sensors 0) and
+  `lookahead()`/`nearing()` in contact.js (find() and the workers' look(); `_damping` shared).
+  A pair touching after the last step keeps the sum of its bodies' motions: that reach is also the
+  hysteresis that keeps a rocking or creeping body's contact and warm start, and the relative reach
+  for every pair left 8 of 360 mixed heaps unslept at 40 s against 2 (with the rule, 2). Pinned:
+  3D crowd 6x, stack/pyramid/pile same bits and even, hulls 1% faster; 2D crowd 3x, pile 12%,
+  stack/pyramid even. 10,000 falling 2D boxes 361 -> 143 ms. The broadphase still files by each
+  body's own motion (2D's now with `|gravityScale|`), so a falling crowd still lists its
+  neighbours as pairs: that is next. HASH and HASH_2D changed. Mesh pairs (`level()`) unchanged.
 - **`package.json` was `"private": true` until the first release** (0.14.0, 2026-11-02), so a
   stray `npm publish` from the repo was refused; `release.yml` still stops on it if it returns. The name claim in rule 9 is a separate placeholder package that Nolan
   publishes himself (it needs his 2FA), and it is also what npm needs to exist before trusted
