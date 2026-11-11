@@ -1558,7 +1558,7 @@ if (Math.sqrt(fx * fx + fy * fy + fz * fz) > 2000) world.remove(neck);   // over
 Notes: a mean over the step, not the end of it, so a jerk shows in full in the step it happens: a
 1 kg ball dropped 0.9 m onto a rope reads 255 N in the step the rope goes taut, 26 times its
 weight, and its weight, 9.81 N, once it hangs. `[0, 0, 0]` before the first step. A joint that
-isn't solved in a step, because its bodies are asleep, keeps what it read at the last step it was:
+isn't solved in a step, because its bodies are asleep or [frozen](#sleeping), keeps what it read at the last step it was:
 it still holds its load, so a sleeping chandelier's chain still reads its weight. The same on every
 machine and with any number of [workers](#world-workers), and saved by
 [`world.save()`](#world-save).
@@ -1582,7 +1582,7 @@ console.log(bracket.torque[2]);   // about 49 N·m: 98.1 N of weight, 0.5 m out
 
 Notes: about the anchor on `a`, where it is now, so a hinge holding a level 1 m, 10 kg arm reads
 49.05 N·m about its axis, its weight at half a metre. `b` took the opposite torque about the same
-point. `[0, 0, 0]` before the first step, and a sleeping joint keeps its last, as `force` does.
+point. `[0, 0, 0]` before the first step, and a sleeping or frozen joint keeps its last, as `force` does.
 
 <a id="joint-destroy"></a>
 ### `joint.destroy()`
@@ -2505,9 +2505,11 @@ tune; [`world.sleeping`](#world-sleeping) switches it off.
   is `false`, its contacts and events are kept, and [`world.moved()`](#world-moved) leaves it out
   once it has stopped. The whole frozen piece starts moving again, in the same step, as soon as
   anything within two contacts of it stops being stopped, or anything is set on any body of it.
-  Bodies with a joint and characters never freeze, and nothing does with sleeping off. On a
-  settling pile of 1,000 boxes this solved 73% of the contact points it did before, and took 19%
-  less time over 15 s.
+  Bodies a joint holds together freeze together, only when every one of them would, and thaw
+  together; nothing held to a kinematic body or a character freezes, characters never do, and
+  nothing does with sleeping off. On a settling pile of 1,000 boxes this solved 73% of the contact
+  points it did before, and took 19% less time over 15 s; 32 ragdolls fallen in heaps step in
+  about half the time once they have settled.
 - **What it costs.** A sleeping body is not moved, bounded, filed or solved, and its contacts are
   not looked at. A world whose bodies are all asleep steps in a few microseconds, whatever its
   size.

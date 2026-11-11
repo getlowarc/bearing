@@ -373,6 +373,35 @@ test('part of an island freezes while the rest moves, and thaws whole when touch
   assert.equal(world._frozenCount, 0);
 });
 
+test('bodies a joint holds freeze together and thaw together, keeping the joint force they last had', () => {
+  const world = new World();
+  ground(world);
+  const boxes = stack(world, 0, 6);
+  const ball = world.addBody({ shape: 'sphere', radius: 0.25, position: [0, 6.25, 0] });
+  const spin = (seconds) => { for (let i = 0; i < seconds * 60; i++) { ball.setAngularVelocity(0, 5, 0); world.step(1 / 60); } };
+  // The bottom two, both far from the ball, joined; and the fourth to the fifth, which is near it.
+  const low = world.addJoint({ type: 'ball', a: boxes[1], b: boxes[0], anchor: [0, 1, 0] });
+  world.addJoint({ type: 'ball', a: boxes[4], b: boxes[3], anchor: [0, 4, 0] });
+  spin(3);
+  // Without the joints the bottom four freeze (the test above). The fourth now
+  // can't, as the fifth it is joined to can't; the bottom two freeze as one.
+  assert.deepEqual(boxes.map((b) => world._frozen[b.slot] !== 0), [true, true, true, false, false, false]);
+  const force = low.force, at = boxes[1].position;
+  spin(1);
+  assert.deepEqual(low.force, force, 'a frozen joint keeps its last force, as a sleeping one does');
+  assert.deepEqual(boxes[1].position, at);
+  // Set by hand, one of them thaws the whole piece, its joint partner too.
+  boxes[1].setVelocity(0, 0, 0);
+  world.step(1 / 60);
+  assert.equal(world._frozenCount, 0);
+  // Held to a kinematic body, which only a program moves, a tree never freezes.
+  const lift = world.addBody({ type: 'kinematic', size: [0.2, 0.2, 0.2], position: [2, 0.6, 0] });
+  world.addJoint({ type: 'distance', a: boxes[0], b: lift, anchor: [0.5, 0.5, 0], anchorB: [2, 0.6, 0], min: 0, max: 5 });
+  spin(3);
+  assert.equal(world._frozen[boxes[0].slot], 0);
+  assert.equal(world._frozen[boxes[1].slot], 0);
+});
+
 test('whatever takes a support away, what rested on it falls: frozen, asleep, any type of body', () => {
   // A stack whose top is kept moving, so its island never sleeps and the
   // bottom freezes, then each way of taking something out from under it.

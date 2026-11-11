@@ -9,6 +9,13 @@ All notable changes to Bearing are recorded here. The format follows
 
 ### Changed
 
+- Bodies held together by joints now freeze, as a whole tree at a time: a ragdoll lying still in a
+  heap where something else still moves stops being simulated, and starts again with its whole
+  tree. Before, a jointed body never froze, so 32 ragdolls fallen in heaps, each heap kept awake by
+  one forearm swinging on a frictionless hinge, had 255 of their 264 awake parts simulated though
+  still; from 8 s they now step in 4.2 to 6.6 ms rather than 7 to 11. A frozen joint keeps its
+  last `force` and `torque`, as a sleeping one does. See [Sleeping](docs/API.md#sleeping).
+
 - Small worlds step faster: the solve order's sort no longer clears and sums a table of 4,096
   counts every step whatever the world's size, but sorts up to 128 contacts by insertion and sizes
   its tables by the bodies in use. A box resting alone steps in half the time, a 10-box stack 11

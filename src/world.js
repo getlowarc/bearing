@@ -35,7 +35,7 @@ import {
 import { Jobs, cores, sharedMemory } from './core/jobs.js';
 import {
   Joints, Joint, addJoint, setJoint, jointOf, jointSlot, dropJoint, dropJointsOf, gather, warmStartJoints, solveJoints,
-  jointSoft, JOINT_STIFFNESS, JOINT_DAMPING_RATIO, plantJoints, groupJoints, jointsCrowded, WORK, jointForces, rehome } from './joints.js';
+  jointSoft, JOINT_STIFFNESS, JOINT_DAMPING_RATIO, plantJoints, groupJoints, jointsCrowded, WORK, jointForces, rehome, unfrozen } from './joints.js';
 import { Broadphase } from './broadphase.js';
 import { anchored } from './forest.js';
 import { colour } from './graph.js';
@@ -157,7 +157,7 @@ export const SLEEP_TIME = 1;
 // everything it touches too; that, and everything it touches quiet; and set
 // by hand since the step before, which keeps it from the first; and, at a
 // frozen piece's root, that some body of it thaws.
-const STILL = 1, QUIET = 2, CALM = 4, HANDLED = 8, THAWING = 16;
+const STILL = 1, QUIET = 2, CALM = 4, HANDLED = 8, THAWING = 16, RESTLESS = 32;
 
 // SPIN: the most a body other than a sphere turns in a step, π, half a turn.
 // Its contacts are found once a step, where the step starts or at the moment
@@ -1023,10 +1023,12 @@ export class World {
     } while (this._wakePending);
     next.trim();
     pairs.trim();
-    const touching = next.count, held = jointed ? joints.active : 0;
+    const touching = next.count;
     // Which bodies are frozen this step (see FREEZING), before the colours:
     // a frozen body takes none, and rows between frozen bodies go last.
     if (this._sleeping && (this._frozenCount > 0 || this._stillReady)) this._freeze(next);
+    // The joints to solve: a frozen tree's are left out (FREEZING, TREES).
+    const held = jointed ? unfrozen(this) : 0;
     // Coloured, and the rows laid out colour by colour, before anything else
     // is worked out for them (graph.js).
     if (touching > 0) {
@@ -1193,10 +1195,20 @@ export class World {
    * as a woken island's bodies are, when anything it touches or anything
    * that touches those stops being still, or is set by hand (HANDLED), or a
    * new contact brings a body that isn't still. Thawed and counted still
-   * afresh when anything is set on it. Never a body with a joint (its rows
-   * are solved as one tree, forest.js), a character, or anything while
+   * afresh when anything is set on it. Never a character, or anything while
    * sleeping is off: freezing is sleeping's, a piece of an island at a time,
    * and off means off.
+   *
+   * TREES. Bodies a joint holds together freeze together and thaw together:
+   * the joints' rows are solved as one tree (forest.js), and a joint between
+   * a frozen body and a moving one would have it held by a wall. So a
+   * jointed body is frozen only when every body its joints join it to, and
+   * theirs, would be, and nothing they hold to moves by hand (a kinematic
+   * body or a character); and the joints of a frozen tree are left out of
+   * the step (joints.js, unfrozen()), keeping their last forces, as a
+   * sleeping joint does. Left out before (2026-10-29), 32 floppy ragdolls
+   * fallen in heaps had 255 of their 264 awake parts still for over a second
+   * at 12 s, each heap awake for a forearm swinging on a frictionless hinge.
    *
    * The known limit: a frozen body two or more contacts from anything moving
    * doesn't notice the load on it change, as a sleeping island doesn't. A
@@ -1231,6 +1243,28 @@ export class World {
       if (type[b] !== STATIC && (calm[b] & QUIET) === 0) calm[a] &= ~CALM;
       if (type[a] !== STATIC && (calm[a] & QUIET) === 0) calm[b] &= ~CALM;
     }
+    // TREES: what a joint holds to must be dynamic, static or the world,
+    // and a tree is calm only if every body of it is.
+    const J = this._joints, jl = J.list, ja = J.a, jb = J.b, held = J.count > 0 ? J.active : 0;
+    if (held > 0) {
+      const parent = this._parent;
+      for (let i = 0; i < n; i++) parent[list[i]] = list[i];
+      for (let i = 0; i < held; i++) {
+        const j = jl[i], a = ja[j], b = jb[j];
+        if (b < 0) continue;
+        if (type[b] !== DYNAMIC && type[b] !== STATIC) calm[a] &= ~CALM;
+        if (type[a] !== DYNAMIC && type[a] !== STATIC) calm[b] &= ~CALM;
+        join(parent, type, a, b);
+      }
+      for (let i = 0; i < n; i++) {
+        const s = list[i];
+        if (joints[s] !== 0 && (calm[s] & CALM) === 0) calm[root(parent, s)] |= RESTLESS;
+      }
+      for (let i = 0; i < n; i++) {
+        const s = list[i];
+        if (joints[s] !== 0 && (calm[root(parent, s)] & RESTLESS) !== 0) calm[s] &= ~CALM;
+      }
+    }
     // A frozen piece thaws whole: frozen bodies touching are joined, and if
     // any of them must thaw, all do, as a sleeping island wakes whole. Thawed
     // two contacts out alone, a hit passed on further within the step met
@@ -1240,6 +1274,11 @@ export class World {
       const parent = this._parent;
       for (let i = 0; i < n; i++) parent[list[i]] = list[i];
       for (let m = 0; m < count; m++) if (frozen[A[m]] !== 0 && frozen[B[m]] !== 0) join(parent, type, A[m], B[m]);
+      // A frozen tree is one piece too (TREES).
+      for (let i = 0; i < held; i++) {
+        const j = jl[i], a = ja[j], b = jb[j];
+        if (b >= 0 && frozen[a] !== 0 && frozen[b] !== 0) join(parent, type, a, b);
+      }
       let thawing = false;
       for (let i = 0; i < n; i++) {
         const s = list[i];
@@ -1255,7 +1294,7 @@ export class World {
     const v = this._velocity, w = this._angular, invMass = this._invMass;
     for (let i = 0; i < n; i++) {
       const s = list[i];
-      const freeze = (calm[s] & CALM) !== 0 && type[s] === DYNAMIC && joints[s] === 0;
+      const freeze = (calm[s] & CALM) !== 0 && type[s] === DYNAMIC;
       if (freeze && frozen[s] === 0) {
         const s3 = s * 3;
         frozen[s] = 2;
@@ -1342,6 +1381,14 @@ export class World {
     for (let i = 0; i < J.active; i++) {
       const j = J.list[i];
       if (J.b[j] >= 0) join(parent, type, J.a[j], J.b[j]);
+    }
+    // And a frozen tree, whose joints the step left out (FREEZING, TREES).
+    if (this._frozenCount > 0 && J.count > 0) {
+      const state = J.slots.state, frozen = this._frozen;
+      for (let j = 0; j < J.slots.top; j++) {
+        if (state[j] !== 1 || J.b[j] < 0) continue;   // 1: in use (core/slots.js)
+        if (frozen[J.a[j]] !== 0 && frozen[J.b[j]] !== 0) join(parent, type, J.a[j], J.b[j]);
+      }
     }
     const least = this._least;
     for (let i = 0; i < n; i++) least[list[i]] = Infinity;

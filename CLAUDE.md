@@ -88,7 +88,7 @@ These were made with Nolan and override the rules below where they differ.
   `RESTING`, `Contacts.solved`) and aren't prepared, warm-started, solved, stored or bounced;
   `rest()` sets what `touched()` reads. A frozen piece (frozen bodies touching, union-find) thaws
   whole, before the solve, counted still afresh, when anything within two contacts isn't still or
-  is set by hand; jointed bodies and characters never freeze. No push-change thaw: at 10-1,000 times
+  is set by hand; characters never freeze. Jointed bodies freeze as whole trees (2026-11-11, TREES in `_freeze`: a tree is calm only if every body of it is, nothing held to a kinematic body or character freezes, frozen trees are one piece for thawing; `unfrozen()` in joints.js drops a frozen tree's joints after `_freeze`, keeping their last forces, and zeroes the rest's forces, which gather() did; `_sleep` joins frozen trees' joints by scanning all joints): 32 floppy ragdolls 7-11 -> 4.2-6.6 ms a step from 8 s. No push-change thaw: at 10-1,000 times
   the change that would move a body its tolerance in `SLEEP_TIME`, it thawed the 288-box heap as
   fast as it froze and the heap never slept. Known limit, documented: a frozen body two contacts
   from anything moving doesn't feel its load change. Jolt's looser speed-based rule rejected: it
