@@ -7,6 +7,16 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-11-11
+
+Moving bodies cost less, with no change to the API. Bodies moving together, a crowd falling or a
+flock flying, no longer find and solve contacts between each other; fast 3D bodies with nothing
+near no longer search the whole world to be caught; and fast 2D bodies are re-filed in the
+broadphase every few steps rather than every step. Resting scenes are unchanged or faster, and
+sleep as soon as before. Results change wherever moving bodies near each other aren't touching,
+and for 2D bodies, as their broadphase finds pairs in another order. Saves are unchanged, still
+format 20.
+
 ### Changed
 
 - Bodies moving together no longer find contacts between them, in 3D and 2D. A pair not in touch
@@ -758,7 +768,8 @@ version may still change it.
   continuous collision doesn't make a sensor see a body that passes through it within a step (it
   said a later version would).
 
-[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/getlowarc/bearing/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/getlowarc/bearing/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/getlowarc/bearing/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/getlowarc/bearing/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/getlowarc/bearing/compare/v1.3.4...v1.4.0

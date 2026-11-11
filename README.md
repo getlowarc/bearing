@@ -186,7 +186,7 @@ import are the files in this repository.
 
 ```html
 <script type="module">
-  import { World } from 'https://cdn.jsdelivr.net/npm/bearing-physics@1.5.1/src/bearing.js';
+  import { World } from 'https://cdn.jsdelivr.net/npm/bearing-physics@1.5.2/src/bearing.js';
 </script>
 ```
 
@@ -206,9 +206,9 @@ import { World } from 'bearing-physics';
 <script type="importmap">
 {
   "imports": {
-    "bearing-physics": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.1/src/bearing.js",
-    "bearing-physics/2d": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.1/src/2d/bearing2d.js",
-    "bearing-physics/": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.1/src/"
+    "bearing-physics": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.2/src/bearing.js",
+    "bearing-physics/2d": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.2/src/2d/bearing2d.js",
+    "bearing-physics/": "https://cdn.jsdelivr.net/npm/bearing-physics@1.5.2/src/"
   }
 }
 </script>
