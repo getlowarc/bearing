@@ -7,6 +7,13 @@ All notable changes to Bearing are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Small worlds step faster: the solve order's sort no longer clears and sums a table of 4,096
+  counts every step whatever the world's size, but sorts up to 128 contacts by insertion and sizes
+  its tables by the bodies in use. A box resting alone steps in half the time, a 10-box stack 11
+  to 13% faster, a sleeping 1,000-box pile 4%; results are the same to the bit.
+
 ## [1.5.0] - 2026-11-10
 
 Cylinders: wheels, logs, barrels and coins, round one way and flat the other. They roll on their

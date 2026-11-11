@@ -97,6 +97,16 @@ const DIGIT = 12;
 export const DIGITS = 1 << DIGIT;
 
 /**
+ * Up to this many manifolds are sorted by insertion instead. A digit's table
+ * is cleared and summed whole, however few the rows: at 4,096 counts that was
+ * 10 to 12 us, half a lone box's step and 15% of a 10-box stack's. Measured
+ * on the sort alone, b's slots at random (insertion's bad case, where a
+ * narrowphase finds them partly in order): insertion 1.9 us at 64 rows, 5.8 at
+ * 128, 16 at 192, against the table's 11 to 13.
+ */
+const FEW = 128;
+
+/**
  * Gives each of c's manifolds a colour, in c.colour, and lays the rows out
  * colour by colour (see LAID OUT BY COLOUR): colour k's are rows
  * c.starts[k] .. c.starts[k + 1], and the overflow's the last. Uses
@@ -138,21 +148,37 @@ export function colour(world, c) {
   // (needed only past 4,096 slots), then colour, so each colour's rows go by
   // b's slot (see DIGIT). c.row holds a list on the way, until arrange()
   // makes it the way back.
-  const count = c.digits, order = c.order, row = c.row, high = world._slots.top > DIGITS;
+  const count = c.digits, order = c.order, row = c.row, top = world._slots.top, high = top > DIGITS;
   let from = high ? order : row;
-  count.fill(0);
-  for (let m = 0; m < n; m++) count[(B[m] & (DIGITS - 1)) + 1]++;
-  for (let k = 0; k < DIGITS; k++) count[k + 1] += count[k];
-  for (let m = 0; m < n; m++) from[count[B[m] & (DIGITS - 1)]++] = m;
-  if (high) {
-    count.fill(0);
-    for (let i = 0; i < n; i++) count[(B[order[i]] >>> DIGIT) + 1]++;
-    for (let k = 0; k < DIGITS; k++) count[k + 1] += count[k];
-    for (let i = 0; i < n; i++) {
-      const m = order[i];
-      row[count[B[m] >>> DIGIT]++] = m;
+  if (n <= FEW) {
+    // The same order, a stable sort by b's slot, by insertion: a digit's
+    // table costs its size however few the rows (see FEW).
+    for (let m = 0; m < n; m++) {
+      const key = B[m];
+      let j = m - 1;
+      while (j >= 0 && B[row[j]] > key) { row[j + 1] = row[j]; j--; }
+      row[j + 1] = m;
     }
     from = row;
+  } else {
+    // Each table only as long as the digits the slots in use can have: a
+    // slot is under top, so 1,001 counts for 1,000 bodies, not 4,096.
+    const low = high ? DIGITS : top;
+    count.fill(0, 0, low + 1);
+    for (let m = 0; m < n; m++) count[(B[m] & (DIGITS - 1)) + 1]++;
+    for (let k = 0; k < low; k++) count[k + 1] += count[k];
+    for (let m = 0; m < n; m++) from[count[B[m] & (DIGITS - 1)]++] = m;
+    if (high) {
+      const upper = ((top - 1) >>> DIGIT) + 1;
+      count.fill(0, 0, upper + 1);
+      for (let i = 0; i < n; i++) count[(B[order[i]] >>> DIGIT) + 1]++;
+      for (let k = 0; k < upper; k++) count[k + 1] += count[k];
+      for (let i = 0; i < n; i++) {
+        const m = order[i];
+        row[count[B[m] >>> DIGIT]++] = m;
+      }
+      from = row;
+    }
   }
   const starts = c.starts;
   starts.fill(0);

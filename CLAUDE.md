@@ -433,7 +433,7 @@ These were made with Nolan and override the rules below where they differ.
   (`FOUND`) into colour runs (`starts`), sorted within a colour by b's slot (two 12-bit digits,
   DIGITS = 4096, the high one only past 4,096 slots), one mover per array type (a generic one went
   megamorphic, 10% of a step). Store, touched and restitution keep pair order through `c.row`.
-  All of it scratch to `save()`. Coloured afresh each step (kept colours measured no better).
+  All of it scratch to `save()`. Coloured afresh each step (kept colours measured no better). Up to `FEW` (128) manifolds sorted by insertion, and each digit's table only as long as `top` needs (2026-11-11, same bits: the fixed 4,096-count table was 10-12 us, half a lone box's step).
   Joints serial before contacts. No solver-body gather (measured slower). Any order within a
   colour gives the same bits: that is what workers rely on.
 - **Workers** (2026-10-26, milestone 16 step 8, API approved: "keep auto and land it"):
