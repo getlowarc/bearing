@@ -448,7 +448,12 @@ await test('soft bodies made, draped, hung and removed 30 times: their slots and
   }
   await collect();
   const grown = heap() - before;
-  assert.ok(grown < 256 * 1024, `grew ${(grown / 1024).toFixed(0)} KB`);
+  // V8's compiling, not a leak, as with the chains: Node 24 in CI reached
+  // 262 KB here, and over 400 rounds on Node 22 the growth slowed to under
+  // 1 KB a round and levelled off. One round's soft bodies hold 378 KB, so
+  // even a quarter of one kept each round would show as 1.9 MB over the 20
+  // measured rounds: 1 MB tells them apart.
+  assert.ok(grown < 1024 * 1024, `grew ${(grown / 1024).toFixed(0)} KB`);
 });
 
 await test('characters made, walked about a level and removed 30 times: nothing of them stays', async () => {
