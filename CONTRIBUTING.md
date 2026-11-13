@@ -64,8 +64,7 @@ wording, new kinds and fields), is in [What 1.x promises](docs/API.md#promises).
 
 ## The rules
 
-`CLAUDE.md` holds the rules Bearing is built to, written for the AI sessions that build it, and
-they are the rules for everyone. The ones that come up most:
+The rules Bearing is built to. The ones that come up most:
 
 - **Nothing arbitrary.** Every number in the code is derived (from the physics, the step, a
   format) or measured (with the measurement named beside it). Tolerances scale with the size of

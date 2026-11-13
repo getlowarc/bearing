@@ -17,6 +17,7 @@ npm-debug.log*
 *.bak
 *.orig
 
-# Claude Code's per-machine settings. CLAUDE.md, the rules, is committed.
+# Claude Code's files: the working notes and per-machine settings stay local.
+CLAUDE.md
 .claude/settings.local.json
 .claude/launch.json

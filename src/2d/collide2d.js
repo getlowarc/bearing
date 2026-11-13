@@ -29,7 +29,7 @@
 // Points are named by the corner they sit at, whichever shape is the
 // reference, so a point keeps its name, and its warm start, when two near-flat
 // shapes swap which is the reference (the buzzing that cost the 3D solver a
-// ragdoll, CLAUDE.md, "Whichever face is the reference").
+// ragdoll; see SWAPPED in ../collide.js).
 
 /** A shape's core, in its body's frame, with the centre of mass at (0, 0). */
 export class Core {

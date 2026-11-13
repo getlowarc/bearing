@@ -51,7 +51,7 @@
 //   pumped energy into a box hung from cloth; leave it unless it shows.
 //
 // Everything is exact operations and Math.sqrt, in a fixed order, so the
-// same on every machine (CLAUDE.md, determinism).
+// same on every machine (docs/API.md, Determinism).
 
 import { fail, show, options, known, positive, vec3, quat, readOnly, handle } from './core/check.js';
 import { Slots, resized, MAX_SLOTS } from './core/slots.js';
